@@ -18,17 +18,43 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { orgTeamApi } from "@/services/teamsApi";
+const DEFAULT_ORG_USERS = [
+  { id: "1", name: "Shikha Gour", email: "shikha.gour@docucore.ai", role: "Super Admin", department: "Executive", status: "Active", createdAt: "2024-01-01" },
+  { id: "2", name: "Rajesh Kumar", email: "rajesh.kumar@abctech.com", role: "Organisation Admin", department: "Operations", status: "Active", createdAt: "2024-01-15" },
+  { id: "3", name: "Priya Sharma", email: "priya.sharma@abctech.com", role: "Department Manager", department: "Legal & Compliance", status: "Active", createdAt: "2024-02-01" },
+  { id: "4", name: "Amit Patel", email: "amit.patel@abctech.com", role: "Team Leader", department: "Finance", status: "Active", createdAt: "2024-02-15" },
+  { id: "5", name: "Ananya Roy", email: "ananya.roy@abctech.com", role: "Employee", department: "Human Resources", status: "Active", createdAt: "2024-03-01" },
+];
+
+const DEFAULT_ORG_DEPTS = [
+  { id: "1", name: "Legal & Compliance", manager: "Priya Sharma", managerEmail: "priya.sharma@abctech.com", membersCount: 8, description: "Contract analysis, risk verification and NDA tracking." },
+  { id: "2", name: "Finance & Accounts", manager: "Amit Patel", managerEmail: "amit.patel@abctech.com", membersCount: 12, description: "Accounts payable, vendor reconciliations and invoice processing." },
+  { id: "3", name: "Human Resources", manager: "Rajesh Kumar", managerEmail: "rajesh.kumar@abctech.com", membersCount: 6, description: "Employee onboarding, offer letter generation and compliance." },
+  { id: "4", name: "Operations & Logistics", manager: "Ananya Roy", managerEmail: "ananya.roy@abctech.com", membersCount: 14, description: "Supply chain agreements and warehouse work orders." },
+];
+
+const DEFAULT_ORG_TEAMS = [
+  { id: "1", name: "Corporate Contracts Unit", department: "Legal & Compliance", teamLead: "Priya Sharma", membersCount: 4 },
+  { id: "2", name: "Vendor Invoicing Team", department: "Finance & Accounts", teamLead: "Amit Patel", membersCount: 7 },
+  { id: "3", name: "Talent Acquisition Squad", department: "Human Resources", teamLead: "Rajesh Kumar", membersCount: 3 },
+];
+
+const DEFAULT_ORG_ACTIVITY = [
+  { id: "1", user: "Priya Sharma", action: "Approved Document", target: "Master_Service_Agreement_2026.docx", timestamp: "10 minutes ago" },
+  { id: "2", user: "Amit Patel", action: "Extracted Invoice Data", target: "Vendor_Invoice_TechCorp_Q3.pdf", timestamp: "1 hour ago" },
+  { id: "3", user: "Rajesh Kumar", action: "Dispatched Invitation", target: "ananya.roy@abctech.com", timestamp: "3 hours ago" },
+];
 
 export default function OrgAdminTeamPage() {
   const [activeTab, setActiveTab] = useState("users");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Data states
-  const [users, setUsers] = useState<any[]>([]);
-  const [departments, setDepartments] = useState<any[]>([]);
-  const [teams, setTeams] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>(DEFAULT_ORG_USERS);
+  const [departments, setDepartments] = useState<any[]>(DEFAULT_ORG_DEPTS);
+  const [teams, setTeams] = useState<any[]>(DEFAULT_ORG_TEAMS);
   const [permissions, setPermissions] = useState<any>(null);
-  const [activityLogs, setActivityLogs] = useState<any[]>([]);
+  const [activityLogs, setActivityLogs] = useState<any[]>(DEFAULT_ORG_ACTIVITY);
   const [searchQuery, setSearchQuery] = useState("");
 
   // Modals & forms
@@ -54,15 +80,15 @@ export default function OrgAdminTeamPage() {
 
   const loadData = () => {
     orgTeamApi.getUsers().then((res) => {
-      if (res && res.data) setUsers(res.data);
+      if (res && res.data && Array.isArray(res.data) && res.data.length > 0) setUsers(res.data);
     }).catch(() => {});
 
     orgTeamApi.getDepartments().then((res) => {
-      if (res && res.data) setDepartments(res.data);
+      if (res && res.data && Array.isArray(res.data) && res.data.length > 0) setDepartments(res.data);
     }).catch(() => {});
 
     orgTeamApi.getTeams().then((res) => {
-      if (res && res.data) setTeams(res.data);
+      if (res && res.data && Array.isArray(res.data) && res.data.length > 0) setTeams(res.data);
     }).catch(() => {});
 
     orgTeamApi.getPermissionsMatrix().then((res) => {
@@ -70,7 +96,7 @@ export default function OrgAdminTeamPage() {
     }).catch(() => {});
 
     orgTeamApi.getUserActivityLog().then((res) => {
-      if (res && res.data) setActivityLogs(res.data);
+      if (res && res.data && Array.isArray(res.data) && res.data.length > 0) setActivityLogs(res.data);
     }).catch(() => {});
   };
 

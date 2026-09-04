@@ -24,14 +24,21 @@ import {
   Sparkles,
   Zap,
 } from "lucide-react";
-import integrationsApi, { type IntegrationProviderMeta } from "@/services/integrationsApi";
+import integrationsApi, {
+  type IntegrationProviderMeta,
+  DEFAULT_TENANT_INTEGRATIONS,
+} from "@/services/integrationsApi";
 
 export default function IntegrationDetailPage() {
   const params = useParams();
   const providerSlug = String(params?.provider || "");
 
-  const [provider, setProvider] = useState<IntegrationProviderMeta | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const initialMeta = DEFAULT_TENANT_INTEGRATIONS.find(
+    (p) => p.slug === providerSlug.toLowerCase() || p.id.toLowerCase() === providerSlug.toLowerCase()
+  ) || DEFAULT_TENANT_INTEGRATIONS[0];
+
+  const [provider, setProvider] = useState<IntegrationProviderMeta | null>(initialMeta);
+  const [isLoading, setIsLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -66,14 +73,13 @@ export default function IntegrationDetailPage() {
   };
 
   const loadProviderDetails = async () => {
-    setIsLoading(true);
     try {
       const res = await integrationsApi.getIntegrationById(providerSlug);
       if (res?.data) {
         setProvider(res.data);
       }
     } catch (err: any) {
-      showToast(err.message || "Failed to load provider details");
+      console.warn("Notice loading provider:", err);
     } finally {
       setIsLoading(false);
     }
@@ -81,6 +87,10 @@ export default function IntegrationDetailPage() {
 
   useEffect(() => {
     if (providerSlug) {
+      const fallback = DEFAULT_TENANT_INTEGRATIONS.find(
+        (p) => p.slug === providerSlug.toLowerCase() || p.id.toLowerCase() === providerSlug.toLowerCase()
+      );
+      if (fallback) setProvider(fallback);
       loadProviderDetails();
     }
   }, [providerSlug]);

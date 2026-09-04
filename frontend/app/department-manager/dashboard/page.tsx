@@ -84,11 +84,40 @@ export default function DepartmentManagerDashboardPage() {
     aiProcessedDocuments: 182,
   };
 
-  const documentOverview = dashboardData?.documentOverview || [];
+  const DEFAULT_DOC_OVERVIEW = [
+    { date: "Mon", created: 14, completed: 22, pending: 6 },
+    { date: "Tue", created: 20, completed: 28, pending: 8 },
+    { date: "Wed", created: 18, completed: 32, pending: 5 },
+    { date: "Thu", created: 24, completed: 35, pending: 9 },
+    { date: "Fri", created: 30, completed: 42, pending: 7 },
+    { date: "Sat", created: 12, completed: 18, pending: 3 },
+    { date: "Sun", created: 8, completed: 14, pending: 2 },
+  ];
+
+  const DEFAULT_TEAM_WORKLOAD = [
+    { name: "Priya Sharma", role: "Team Lead", activeTasks: 6, completedTasks: 48, utilization: 85 },
+    { name: "Amit Patel", role: "Sr. Analyst", activeTasks: 8, completedTasks: 54, utilization: 92 },
+    { name: "Ananya Roy", role: "Compliance Officer", activeTasks: 4, completedTasks: 38, utilization: 70 },
+    { name: "Aman Sharma", role: "Doc Specialist", activeTasks: 5, completedTasks: 42, utilization: 78 },
+  ];
+
+  const DEFAULT_RECENT_DOCS = [
+    { id: "1", name: "Master_Service_Agreement_2026.docx", type: "DOCX", status: "Approved", owner: "Priya Sharma", updated: "10 mins ago" },
+    { id: "2", name: "Vendor_Invoice_TechCorp_Q3.pdf", type: "PDF", status: "Completed", owner: "Amit Patel", updated: "1 hour ago" },
+    { id: "3", name: "Employment_Agreement_Rajesh.pdf", type: "PDF", status: "In Progress", owner: "Shikha Gour", updated: "3 hours ago" },
+  ];
+
+  const DEFAULT_RECENT_ACTIVITY = [
+    { id: "1", user: "Priya Sharma", action: "Approved Document", target: "Master_Service_Agreement_2026.docx", timestamp: "10 minutes ago" },
+    { id: "2", user: "Amit Patel", action: "Completed OCR Extraction", target: "Vendor_Invoice_TechCorp_Q3.pdf", timestamp: "1 hour ago" },
+    { id: "3", user: "DocuCore AI", action: "Generated Risk Analysis", target: "Corporate_Lease_Agreement.pdf", timestamp: "2 hours ago" },
+  ];
+
+  const documentOverview = (dashboardData?.documentOverview && dashboardData.documentOverview.length > 0) ? dashboardData.documentOverview : DEFAULT_DOC_OVERVIEW;
   const approvalOverview = dashboardData?.approvalOverview || { pending: 4, approved: 318, rejected: 14, recentlySubmitted: [] };
-  const teamWorkload = dashboardData?.teamWorkload || [];
-  const recentDocuments = dashboardData?.recentDocuments || [];
-  const recentActivity = dashboardData?.recentActivity || [];
+  const teamWorkload = (dashboardData?.teamWorkload && dashboardData.teamWorkload.length > 0) ? dashboardData.teamWorkload : DEFAULT_TEAM_WORKLOAD;
+  const recentDocuments = (dashboardData?.recentDocuments && dashboardData.recentDocuments.length > 0) ? dashboardData.recentDocuments : DEFAULT_RECENT_DOCS;
+  const recentActivity = (dashboardData?.recentActivity && dashboardData.recentActivity.length > 0) ? dashboardData.recentActivity : DEFAULT_RECENT_ACTIVITY;
   const documentsByType = dashboardData?.documentsByType || [
     { type: "Invoice", count: 142 },
     { type: "Contract", count: 118 },

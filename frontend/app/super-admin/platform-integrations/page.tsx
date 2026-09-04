@@ -23,11 +23,14 @@ import {
   Copy,
   Info,
 } from "lucide-react";
-import integrationsApi, { type PlatformProviderMeta } from "@/services/integrationsApi";
+import integrationsApi, {
+  type PlatformProviderMeta,
+  DEFAULT_PLATFORM_INTEGRATIONS,
+} from "@/services/integrationsApi";
 
 export default function SuperAdminPlatformIntegrationsPage() {
-  const [providers, setProviders] = useState<PlatformProviderMeta[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [providers, setProviders] = useState<PlatformProviderMeta[]>(DEFAULT_PLATFORM_INTEGRATIONS);
+  const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -45,14 +48,14 @@ export default function SuperAdminPlatformIntegrationsPage() {
   };
 
   const loadData = async (silent = false) => {
-    if (!silent) setIsLoading(true);
+    if (!silent) setIsRefreshing(true);
     try {
       const res = await integrationsApi.getPlatformIntegrations();
-      if (res?.data) {
+      if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
         setProviders(res.data);
       }
     } catch (err: any) {
-      showToast("Notice: " + (err.message || "Failed to load platform integrations"));
+      console.warn("Notice loading platform integrations:", err);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);

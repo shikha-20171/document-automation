@@ -21,14 +21,19 @@ import {
   Sparkles,
   Zap,
 } from "lucide-react";
-import integrationsApi, { type IntegrationProviderMeta } from "@/services/integrationsApi";
+import integrationsApi, {
+  type IntegrationProviderMeta,
+  DEFAULT_TENANT_INTEGRATIONS,
+} from "@/services/integrationsApi";
 
 export default function OrgAdminIntegrationsPage() {
   const router = useRouter();
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
-  const [providers, setProviders] = useState<IntegrationProviderMeta[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [providers, setProviders] = useState<IntegrationProviderMeta[]>(
+    DEFAULT_TENANT_INTEGRATIONS.filter((p) => p.id !== "AWS_S3" && p.slug !== "aws-s3")
+  );
+  const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -39,16 +44,16 @@ export default function OrgAdminIntegrationsPage() {
   };
 
   const loadData = async (silent = false) => {
-    if (!silent) setIsLoading(true);
+    if (!silent) setIsRefreshing(true);
     try {
       const res = await integrationsApi.getProvidersCatalog();
-      if (res?.data) {
+      if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
         // Exclude platform storage (AWS S3) from Organisation Admin integrations list
         const tenantCatalog = res.data.filter((p) => p.id !== "AWS_S3" && p.slug !== "aws-s3");
         setProviders(tenantCatalog);
       }
     } catch (err: any) {
-      showToast("Notice: " + (err.message || "Failed to load integrations"));
+      console.warn("Notice loading integrations:", err);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);

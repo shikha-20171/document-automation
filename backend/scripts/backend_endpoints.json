@@ -1,0 +1,3886 @@
+[
+  {
+    "method": "POST",
+    "path": "/auth/login"
+  },
+  {
+    "method": "GET",
+    "path": "/auth/me"
+  },
+  {
+    "method": "POST",
+    "path": "/auth/refresh-token"
+  },
+  {
+    "method": "POST",
+    "path": "/auth/logout"
+  },
+  {
+    "method": "POST",
+    "path": "/auth/forgot-password"
+  },
+  {
+    "method": "POST",
+    "path": "/auth/reset-password"
+  },
+  {
+    "method": "POST",
+    "path": "/auth/change-password"
+  },
+  {
+    "method": "POST",
+    "path": "/auth/invitation/verify"
+  },
+  {
+    "method": "POST",
+    "path": "/auth/invitation/activate"
+  },
+  {
+    "method": "POST",
+    "path": "/api/auth/login"
+  },
+  {
+    "method": "GET",
+    "path": "/api/auth/me"
+  },
+  {
+    "method": "POST",
+    "path": "/api/auth/refresh-token"
+  },
+  {
+    "method": "POST",
+    "path": "/api/auth/logout"
+  },
+  {
+    "method": "POST",
+    "path": "/api/auth/forgot-password"
+  },
+  {
+    "method": "POST",
+    "path": "/api/auth/reset-password"
+  },
+  {
+    "method": "POST",
+    "path": "/api/auth/change-password"
+  },
+  {
+    "method": "POST",
+    "path": "/api/auth/invitation/verify"
+  },
+  {
+    "method": "POST",
+    "path": "/api/auth/invitation/activate"
+  },
+  {
+    "method": "GET",
+    "path": "/api/organisations/dashboard-stats"
+  },
+  {
+    "method": "GET",
+    "path": "/api/organisations"
+  },
+  {
+    "method": "POST",
+    "path": "/api/organisations"
+  },
+  {
+    "method": "GET",
+    "path": "/api/organisations/stats/summary"
+  },
+  {
+    "method": "POST",
+    "path": "/api/organisations/:id/suspend"
+  },
+  {
+    "method": "POST",
+    "path": "/api/organisations/:id/activate"
+  },
+  {
+    "method": "POST",
+    "path": "/api/organisations/:id/resend-invitation"
+  },
+  {
+    "method": "GET",
+    "path": "/api/organisations/:id"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/organisations/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/organisations/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/organisations/:id/admins"
+  },
+  {
+    "method": "GET",
+    "path": "/api/organisations/:id/departments"
+  },
+  {
+    "method": "GET",
+    "path": "/api/organisations/:id/teams"
+  },
+  {
+    "method": "GET",
+    "path": "/api/organisations/:id/employees"
+  },
+  {
+    "method": "GET",
+    "path": "/api/organisations/:id/documents"
+  },
+  {
+    "method": "GET",
+    "path": "/api/organisations/:id/analytics"
+  },
+  {
+    "method": "GET",
+    "path": "/api/organisations/:id/activity"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/organisations/:id/settings"
+  },
+  {
+    "method": "GET",
+    "path": "/organisations/dashboard-stats"
+  },
+  {
+    "method": "GET",
+    "path": "/organisations"
+  },
+  {
+    "method": "POST",
+    "path": "/organisations"
+  },
+  {
+    "method": "GET",
+    "path": "/organisations/stats/summary"
+  },
+  {
+    "method": "POST",
+    "path": "/organisations/:id/suspend"
+  },
+  {
+    "method": "POST",
+    "path": "/organisations/:id/activate"
+  },
+  {
+    "method": "POST",
+    "path": "/organisations/:id/resend-invitation"
+  },
+  {
+    "method": "GET",
+    "path": "/organisations/:id"
+  },
+  {
+    "method": "PUT",
+    "path": "/organisations/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/organisations/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/organisations/:id/admins"
+  },
+  {
+    "method": "GET",
+    "path": "/organisations/:id/departments"
+  },
+  {
+    "method": "GET",
+    "path": "/organisations/:id/teams"
+  },
+  {
+    "method": "GET",
+    "path": "/organisations/:id/employees"
+  },
+  {
+    "method": "GET",
+    "path": "/organisations/:id/documents"
+  },
+  {
+    "method": "GET",
+    "path": "/organisations/:id/analytics"
+  },
+  {
+    "method": "GET",
+    "path": "/organisations/:id/activity"
+  },
+  {
+    "method": "PUT",
+    "path": "/organisations/:id/settings"
+  },
+  {
+    "method": "POST",
+    "path": "/api/organisation-admins"
+  },
+  {
+    "method": "GET",
+    "path": "/api/organisation-admins"
+  },
+  {
+    "method": "GET",
+    "path": "/api/organisation-admins/:id"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/organisation-admins/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/organisation-admins/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/organisation-admins/:id/send-credentials"
+  },
+  {
+    "method": "POST",
+    "path": "/api/companies"
+  },
+  {
+    "method": "GET",
+    "path": "/api/companies"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/companies/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/companies"
+  },
+  {
+    "method": "GET",
+    "path": "/companies"
+  },
+  {
+    "method": "PUT",
+    "path": "/companies/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/send-email/send-credentials"
+  },
+  {
+    "method": "GET",
+    "path": "/api/ai/providers"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/providers"
+  },
+  {
+    "method": "GET",
+    "path": "/api/ai/providers/:id"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/ai/providers/:id"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/ai/providers/:id/status"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/providers/:id/configure"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/providers/:id/activate"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/providers/:id/deactivate"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/providers/:id/test"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/providers/:id/test-connection"
+  },
+  {
+    "method": "GET",
+    "path": "/api/ai/models"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/models"
+  },
+  {
+    "method": "GET",
+    "path": "/api/ai/models/:id"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/ai/models/:id"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/ai/models/:id/status"
+  },
+  {
+    "method": "GET",
+    "path": "/api/ai/models/:id/organizations"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/ai/models/:id/organizations"
+  },
+  {
+    "method": "GET",
+    "path": "/api/public/subscription-plans"
+  },
+  {
+    "method": "GET",
+    "path": "/api/organisation/subscription"
+  },
+  {
+    "method": "GET",
+    "path": "/api/organisation/entitlements"
+  },
+  {
+    "method": "GET",
+    "path": "/api/organisation/usage"
+  },
+  {
+    "method": "POST",
+    "path": "/api/organisation/subscription/change-request"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/ai/overview"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/ai/providers"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/ai/providers"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/ai/providers/:id"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/ai/providers/:id/toggle"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/ai/providers/:id/toggle"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/ai/providers/:id/test"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/super-admin/ai/providers/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/ai/models"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/ai/models"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/ai/models/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/super-admin/ai/models/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/ai/capabilities"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/ai/capabilities"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/ai/capabilities/:id"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/ai/capabilities/:id/toggle"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/ai/capabilities/:id/toggle"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/super-admin/ai/capabilities/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/ai/jobs"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/ai/jobs/:id/retry"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/ai/jobs/:id/cancel"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/ai/usage"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/ai/costs"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/ai/logs"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/ai/health"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/ai/health/test-all"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/ocr/overview"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/ocr/providers"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/ocr/providers"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/ocr/providers/:id"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/ocr/providers/:id/toggle"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/ocr/providers/:id/toggle"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/ocr/providers/:id/test"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/super-admin/ocr/providers/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/ocr/profiles"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/ocr/profiles"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/ocr/profiles/:id"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/ocr/profiles/:id/toggle"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/ocr/profiles/:id/toggle"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/super-admin/ocr/profiles/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/ocr/jobs"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/ocr/jobs/:id/retry"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/ocr/jobs/:id/reprocess"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/ocr/jobs/:id/cancel"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/ocr/usage"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/ocr/costs"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/ocr/logs"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/ocr/health"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/ocr/health/test-all"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/dashboard"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/dashboard/stats"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/dashboard/metrics"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/dashboard/growth"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/dashboard/platform-health"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/dashboard/health"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/organisations/dashboard-stats"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/organisations"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/organisations"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/organisations/stats/summary"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/organisations/:id/suspend"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/organisations/:id/activate"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/organisations/:id/resend-invitation"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/organisations/:id"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/organisations/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/super-admin/organisations/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/organisations/:id/admins"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/organisations/:id/departments"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/organisations/:id/teams"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/organisations/:id/employees"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/organisations/:id/documents"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/organisations/:id/analytics"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/organisations/:id/activity"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/organisations/:id/settings"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/storage"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/storage/overview"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/storage/config"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/storage/configs"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/storage/config"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/storage/configs"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/storage/config"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/storage/configs/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/storage/test-connection"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/storage/disconnect"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/storage/backups"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/storage/backups/run"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/storage/retention"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/storage/retention"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/storage/alerts"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/subscriptions/assign"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/subscriptions/org-subscriptions/assign"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/subscriptions"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/subscriptions/plans"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/subscriptions/plans"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/subscriptions/plans/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/super-admin/subscriptions/plans/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/subscriptions/org-subscriptions"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/subscriptions/org-subscriptions/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/subscriptions/requests"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/subscriptions/requests/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/ai-management/queue"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/ai-management/logs"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/ai-management/costs"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/ai-management/health"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/ai-management/ocr-engines"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/ai-management/ocr-requests"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/ai-management/overview"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/ai-management/providers"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/ai-management/providers"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/ai-management/providers/:id"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/ai-management/providers/:id/toggle"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/ai-management/providers/:id/toggle"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/ai-management/providers/:id/test"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/super-admin/ai-management/providers/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/ai-management/models"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/ai-management/models"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/ai-management/models/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/super-admin/ai-management/models/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/ai-management/capabilities"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/ai-management/capabilities"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/ai-management/capabilities/:id"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/ai-management/capabilities/:id/toggle"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/ai-management/capabilities/:id/toggle"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/super-admin/ai-management/capabilities/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/ai-management/jobs"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/ai-management/jobs/:id/retry"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/ai-management/jobs/:id/cancel"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/ai-management/usage"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/ai-management/health/test-all"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/audit-logs/overview"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/audit-logs/summary"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/audit-logs/security-events"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/audit-logs/admin-actions"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/audit-logs/export"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/audit-logs"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/audit-logs/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/audit-logs"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/support"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/support/tickets"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/support/tickets"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/support/tickets/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/support/tickets/:id/reply"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/settings"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/settings"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/billing"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/billing/overview"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/billing/invoices"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/billing/invoices"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/billing/transactions"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/billing/refunds"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/billing/refunds/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/billing/gateways"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/billing/gateways/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/billing/settings"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/billing/settings"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/platform/feature-flags"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/platform/feature-flags"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/platform/feature-flags/:id/toggle"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/platform/announcements"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/platform/announcements"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/platform/automation/jobs"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/platform/jobs"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/platform/settings"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/platform/settings"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/platform/system-tests/run"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/platform/system-tests/run"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/platform/run"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/platform/run"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/platform/emergency-access"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/feature-flags/feature-flags"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/feature-flags/feature-flags"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/feature-flags/feature-flags/:id/toggle"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/feature-flags/announcements"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/feature-flags/announcements"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/feature-flags/automation/jobs"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/feature-flags/jobs"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/feature-flags/settings"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/feature-flags/settings"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/feature-flags/system-tests/run"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/feature-flags/system-tests/run"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/feature-flags/run"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/feature-flags/run"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/feature-flags/emergency-access"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/announcements/feature-flags"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/announcements/feature-flags"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/announcements/feature-flags/:id/toggle"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/announcements/announcements"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/announcements/announcements"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/announcements/automation/jobs"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/announcements/jobs"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/announcements/settings"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/announcements/settings"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/announcements/system-tests/run"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/announcements/system-tests/run"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/announcements/run"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/announcements/run"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/announcements/emergency-access"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/automation/feature-flags"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/automation/feature-flags"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/automation/feature-flags/:id/toggle"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/automation/announcements"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/automation/announcements"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/automation/automation/jobs"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/automation/jobs"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/automation/settings"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/automation/settings"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/automation/system-tests/run"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/automation/system-tests/run"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/automation/run"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/automation/run"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/automation/emergency-access"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/platform-integrations"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/platform-integrations/:provider/config"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/platform-integrations/:provider/toggle"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/platform-integrations/:provider/test"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/integrations"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/integrations/:provider/config"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/integrations/:provider/toggle"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/integrations/:provider/test"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/users-access"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/users-access/:id/status"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/users-access/:id/role"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/users"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/users/:id/status"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/users/:id/role"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/analytics/platform"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/analytics/summary"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/analytics/organisations"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/analytics/ai"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/analytics/ocr"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/templates"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/templates/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/templates"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/templates/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/super-admin/templates/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/monitoring"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/monitoring/health"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/monitoring/summary"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/monitoring/logs"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/system-monitoring"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/system-monitoring/health"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/system-monitoring/summary"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/system-monitoring/logs"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/cms"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/cms"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/modules/billing"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/modules/ocr-processing"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/modules/ocr-processing/retry"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/modules/documents"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/modules/workflows"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/modules/users-access"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/modules/notifications"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/modules/notifications/broadcast"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/super-admin/modules/notifications/read-all"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/modules/notifications/read-all"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/super-admin/modules/notifications/:id/read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/modules/notifications/:id/read"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/super-admin/modules/notifications/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/modules/notifications/settings"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/modules/notifications/settings"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/modules/notifications/settings"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/modules/system-monitoring"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/modules/security"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/modules/reports"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/documents/search"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/documents"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/documents"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/documents/upload"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/documents/:id/comments"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/documents/:id/comments"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/documents/:id/download"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/documents/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/org-admin/documents/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/documents/search"
+  },
+  {
+    "method": "GET",
+    "path": "/api/documents"
+  },
+  {
+    "method": "POST",
+    "path": "/api/documents"
+  },
+  {
+    "method": "POST",
+    "path": "/api/documents/upload"
+  },
+  {
+    "method": "GET",
+    "path": "/api/documents/:id/comments"
+  },
+  {
+    "method": "POST",
+    "path": "/api/documents/:id/comments"
+  },
+  {
+    "method": "GET",
+    "path": "/api/documents/:id/download"
+  },
+  {
+    "method": "GET",
+    "path": "/api/documents/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/documents/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/ai-tools/ocr"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/ai-tools/grammar"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/ai-tools/compare"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/ai-tools/key-info"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/ai-tools/chat"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/ai-tools/doc-qa"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/ai-tools/summarize"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/ai-tools/extract"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/ai-tools/classify"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/ai-tools/translate"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/ai-tools/rewrite"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/ai-tools/draft"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/ai-tools/generate"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/ai-tools/analysis"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/ai-tools/prompts"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/ai-tools/usage"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/analytics"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/analytics/overview"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/analytics/data"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/analytics/documents"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/analytics/ai"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/analytics/team"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/analytics/storage"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/team"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/team/users"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/team/users"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/team/members"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/team/members"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/org-admin/team/users/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/org-admin/team/users/:id"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/org-admin/team/members/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/org-admin/team/members/:id"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/org-admin/team/users/:id/status"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/team/users/invite"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/team/users/resend-invite"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/team/departments"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/team/departments"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/org-admin/team/departments/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/org-admin/team/departments/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/team/teams"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/team/teams"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/team/permissions"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/team/activity"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/workflows"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/workflows"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/workflows/requests"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/workflows/requests/:id/action"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/workflows/history"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/workflows/:id"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/org-admin/workflows/:id"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/org-admin/workflows/:id/status"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/workflows/:id/duplicate"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/org-admin/workflows/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/ai-builder/generate"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/ai-builder/transform"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/ai-builder/autosave"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/ai-builder/submit"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/ai-builder/recipients"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/ai-builder/templates"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/ai-builder/templates"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/org-admin/ai-builder/templates/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/org-admin/ai-builder/templates/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/ai-builder/templates/:id/duplicate"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/org-admin/ai-builder/templates/:id/publish"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/ai-builder/templates/:id/versions"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/ai-builder/templates/:id/versions/:version/restore"
+  },
+  {
+    "method": "GET",
+    "path": "/api/integrations/providers"
+  },
+  {
+    "method": "GET",
+    "path": "/api/integrations"
+  },
+  {
+    "method": "GET",
+    "path": "/api/integrations/status"
+  },
+  {
+    "method": "POST",
+    "path": "/api/integrations/google/connect"
+  },
+  {
+    "method": "GET",
+    "path": "/api/integrations/google/callback"
+  },
+  {
+    "method": "POST",
+    "path": "/api/integrations/microsoft/connect"
+  },
+  {
+    "method": "GET",
+    "path": "/api/integrations/microsoft/callback"
+  },
+  {
+    "method": "POST",
+    "path": "/api/integrations/slack/connect"
+  },
+  {
+    "method": "GET",
+    "path": "/api/integrations/slack/callback"
+  },
+  {
+    "method": "POST",
+    "path": "/api/integrations/teams/connect"
+  },
+  {
+    "method": "GET",
+    "path": "/api/integrations/teams/callback"
+  },
+  {
+    "method": "GET",
+    "path": "/api/integrations/api-keys"
+  },
+  {
+    "method": "POST",
+    "path": "/api/integrations/api-keys"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/integrations/api-keys/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/integrations/webhooks"
+  },
+  {
+    "method": "POST",
+    "path": "/api/integrations/webhooks"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/integrations/webhooks/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/integrations/webhooks/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/integrations/webhooks/:id/test"
+  },
+  {
+    "method": "GET",
+    "path": "/api/integrations/webhooks/:id/deliveries"
+  },
+  {
+    "method": "POST",
+    "path": "/api/integrations/webhooks/deliveries/:id/retry"
+  },
+  {
+    "method": "GET",
+    "path": "/api/integrations/custom"
+  },
+  {
+    "method": "POST",
+    "path": "/api/integrations/custom"
+  },
+  {
+    "method": "POST",
+    "path": "/api/integrations/custom/test"
+  },
+  {
+    "method": "POST",
+    "path": "/api/integrations/:provider/connect"
+  },
+  {
+    "method": "GET",
+    "path": "/api/integrations/:provider/callback"
+  },
+  {
+    "method": "POST",
+    "path": "/api/integrations/:provider/test"
+  },
+  {
+    "method": "POST",
+    "path": "/api/integrations/:provider/actions/:action"
+  },
+  {
+    "method": "POST",
+    "path": "/api/integrations/:provider/action"
+  },
+  {
+    "method": "GET",
+    "path": "/api/integrations/:provider/logs"
+  },
+  {
+    "method": "POST",
+    "path": "/api/integrations/:id/disconnect"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/integrations/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/integrations/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/integrations/providers"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/integrations"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/integrations/status"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/integrations/google/connect"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/integrations/google/callback"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/integrations/microsoft/connect"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/integrations/microsoft/callback"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/integrations/slack/connect"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/integrations/slack/callback"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/integrations/teams/connect"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/integrations/teams/callback"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/integrations/api-keys"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/integrations/api-keys"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/org-admin/integrations/api-keys/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/integrations/webhooks"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/integrations/webhooks"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/org-admin/integrations/webhooks/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/org-admin/integrations/webhooks/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/integrations/webhooks/:id/test"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/integrations/webhooks/:id/deliveries"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/integrations/webhooks/deliveries/:id/retry"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/integrations/custom"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/integrations/custom"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/integrations/custom/test"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/integrations/:provider/connect"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/integrations/:provider/callback"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/integrations/:provider/test"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/integrations/:provider/actions/:action"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/integrations/:provider/action"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/integrations/:provider/logs"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/integrations/:id/disconnect"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/org-admin/integrations/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/integrations/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/settings"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/org-admin/settings/profile"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/org-admin/settings/ai"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/org-admin/settings/branding"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/org-admin/settings/documents"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/support"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/support/dashboard"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/support/tickets"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/support/tickets"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/support/tickets/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/support/tickets/:id/replies"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/support/help-center"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/notifications"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/notifications/read-all"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/org-admin/notifications/read-all"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/org-admin/notifications/:id/read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/notifications/:id/read"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/org-admin/notifications/:id/unread"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/org-admin/notifications/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/notifications"
+  },
+  {
+    "method": "POST",
+    "path": "/api/notifications/read-all"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/notifications/read-all"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/notifications/:id/read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/notifications/:id/read"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/notifications/:id/unread"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/notifications/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/department-manager/dashboard"
+  },
+  {
+    "method": "GET",
+    "path": "/api/department-manager/documents"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/documents"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/documents/bulk"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/documents/bulk-action"
+  },
+  {
+    "method": "GET",
+    "path": "/api/department-manager/documents/:id"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/department-manager/documents/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/department-manager/documents/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/department-manager/templates"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/templates"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/department-manager/templates/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/templates/:id/duplicate"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/department-manager/templates/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/department-manager/team"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/team"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/team/create-team"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/team/members"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/team/invite-leader"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/team/invite-lead"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/team/resend-invite"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/team/resend-lead-invite"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/team/assign-document"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/department-manager/team/:id"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/department-manager/team/:id"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/department-manager/team/:id/status"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/department-manager/team/:id/toggle-status"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/team/:id/change-lead"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/department-manager/team/:id/change-lead"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/department-manager/team/members/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/department-manager/teams"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/teams"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/teams/create-team"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/teams/members"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/teams/invite-leader"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/teams/invite-lead"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/teams/resend-invite"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/teams/resend-lead-invite"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/teams/assign-document"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/department-manager/teams/:id"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/department-manager/teams/:id"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/department-manager/teams/:id/status"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/department-manager/teams/:id/toggle-status"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/teams/:id/change-lead"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/department-manager/teams/:id/change-lead"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/department-manager/teams/members/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/department-manager/approvals"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/approvals/:id/action"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/approvals/:id/approve"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/approvals/:id/reject"
+  },
+  {
+    "method": "GET",
+    "path": "/api/department-manager/reports"
+  },
+  {
+    "method": "GET",
+    "path": "/api/department-manager/notifications"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/notifications/read-all"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/department-manager/notifications/read-all"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/department-manager/notifications/:id/read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/notifications/:id/read"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/department-manager/notifications/:id/unread"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/department-manager/notifications/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/department-manager/profile"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/department-manager/profile"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/profile/change-password"
+  },
+  {
+    "method": "GET",
+    "path": "/api/department-manager/ai-tools/runs"
+  },
+  {
+    "method": "GET",
+    "path": "/api/department-manager/ai-tools/templates"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/ai-tools/templates"
+  },
+  {
+    "method": "GET",
+    "path": "/api/department-manager/ai-tools/documents"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/ai-tools/generate"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/ai-tools/document-generator"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/ai-tools/summarize"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/ai-tools/extract"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/ai-tools/extract/save"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/ai-tools/classify"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/ai-tools/ocr"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/ai-tools/save-document"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/ai-tools/assistant"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/ai-tools/compare"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/ai-tools/rewrite"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/ai-tools/translate"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/ai-tools/template-fill"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/ai-tools/grammar"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/ai-tools/grammar-check"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/ai-tools/generate-contract"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/ai-tools/analyze-compliance"
+  },
+  {
+    "method": "GET",
+    "path": "/api/department-manager"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/bulk"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/bulk-action"
+  },
+  {
+    "method": "GET",
+    "path": "/api/department-manager/:id"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/department-manager/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/department-manager/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/:id/duplicate"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/create-team"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/members"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/invite-leader"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/invite-lead"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/resend-invite"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/resend-lead-invite"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/assign-document"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/department-manager/:id"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/department-manager/:id/status"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/department-manager/:id/toggle-status"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/:id/change-lead"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/department-manager/:id/change-lead"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/department-manager/members/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/:id/action"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/:id/approve"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/:id/reject"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/read-all"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/department-manager/read-all"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/department-manager/:id/read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/:id/read"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/department-manager/:id/unread"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/department-manager"
+  },
+  {
+    "method": "POST",
+    "path": "/api/department-manager/change-password"
+  },
+  {
+    "method": "GET",
+    "path": "/api/team-leader/dashboard"
+  },
+  {
+    "method": "GET",
+    "path": "/api/team-leader/my-team"
+  },
+  {
+    "method": "GET",
+    "path": "/api/team-leader/my-team/employees/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/my-team/assign"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/my-team/assign-work"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/my-team/message"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/my-team/send-message"
+  },
+  {
+    "method": "GET",
+    "path": "/api/team-leader/team"
+  },
+  {
+    "method": "GET",
+    "path": "/api/team-leader/team/employees/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/team/assign"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/team/assign-work"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/team/message"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/team/send-message"
+  },
+  {
+    "method": "GET",
+    "path": "/api/team-leader/documents"
+  },
+  {
+    "method": "GET",
+    "path": "/api/team-leader/documents/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/documents/:id/comments"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/documents/:id/action"
+  },
+  {
+    "method": "GET",
+    "path": "/api/team-leader/templates"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/templates/team"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/templates/create-team-template"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/templates/generate"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/templates/use-template"
+  },
+  {
+    "method": "GET",
+    "path": "/api/team-leader/tasks"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/tasks"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/team-leader/tasks/:id"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/team-leader/tasks/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/team-leader/approvals"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/approvals/:id/action"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/approvals/:id/approve"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/approvals/:id/reject"
+  },
+  {
+    "method": "GET",
+    "path": "/api/team-leader/workflow"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/workflow/:id/step"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/workflow/:id/execute-step"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/workflow/:id/comments"
+  },
+  {
+    "method": "GET",
+    "path": "/api/team-leader/workflows"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/workflows/:id/step"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/workflows/:id/execute-step"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/workflows/:id/comments"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/ai-tools/run"
+  },
+  {
+    "method": "GET",
+    "path": "/api/team-leader/reports"
+  },
+  {
+    "method": "GET",
+    "path": "/api/team-leader/notifications"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/team-leader/notifications/read-all"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/notifications/read-all"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/team-leader/notifications/:id/read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/notifications/:id/read"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/team-leader/notifications/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/team-leader/profile"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/team-leader/profile"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/profile/change-password"
+  },
+  {
+    "method": "GET",
+    "path": "/api/team-leader/support"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/support/tickets"
+  },
+  {
+    "method": "GET",
+    "path": "/api/team-leader"
+  },
+  {
+    "method": "GET",
+    "path": "/api/team-leader/employees/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/assign"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/assign-work"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/message"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/send-message"
+  },
+  {
+    "method": "GET",
+    "path": "/api/team-leader/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/:id/comments"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/:id/action"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/team"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/create-team-template"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/generate"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/use-template"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/team-leader/:id"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/team-leader/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/:id/approve"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/:id/reject"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/:id/step"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/:id/execute-step"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/run"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/team-leader/read-all"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/read-all"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/team-leader/:id/read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/:id/read"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/team-leader/:id"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/team-leader"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/change-password"
+  },
+  {
+    "method": "POST",
+    "path": "/api/team-leader/tickets"
+  },
+  {
+    "method": "GET",
+    "path": "/api/employee/dashboard"
+  },
+  {
+    "method": "GET",
+    "path": "/api/employee/documents"
+  },
+  {
+    "method": "POST",
+    "path": "/api/employee/documents"
+  },
+  {
+    "method": "GET",
+    "path": "/api/employee/documents/:id"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/employee/documents/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/employee/documents/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/employee/documents/:id/submit-approval"
+  },
+  {
+    "method": "POST",
+    "path": "/api/employee/documents/:id/toggle-archive"
+  },
+  {
+    "method": "POST",
+    "path": "/api/employee/documents/:id/share"
+  },
+  {
+    "method": "GET",
+    "path": "/api/employee/templates"
+  },
+  {
+    "method": "GET",
+    "path": "/api/employee/document-templates"
+  },
+  {
+    "method": "POST",
+    "path": "/api/employee/document-templates"
+  },
+  {
+    "method": "POST",
+    "path": "/api/employee/ai-tools/generate"
+  },
+  {
+    "method": "POST",
+    "path": "/api/employee/ai-tools/ocr"
+  },
+  {
+    "method": "POST",
+    "path": "/api/employee/templates"
+  },
+  {
+    "method": "GET",
+    "path": "/api/employee/templates/:id"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/employee/templates/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/employee/templates/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/employee/templates/:id/duplicate"
+  },
+  {
+    "method": "POST",
+    "path": "/api/employee/templates/generate-ai"
+  },
+  {
+    "method": "POST",
+    "path": "/api/employee/templates/generate-document"
+  },
+  {
+    "method": "GET",
+    "path": "/api/employee/tasks"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/employee/tasks/:id/status"
+  },
+  {
+    "method": "POST",
+    "path": "/api/employee/tasks/:id/comments"
+  },
+  {
+    "method": "POST",
+    "path": "/api/employee/tasks/:id/attachments"
+  },
+  {
+    "method": "GET",
+    "path": "/api/employee/approvals"
+  },
+  {
+    "method": "POST",
+    "path": "/api/employee/approvals"
+  },
+  {
+    "method": "POST",
+    "path": "/api/employee/approvals/:id/resubmit"
+  },
+  {
+    "method": "POST",
+    "path": "/api/employee/approvals/:id/cancel"
+  },
+  {
+    "method": "POST",
+    "path": "/api/employee/ai-tools/run"
+  },
+  {
+    "method": "GET",
+    "path": "/api/employee/notifications"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/employee/notifications/read-all"
+  },
+  {
+    "method": "POST",
+    "path": "/api/employee/notifications/read-all"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/employee/notifications/:id/read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/employee/notifications/:id/read"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/employee/notifications/preferences"
+  },
+  {
+    "method": "GET",
+    "path": "/api/employee/reports"
+  },
+  {
+    "method": "GET",
+    "path": "/api/employee/profile"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/employee/profile"
+  },
+  {
+    "method": "POST",
+    "path": "/api/employee/profile/change-password"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/employee/profile/sessions/:sessionId"
+  },
+  {
+    "method": "GET",
+    "path": "/api/ai/available-models"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/chat"
+  },
+  {
+    "method": "GET",
+    "path": "/api/ai/conversations"
+  },
+  {
+    "method": "GET",
+    "path": "/api/ai/conversations/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/ai/conversations/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/ai/documents"
+  },
+  {
+    "method": "GET",
+    "path": "/api/ai/history"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/documents/save"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/from-ai"
+  },
+  {
+    "method": "GET",
+    "path": "/api/ai/entitlements"
+  },
+  {
+    "method": "GET",
+    "path": "/api/ai/usage"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/generate"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/document/generate"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/ocr"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/summarize"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/extract"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/ask"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/rewrite"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/translate"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/grammar"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/compare"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/classify"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/key-info"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/template-section"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai/qa"
+  },
+  {
+    "method": "GET",
+    "path": "/api/governance/dashboard"
+  },
+  {
+    "method": "GET",
+    "path": "/api/governance/readiness"
+  },
+  {
+    "method": "GET",
+    "path": "/api/governance/audit-evidence"
+  },
+  {
+    "method": "GET",
+    "path": "/api/governance/security-policy"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/governance/security-policy"
+  },
+  {
+    "method": "GET",
+    "path": "/api/governance/ai-policy"
+  },
+  {
+    "method": "POST",
+    "path": "/api/governance/ai-policy"
+  },
+  {
+    "method": "GET",
+    "path": "/api/governance/change-requests"
+  },
+  {
+    "method": "POST",
+    "path": "/api/governance/change-requests"
+  },
+  {
+    "method": "POST",
+    "path": "/api/governance/change-requests/:id/approve"
+  },
+  {
+    "method": "POST",
+    "path": "/api/governance/change-requests/:id/reject"
+  },
+  {
+    "method": "POST",
+    "path": "/api/governance/change-requests/:id/apply"
+  },
+  {
+    "method": "GET",
+    "path": "/api/governance/access-reviews"
+  },
+  {
+    "method": "POST",
+    "path": "/api/governance/access-reviews"
+  },
+  {
+    "method": "GET",
+    "path": "/api/governance/access-reviews/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/governance/access-reviews/:campaignId/items/:itemId/decide"
+  },
+  {
+    "method": "POST",
+    "path": "/api/governance/access-reviews/:id/complete"
+  },
+  {
+    "method": "GET",
+    "path": "/api/governance/incidents"
+  },
+  {
+    "method": "POST",
+    "path": "/api/governance/incidents"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/governance/incidents/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/governance/risks"
+  },
+  {
+    "method": "POST",
+    "path": "/api/governance/risks"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/governance/risks/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/governance/risks/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/governance/retention"
+  },
+  {
+    "method": "POST",
+    "path": "/api/governance/retention"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/governance/retention/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/governance/retention/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/governance/retention/run-worker"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/governance/dashboard"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/governance/readiness"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/governance/audit-evidence"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/governance/security-policy"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/org-admin/governance/security-policy"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/governance/ai-policy"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/governance/ai-policy"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/governance/change-requests"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/governance/change-requests"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/governance/change-requests/:id/approve"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/governance/change-requests/:id/reject"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/governance/change-requests/:id/apply"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/governance/access-reviews"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/governance/access-reviews"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/governance/access-reviews/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/governance/access-reviews/:campaignId/items/:itemId/decide"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/governance/access-reviews/:id/complete"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/governance/incidents"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/governance/incidents"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/org-admin/governance/incidents/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/governance/risks"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/governance/risks"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/org-admin/governance/risks/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/org-admin/governance/risks/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/governance/retention"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/governance/retention"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/org-admin/governance/retention/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/org-admin/governance/retention/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/governance/retention/run-worker"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/governance/dashboard"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/governance/readiness"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/governance/audit-evidence"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/governance/security-policy"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/governance/security-policy"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/governance/ai-policy"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/governance/ai-policy"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/governance/change-requests"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/governance/change-requests"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/governance/change-requests/:id/approve"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/governance/change-requests/:id/reject"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/governance/change-requests/:id/apply"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/governance/access-reviews"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/governance/access-reviews"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/governance/access-reviews/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/governance/access-reviews/:campaignId/items/:itemId/decide"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/governance/access-reviews/:id/complete"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/governance/incidents"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/governance/incidents"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/super-admin/governance/incidents/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/governance/risks"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/governance/risks"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/super-admin/governance/risks/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/super-admin/governance/risks/:id"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/governance/retention"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/governance/retention"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/super-admin/governance/retention/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/super-admin/governance/retention/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/governance/retention/run-worker"
+  },
+  {
+    "method": "GET",
+    "path": "/api/system/health"
+  },
+  {
+    "method": "GET",
+    "path": "/api/system/metrics"
+  },
+  {
+    "method": "POST",
+    "path": "/api/system/maintenance"
+  },
+  {
+    "method": "POST",
+    "path": "/api/system/feature-flags"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/system/health"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/system/metrics"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/system/maintenance"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/system/feature-flags"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/monitoring/metrics"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/monitoring/maintenance"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/monitoring/feature-flags"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/disaster-recovery"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/disaster-recovery/backup"
+  },
+  {
+    "method": "POST",
+    "path": "/api/super-admin/disaster-recovery/simulate-restore"
+  },
+  {
+    "method": "GET",
+    "path": "/api/crm"
+  },
+  {
+    "method": "POST",
+    "path": "/api/crm"
+  },
+  {
+    "method": "GET",
+    "path": "/api/crm/providers"
+  },
+  {
+    "method": "POST",
+    "path": "/api/crm/sync-external"
+  },
+  {
+    "method": "GET",
+    "path": "/api/crm/clients"
+  },
+  {
+    "method": "POST",
+    "path": "/api/crm/clients"
+  },
+  {
+    "method": "POST",
+    "path": "/api/crm/clients/onboard"
+  },
+  {
+    "method": "GET",
+    "path": "/api/crm/clients/:id"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/crm/clients/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/crm/clients/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/crm/clients/:clientId/contacts"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/clients-crm"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/clients-crm"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/clients-crm/providers"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/clients-crm/sync-external"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/clients-crm/clients"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/clients-crm/clients"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/clients-crm/clients/onboard"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/clients-crm/clients/:id"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/org-admin/clients-crm/clients/:id"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/org-admin/clients-crm/clients/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/clients-crm/clients/:clientId/contacts"
+  },
+  {
+    "method": "POST",
+    "path": "/api/bulk-generation/jobs"
+  },
+  {
+    "method": "GET",
+    "path": "/api/bulk-generation/jobs"
+  },
+  {
+    "method": "GET",
+    "path": "/api/bulk-generation/jobs/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/bulk-generation/jobs"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/bulk-generation/jobs"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/bulk-generation/jobs/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/idp/process"
+  },
+  {
+    "method": "GET",
+    "path": "/api/idp/extractions"
+  },
+  {
+    "method": "GET",
+    "path": "/api/idp/extractions/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/idp/process"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/idp/extractions"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/idp/extractions/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/e-sign/envelopes"
+  },
+  {
+    "method": "GET",
+    "path": "/api/e-sign/envelopes"
+  },
+  {
+    "method": "GET",
+    "path": "/api/e-sign/envelopes/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/e-sign/envelopes/:envelopeId/sign"
+  },
+  {
+    "method": "POST",
+    "path": "/api/e-signature/envelopes"
+  },
+  {
+    "method": "GET",
+    "path": "/api/e-signature/envelopes"
+  },
+  {
+    "method": "GET",
+    "path": "/api/e-signature/envelopes/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/e-signature/envelopes/:envelopeId/sign"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/e-sign/envelopes"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/e-sign/envelopes"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/e-sign/envelopes/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/e-sign/envelopes/:envelopeId/sign"
+  },
+  {
+    "method": "POST",
+    "path": "/api/ai-agent/execute"
+  },
+  {
+    "method": "GET",
+    "path": "/api/ai-agent/history"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/ai-agent/execute"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/ai-agent/history"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forms"
+  },
+  {
+    "method": "GET",
+    "path": "/api/forms"
+  },
+  {
+    "method": "GET",
+    "path": "/api/forms/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forms/:id/submit"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/forms"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/forms"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/forms/:id"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/forms/:id/submit"
+  },
+  {
+    "method": "GET",
+    "path": "/api/tasks"
+  },
+  {
+    "method": "POST",
+    "path": "/api/tasks"
+  },
+  {
+    "method": "GET",
+    "path": "/api/tasks/:id"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/tasks/:id/status"
+  },
+  {
+    "method": "POST",
+    "path": "/api/tasks/:id/comments"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/tasks"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/tasks"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/tasks/:id"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/org-admin/tasks/:id/status"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/tasks/:id/comments"
+  },
+  {
+    "method": "GET",
+    "path": "/api/organisation/security"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/organisation/security"
+  },
+  {
+    "method": "GET",
+    "path": "/api/organisation/ai-policy"
+  },
+  {
+    "method": "POST",
+    "path": "/api/organisation/ai-policy"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/governance-policy/security"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/org-admin/governance-policy/security"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/governance-policy/ai-policy"
+  },
+  {
+    "method": "POST",
+    "path": "/api/org-admin/governance-policy/ai-policy"
+  },
+  {
+    "method": "GET",
+    "path": "/api/payments/providers"
+  },
+  {
+    "method": "POST",
+    "path": "/api/payments/webhooks/razorpay"
+  },
+  {
+    "method": "GET",
+    "path": "/api/usage/metrics"
+  },
+  {
+    "method": "GET",
+    "path": "/api/usage/summary"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/usage/metrics"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-admin/usage/summary"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/usage/metrics"
+  },
+  {
+    "method": "GET",
+    "path": "/api/super-admin/usage/summary"
+  }
+]
