@@ -19,6 +19,8 @@ const {
  */
 router.get("/", getTemplates);
 router.post("/team", createTeamTemplate);
+router.post("/create-team-template", createTeamTemplate);
 router.post("/generate", createDocFromTemplate);
+router.post("/use-template", createDocFromTemplate);
 
 module.exports = router;

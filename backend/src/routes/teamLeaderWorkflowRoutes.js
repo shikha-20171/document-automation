@@ -19,6 +19,7 @@ const {
  */
 router.get("/", getWorkflows);
 router.post("/:id/step", executeWorkflowStep);
+router.post("/:id/execute-step", executeWorkflowStep);
 router.post("/:id/comments", addWorkflowComment);
 
 module.exports = router;

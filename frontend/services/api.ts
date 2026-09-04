@@ -1,15 +1,25 @@
 import axios, {
   type AxiosInstance,
-  type AxiosRequestConfig,
   type AxiosResponse,
   type InternalAxiosRequestConfig,
 } from "axios";
 
-// ─── Base URL ─────────────────────────────────────────────────────────────────
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL ||
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
-  "http://localhost:5001/api";
+// ─── Base URL Normalizer ──────────────────────────────────────────────────────
+export function getApiBaseUrl(): string {
+  const envUrl =
+    process.env.NEXT_PUBLIC_API_URL ||
+    process.env.NEXT_PUBLIC_API_BASE_URL ||
+    "http://localhost:5001/api";
+
+  let clean = envUrl.trim().replace(/\/+$/, "");
+  // If the URL does not already end with /api, append /api
+  if (!clean.endsWith("/api")) {
+    clean = `${clean}/api`;
+  }
+  return clean;
+}
+
+export const API_BASE = getApiBaseUrl();
 
 // ─── Custom Error ─────────────────────────────────────────────────────────────
 export class ApiError extends Error {
@@ -34,16 +44,25 @@ export interface ApiResponse<T = any> {
 // ─── Central Axios Instance ───────────────────────────────────────────────────
 export const api: AxiosInstance = axios.create({
   baseURL: API_BASE,
-  timeout: 120_000, // 120 s for AI generation resilience
+  timeout: 120_000, // 120s for AI processing resilience
   withCredentials: true,
   headers: {
     "Content-Type": "application/json",
   },
 });
 
-// ─── Request Interceptor (attach auth token) ──────────────────────────────────
+// ─── Request Interceptor (attach auth token & normalize paths) ────────────────
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    // Prevent duplicate /api/api if a caller passed "/api/something"
+    if (config.url) {
+      if (config.url.startsWith("/api/")) {
+        config.url = config.url.substring(4);
+      } else if (config.url.startsWith("api/")) {
+        config.url = "/" + config.url.substring(4);
+      }
+    }
+
     if (typeof window !== "undefined") {
       const token =
         localStorage.getItem("token") ||

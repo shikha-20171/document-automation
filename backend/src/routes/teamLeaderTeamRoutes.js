@@ -21,6 +21,8 @@ const {
 router.get("/", getTeamOverview);
 router.get("/employees/:id", getEmployeeProfile);
 router.post("/assign", assignWorkToEmployee);
+router.post("/assign-work", assignWorkToEmployee);
 router.post("/message", sendMessageToEmployee);
+router.post("/send-message", sendMessageToEmployee);
 
 module.exports = router;

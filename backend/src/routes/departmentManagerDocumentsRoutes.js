@@ -30,6 +30,7 @@ const {
  */
 router.get("/", getDocuments);
 router.post("/", upload.single("file"), createDocument);
+router.post("/bulk", bulkDocumentAction);
 router.post("/bulk-action", bulkDocumentAction);
 router.get("/:id", getDocumentById);
 router.put("/:id", updateDocument);

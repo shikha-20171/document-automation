@@ -123,8 +123,35 @@ router.get("/dashboard-stats", getDashboardStats);
  *             schema:
  *               $ref: '#/components/schemas/StandardErrorResponse'
  */
+const prismaClient = require("../config/prismaClient");
+
 router.get("/", getAllOrganisations);
 router.post("/", createOrganisation);
+router.get("/stats/summary", getDashboardStats);
+
+router.post("/:id/suspend", async (req, res, next) => {
+  try {
+    const org = await prismaClient.organisation.update({
+      where: { id: Number(req.params.id) },
+      data: { status: "SUSPENDED" },
+    });
+    return res.status(200).json({ success: true, message: "Organisation suspended successfully", data: org });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/:id/activate", async (req, res, next) => {
+  try {
+    const org = await prismaClient.organisation.update({
+      where: { id: Number(req.params.id) },
+      data: { status: "ACTIVE" },
+    });
+    return res.status(200).json({ success: true, message: "Organisation activated successfully", data: org });
+  } catch (err) {
+    next(err);
+  }
+});
 
 /**
  * @swagger

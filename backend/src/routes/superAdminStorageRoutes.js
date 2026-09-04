@@ -24,6 +24,7 @@ router.get("/overview", getStorageOverview);
 router.get("/config", getStorageConfigs);
 router.get("/configs", getStorageConfigs);
 router.post("/config", updateStorageConfig);
+router.post("/configs", updateStorageConfig);
 router.put("/config", updateStorageConfig);
 router.put("/configs/:id", updateStorageConfig);
 router.post("/test-connection", testStorageConnection);

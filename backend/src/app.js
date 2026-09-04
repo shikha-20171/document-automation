@@ -40,18 +40,32 @@ const app = express();
 const allowedOrigins = [
   "http://localhost:3000",
   "http://127.0.0.1:3000",
+  "http://localhost:5001",
+  "http://127.0.0.1:5001",
   process.env.FRONTEND_URL,
 ].filter(Boolean);
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== "production") {
+      // Allow requests with no origin (mobile, curl, server-to-server)
+      if (!origin) return callback(null, true);
+      // Allow any vercel deployment
+      if (origin.endsWith(".vercel.app") || origin.includes("vercel.app")) {
         return callback(null, true);
       }
-      return callback(null, origin);
+      // Allow local development
+      if (origin.startsWith("http://localhost:") || origin.startsWith("http://127.0.0.1:")) {
+        return callback(null, true);
+      }
+      if (allowedOrigins.some((allowed) => allowed && origin.startsWith(allowed.replace(/\/+$/, "")))) {
+        return callback(null, true);
+      }
+      return callback(null, true);
     },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
   })
 );
 
@@ -95,13 +109,19 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-/*  API Routes */
+/*  API Routes & Aliases */
 
+// Direct Auth Aliases for root /auth calls
+app.use("/auth", authRoutes);
+app.use("/auth/invitation", require("./routes/invitationRoutes"));
 app.use("/api/auth", authRoutes);
 app.use("/api/auth/invitation", require("./routes/invitationRoutes"));
+
 app.use("/api/organisations", organisationRoutes);
+app.use("/organisations", organisationRoutes);
 app.use("/api/organisation-admins", organisationAdminRoutes);
 app.use("/api/companies", companyRoutes);
+app.use("/companies", companyRoutes);
 app.use("/api/send-email", emailRoutes);
 app.use("/api/ai/providers", aiProviderRoutes);
 app.use("/api/ai/models", aiModelRoutes);
@@ -149,9 +169,37 @@ app.use("/api/org-admin/settings", require("./routes/orgSettingsRoutes"));
 app.use("/api/org-admin/support", require("./routes/orgSupportRoutes"));
 app.use("/api/org-admin/notifications", require("./routes/orgNotificationsRoutes"));
 app.use("/api/notifications", require("./routes/orgNotificationsRoutes"));
+
+/*  Department Manager Module Routes  */
+app.use("/api/department-manager/dashboard", require("./routes/departmentManagerDashboardRoutes"));
+app.use("/api/department-manager/documents", require("./routes/departmentManagerDocumentsRoutes"));
+app.use("/api/department-manager/templates", require("./routes/departmentManagerTemplatesRoutes"));
+app.use("/api/department-manager/team", require("./routes/departmentManagerTeamsRoutes"));
+app.use("/api/department-manager/teams", require("./routes/departmentManagerTeamsRoutes"));
+app.use("/api/department-manager/approvals", require("./routes/departmentManagerApprovalsRoutes"));
+app.use("/api/department-manager/reports", require("./routes/departmentManagerReportsRoutes"));
+app.use("/api/department-manager/notifications", require("./routes/departmentManagerNotificationsRoutes"));
+app.use("/api/department-manager/profile", require("./routes/departmentManagerProfileRoutes"));
 app.use("/api/department-manager/ai-tools", require("./routes/departmentManagerAiToolsRoutes"));
 app.use("/api/department-manager", require("./routes/departmentManagerRoutes"));
+
+/*  Team Leader Module Routes  */
+app.use("/api/team-leader/dashboard", require("./routes/teamLeaderDashboardRoutes"));
+app.use("/api/team-leader/my-team", require("./routes/teamLeaderTeamRoutes"));
+app.use("/api/team-leader/team", require("./routes/teamLeaderTeamRoutes"));
+app.use("/api/team-leader/documents", require("./routes/teamLeaderDocumentsRoutes"));
+app.use("/api/team-leader/templates", require("./routes/teamLeaderTemplatesRoutes"));
+app.use("/api/team-leader/tasks", require("./routes/teamLeaderTasksRoutes"));
+app.use("/api/team-leader/approvals", require("./routes/teamLeaderApprovalsRoutes"));
+app.use("/api/team-leader/workflow", require("./routes/teamLeaderWorkflowRoutes"));
+app.use("/api/team-leader/workflows", require("./routes/teamLeaderWorkflowRoutes"));
+app.use("/api/team-leader/ai-tools", require("./routes/teamLeaderAiToolsRoutes"));
+app.use("/api/team-leader/reports", require("./routes/teamLeaderReportsRoutes"));
+app.use("/api/team-leader/notifications", require("./routes/teamLeaderNotificationsRoutes"));
+app.use("/api/team-leader/profile", require("./routes/teamLeaderProfileRoutes"));
+app.use("/api/team-leader/support", require("./routes/teamLeaderSupportRoutes"));
 app.use("/api/team-leader", require("./routes/teamLeaderRoutes"));
+
 app.use("/api/employee", require("./routes/employeeRoutes"));
 app.use("/api/ai", require("./routes/aiGatewayRoutes"));
 /*  Governance & Compliance (Phase 12)  */

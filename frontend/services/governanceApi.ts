@@ -163,153 +163,153 @@ export interface RetentionPolicyItem {
 export const governanceApi = {
   // 1. Dashboard
   getDashboardSummary: async () => {
-    const res = await axios.get<{ success: boolean; data: GovernanceDashboardSummary }>("/api/governance/dashboard");
+    const res = await axios.get<{ success: boolean; data: GovernanceDashboardSummary }>("/governance/dashboard");
     return res.data.data;
   },
 
   getComplianceReadiness: async () => {
-    const res = await axios.get("/api/governance/readiness");
+    const res = await axios.get("/governance/readiness");
     return res.data.data;
   },
 
   exportAuditEvidence: async () => {
-    const res = await axios.get("/api/governance/audit-evidence");
+    const res = await axios.get("/governance/audit-evidence");
     return res.data.data;
   },
 
   // 2. Policies
   getSecurityPolicy: async () => {
-    const res = await axios.get<{ success: boolean; data: SecurityPolicyData }>("/api/governance/security-policy");
+    const res = await axios.get<{ success: boolean; data: SecurityPolicyData }>("/governance/security-policy");
     return res.data.data;
   },
 
   updateSecurityPolicy: async (data: Partial<SecurityPolicyData>) => {
-    const res = await axios.put<{ success: boolean; message: string; data: SecurityPolicyData }>("/api/governance/security-policy", data);
+    const res = await axios.put<{ success: boolean; message: string; data: SecurityPolicyData }>("/governance/security-policy", data);
     return res.data;
   },
 
   getAiPolicies: async () => {
-    const res = await axios.get<{ success: boolean; data: AiPolicyData[] }>("/api/governance/ai-policy");
+    const res = await axios.get<{ success: boolean; data: AiPolicyData[] }>("/governance/ai-policy");
     return res.data.data;
   },
 
   saveAiPolicy: async (data: Partial<AiPolicyData>) => {
-    const res = await axios.post<{ success: boolean; message: string; data: AiPolicyData }>("/api/governance/ai-policy", data);
+    const res = await axios.post<{ success: boolean; message: string; data: AiPolicyData }>("/governance/ai-policy", data);
     return res.data;
   },
 
   // 3. Change Requests
   getChangeRequests: async (filters: { status?: string; changeType?: string; severity?: string } = {}) => {
-    const res = await axios.get<{ success: boolean; data: GovernanceChangeRequestItem[] }>("/api/governance/change-requests", { params: filters });
+    const res = await axios.get<{ success: boolean; data: GovernanceChangeRequestItem[] }>("/governance/change-requests", { params: filters });
     return res.data.data;
   },
 
   createChangeRequest: async (payload: { title: string; description: string; changeType: string; severity?: string; requestedValue?: any; currentValue?: any }) => {
-    const res = await axios.post<{ success: boolean; message: string; data: GovernanceChangeRequestItem }>("/api/governance/change-requests", payload);
+    const res = await axios.post<{ success: boolean; message: string; data: GovernanceChangeRequestItem }>("/governance/change-requests", payload);
     return res.data;
   },
 
   approveChangeRequest: async (id: string, approvalReason: string) => {
-    const res = await axios.post<{ success: boolean; message: string; data: GovernanceChangeRequestItem }>(`/api/governance/change-requests/${id}/approve`, { approvalReason });
+    const res = await axios.post<{ success: boolean; message: string; data: GovernanceChangeRequestItem }>(`/governance/change-requests/${id}/approve`, { approvalReason });
     return res.data;
   },
 
   rejectChangeRequest: async (id: string, approvalReason: string) => {
-    const res = await axios.post<{ success: boolean; message: string; data: GovernanceChangeRequestItem }>(`/api/governance/change-requests/${id}/reject`, { approvalReason });
+    const res = await axios.post<{ success: boolean; message: string; data: GovernanceChangeRequestItem }>(`/governance/change-requests/${id}/reject`, { approvalReason });
     return res.data;
   },
 
   applyChangeRequest: async (id: string) => {
-    const res = await axios.post<{ success: boolean; message: string; data: GovernanceChangeRequestItem }>(`/api/governance/change-requests/${id}/apply`);
+    const res = await axios.post<{ success: boolean; message: string; data: GovernanceChangeRequestItem }>(`/governance/change-requests/${id}/apply`);
     return res.data;
   },
 
   // 4. Access Reviews
   getAccessReviewCampaigns: async () => {
-    const res = await axios.get<{ success: boolean; data: AccessReviewCampaignItem[] }>("/api/governance/access-reviews");
+    const res = await axios.get<{ success: boolean; data: AccessReviewCampaignItem[] }>("/governance/access-reviews");
     return res.data.data;
   },
 
   createAccessReviewCampaign: async (payload: { name: string; description?: string; dueDate?: string; reviewerName?: string }) => {
-    const res = await axios.post<{ success: boolean; message: string; data: any }>("/api/governance/access-reviews", payload);
+    const res = await axios.post<{ success: boolean; message: string; data: any }>("/governance/access-reviews", payload);
     return res.data;
   },
 
   getCampaignDetails: async (campaignId: string) => {
-    const res = await axios.get<{ success: boolean; data: AccessReviewCampaignItem & { items: AccessReviewUserItem[] } }>(`/api/governance/access-reviews/${campaignId}`);
+    const res = await axios.get<{ success: boolean; data: AccessReviewCampaignItem & { items: AccessReviewUserItem[] } }>(`/governance/access-reviews/${campaignId}`);
     return res.data.data;
   },
 
   decideAccessReviewItem: async (campaignId: string, itemId: string, payload: { decision: "CERTIFIED" | "REVOKED" | "CHANGE_REQUESTED"; decisionReason?: string }) => {
-    const res = await axios.post<{ success: boolean; message: string; data: AccessReviewUserItem }>(`/api/governance/access-reviews/${campaignId}/items/${itemId}/decide`, payload);
+    const res = await axios.post<{ success: boolean; message: string; data: AccessReviewUserItem }>(`/governance/access-reviews/${campaignId}/items/${itemId}/decide`, payload);
     return res.data;
   },
 
   completeCampaign: async (campaignId: string) => {
-    const res = await axios.post<{ success: boolean; message: string; data: any }>(`/api/governance/access-reviews/${campaignId}/complete`);
+    const res = await axios.post<{ success: boolean; message: string; data: any }>(`/governance/access-reviews/${campaignId}/complete`);
     return res.data;
   },
 
   // 5. Incidents
   getIncidents: async (filters: { status?: string; severity?: string; category?: string } = {}) => {
-    const res = await axios.get<{ success: boolean; data: IncidentItem[] }>("/api/governance/incidents", { params: filters });
+    const res = await axios.get<{ success: boolean; data: IncidentItem[] }>("/governance/incidents", { params: filters });
     return res.data.data;
   },
 
   createIncident: async (payload: { title: string; description: string; category?: string; severity?: string; assigneeName?: string }) => {
-    const res = await axios.post<{ success: boolean; message: string; data: IncidentItem }>("/api/governance/incidents", payload);
+    const res = await axios.post<{ success: boolean; message: string; data: IncidentItem }>("/governance/incidents", payload);
     return res.data;
   },
 
   updateIncident: async (id: string, payload: Partial<IncidentItem> & { notes?: string }) => {
-    const res = await axios.patch<{ success: boolean; message: string; data: IncidentItem }>(`/api/governance/incidents/${id}`, payload);
+    const res = await axios.patch<{ success: boolean; message: string; data: IncidentItem }>(`/governance/incidents/${id}`, payload);
     return res.data;
   },
 
   // 6. Risks
   getRisks: async (filters: { status?: string; severity?: string; category?: string } = {}) => {
-    const res = await axios.get<{ success: boolean; data: RiskItem[] }>("/api/governance/risks", { params: filters });
+    const res = await axios.get<{ success: boolean; data: RiskItem[] }>("/governance/risks", { params: filters });
     return res.data.data;
   },
 
   createRisk: async (payload: { title: string; description: string; category?: string; likelihood?: string; impact?: string; severity?: string; ownerName?: string; mitigationPlan?: string; dueDate?: string }) => {
-    const res = await axios.post<{ success: boolean; message: string; data: RiskItem }>("/api/governance/risks", payload);
+    const res = await axios.post<{ success: boolean; message: string; data: RiskItem }>("/governance/risks", payload);
     return res.data;
   },
 
   updateRisk: async (id: string, payload: Partial<RiskItem>) => {
-    const res = await axios.patch<{ success: boolean; message: string; data: RiskItem }>(`/api/governance/risks/${id}`, payload);
+    const res = await axios.patch<{ success: boolean; message: string; data: RiskItem }>(`/governance/risks/${id}`, payload);
     return res.data;
   },
 
   deleteRisk: async (id: string) => {
-    const res = await axios.delete<{ success: boolean; message: string }>(`/api/governance/risks/${id}`);
+    const res = await axios.delete<{ success: boolean; message: string }>(`/governance/risks/${id}`);
     return res.data;
   },
 
   // 7. Retention
   getRetentionPolicies: async () => {
-    const res = await axios.get<{ success: boolean; data: RetentionPolicyItem[] }>("/api/governance/retention");
+    const res = await axios.get<{ success: boolean; data: RetentionPolicyItem[] }>("/governance/retention");
     return res.data.data;
   },
 
   createRetentionPolicy: async (payload: { policyName: string; description?: string; documentCategory?: string; retentionDays: number; actionOnExpiry?: string }) => {
-    const res = await axios.post<{ success: boolean; message: string; data: RetentionPolicyItem }>("/api/governance/retention", payload);
+    const res = await axios.post<{ success: boolean; message: string; data: RetentionPolicyItem }>("/governance/retention", payload);
     return res.data;
   },
 
   updateRetentionPolicy: async (id: string, payload: Partial<RetentionPolicyItem>) => {
-    const res = await axios.put<{ success: boolean; message: string; data: RetentionPolicyItem }>(`/api/governance/retention/${id}`, payload);
+    const res = await axios.put<{ success: boolean; message: string; data: RetentionPolicyItem }>(`/governance/retention/${id}`, payload);
     return res.data;
   },
 
   deleteRetentionPolicy: async (id: string) => {
-    const res = await axios.delete<{ success: boolean; message: string }>(`/api/governance/retention/${id}`);
+    const res = await axios.delete<{ success: boolean; message: string }>(`/governance/retention/${id}`);
     return res.data;
   },
 
   runRetentionSweep: async () => {
-    const res = await axios.post<{ success: boolean; message: string; data: any }>("/api/governance/retention/run-worker");
+    const res = await axios.post<{ success: boolean; message: string; data: any }>("/governance/retention/run-worker");
     return res.data;
   },
 };

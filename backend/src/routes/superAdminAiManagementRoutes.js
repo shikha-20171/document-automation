@@ -105,4 +105,8 @@ router.get("/ocr-engines", getOcrEngines);
  */
 router.get("/ocr-requests", getOcrRequests);
 
+// Subrouter aliases for providers, models, capabilities, jobs
+const superAdminAiRoutes = require("./superAdminAiRoutes");
+router.use("/", superAdminAiRoutes);
+
 module.exports = router;
