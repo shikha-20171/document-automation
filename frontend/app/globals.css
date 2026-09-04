@@ -1,0 +1,506 @@
+@import "tailwindcss";
+ 
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-serif: var(--font-serif, "Lora", Georgia, Cambria, "Times New Roman", Times, serif);
+  --font-sans: var(--font-serif, "Lora", Georgia, Cambria, "Times New Roman", Times, serif);
+}
+
+:root {
+  --primary: #274690;
+  --primary-deep: #1f3561;
+  --accent: #c96f4a;
+  --background: #f8fafc;
+  --surface: #ffffff;
+  --surface-hover: #f1f5f9;
+  --heading: #0f172a;
+  --text: #475569;
+  --border: #e2e8f0;
+  --font-serif: var(--font-serif, "Lora", Georgia, Cambria, "Times New Roman", Times, serif);
+  --font-sans: var(--font-serif, "Lora", Georgia, Cambria, "Times New Roman", Times, serif);
+}
+
+.dark {
+  --primary: #5b83e0;
+  --primary-deep: #8fb1ec;
+  --accent: #e08a66;
+  --background: #080c16;
+  --surface: #0f172a;
+  --surface-hover: #172138;
+  --surface-card: #0f172a;
+  --heading: #f8fafc;
+  --text: #94a3b8;
+  --border: #1e293b;
+  --input-bg: #0b1120;
+}
+
+* {
+  box-sizing: border-box;
+  font-family: var(--font-serif), Georgia, Cambria, "Times New Roman", Times, serif !important;
+}
+
+html {
+  scroll-behavior: smooth;
+  font-family: var(--font-serif), Georgia, Cambria, "Times New Roman", Times, serif !important;
+}
+
+body {
+  background: var(--background);
+  color: var(--heading);
+  font-family: var(--font-serif), Georgia, Cambria, "Times New Roman", Times, serif !important;
+  min-height: 100vh;
+  transition:
+    background-color 200ms ease,
+    color 200ms ease;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+span,
+div,
+label,
+table,
+th,
+td,
+a {
+  font-family: var(--font-serif), Georgia, Cambria, "Times New Roman", Times, serif;
+}
+
+input,
+button,
+select,
+textarea,
+optgroup,
+option {
+  font-family: var(--font-serif), Georgia, Cambria, "Times New Roman", Times, serif !important;
+}
+
+.font-sans,
+.font-serif,
+.font-mono {
+  font-family: var(--font-serif), Georgia, Cambria, "Times New Roman", Times, serif !important;
+}
+
+a,
+button,
+input {
+  transition:
+    color 160ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    opacity 160ms ease;
+}
+
+::selection {
+  background: rgba(91, 131, 224, 0.3);
+  color: #ffffff;
+}
+
+/* ==========================================================================
+   ENTERPRISE-WIDE COMPREHENSIVE FULL DARK MODE OVERRIDES
+   Applies across ALL pages, modules, sidebars, headers, cards, modals & inputs
+   ========================================================================== */
+
+/* 1. Global Document & Layout Containers */
+.dark html,
+.dark body {
+  background-color: #080c16 !important;
+  color: #f8fafc !important;
+}
+
+.dark main {
+  background-color: transparent !important;
+  color: #f8fafc !important;
+}
+
+/* Layout Gradients & Backdrops */
+.dark [class*="bg-[radial-gradient"],
+.dark [class*="bg-[linear-gradient"] {
+  background: radial-gradient(circle at top left, rgba(39, 70, 144, 0.18), transparent 45%),
+              linear-gradient(180deg, #080c16 0%, #0d1424 100%) !important;
+}
+
+/* 2. Sidebars: Preserved EXACT SAME signature brand color across all modules in Dark Mode */
+aside,
+.dark aside,
+aside[class*="bg-[linear-gradient"],
+.dark aside[class*="bg-[linear-gradient"],
+[data-sidebar="true"],
+.dark [data-sidebar="true"] {
+  background: linear-gradient(160deg, #1f3561 0%, #274690 45%, #1e3a5f 100%) !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+.dark aside h1,
+.dark aside h2,
+.dark aside h3,
+.dark aside p,
+.dark aside span,
+.dark aside div {
+  color: inherit;
+}
+
+.dark aside .text-white {
+  color: #ffffff !important;
+}
+
+.dark aside .text-white\/90,
+.dark aside .text-white\/85 {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+.dark aside .text-white\/80,
+.dark aside .text-white\/75 {
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+
+.dark aside .text-white\/70,
+.dark aside .text-white\/60 {
+  color: rgba(255, 255, 255, 0.65) !important;
+}
+
+.dark aside .text-\[\#c96f4a\] {
+  color: #c96f4a !important;
+}
+
+.dark aside .text-\[\#e7b6a3\] {
+  color: #e7b6a3 !important;
+}
+
+/* Ensure clean, unboxed navigation links in sidebar */
+.dark aside nav {
+  background-color: transparent !important;
+}
+
+.dark aside nav a,
+.dark aside nav a div {
+  box-shadow: none !important;
+}
+
+/* Sticky Top Navigation Headers in Dark Mode */
+.dark header {
+  background-color: rgba(12, 18, 32, 0.88) !important;
+  border-color: #1e293b !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+/* 3. Surface Cards, Panels & Boxes (Excluding Sidebar) */
+.dark :not(aside):not(aside *) > .bg-white,
+.dark .bg-white:not(aside):not(aside *),
+.dark div.bg-white:not(aside *),
+.dark .bg-white\/95:not(aside *),
+.dark .bg-white\/90:not(aside *),
+.dark .bg-white\/85:not(aside *),
+.dark .bg-white\/80:not(aside *),
+.dark .bg-white\/75:not(aside *),
+.dark .bg-white\/70:not(aside *),
+.dark .bg-white\/60:not(aside *),
+.dark .bg-white\/50:not(aside *),
+.dark .bg-white\/40:not(aside *),
+.dark .bg-white\/98:not(aside *) {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #1e293b !important;
+}
+
+/* Muted & Secondary Backgrounds */
+.dark .bg-slate-50,
+.dark .bg-slate-50\/70,
+.dark .bg-slate-50\/80,
+.dark .bg-slate-50\/50,
+.dark .bg-slate-50\/90,
+.dark .bg-slate-50\/40,
+.dark .bg-slate-50\/60,
+.dark .bg-slate-100,
+.dark .bg-slate-100\/80,
+.dark .bg-slate-100\/60,
+.dark .bg-slate-100\/50,
+.dark .bg-gray-50,
+.dark .bg-gray-100,
+.dark .bg-zinc-50,
+.dark .bg-zinc-100,
+.dark .bg-neutral-50,
+.dark .bg-stone-50 {
+  background-color: #0a0f1d !important;
+  color: #f8fafc !important;
+}
+
+/* 4. Borders & Dividers Across the Whole Software */
+.dark .border-slate-200,
+.dark .border-slate-200\/80,
+.dark .border-slate-200\/70,
+.dark .border-slate-200\/60,
+.dark .border-slate-200\/50,
+.dark .border-slate-100,
+.dark .border-slate-300,
+.dark .border-gray-100,
+.dark .border-gray-200,
+.dark .border-gray-300,
+.dark .border-zinc-200,
+.dark .border-white\/60,
+.dark .border-white\/80,
+.dark .border-white\/20,
+.dark .border {
+  border-color: #1e293b !important;
+}
+
+.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]),
+.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]),
+.dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #1e293b !important;
+}
+
+/* 5. Typography, Headings & Text Shades */
+.dark .text-slate-900,
+.dark .text-slate-800,
+.dark .text-slate-700,
+.dark .text-gray-900,
+.dark .text-gray-800,
+.dark .text-gray-700,
+.dark .text-zinc-900,
+.dark .text-zinc-800 {
+  color: #f8fafc !important;
+}
+
+.dark .text-slate-600,
+.dark .text-slate-500,
+.dark .text-gray-600,
+.dark .text-gray-500,
+.dark .text-zinc-600,
+.dark .text-zinc-500 {
+  color: #94a3b8 !important;
+}
+
+.dark .text-slate-400,
+.dark .text-gray-400,
+.dark .text-zinc-400 {
+  color: #64748b !important;
+}
+
+/* 6. Brand Elements, Links & Highlight Accents */
+.dark .text-\[\#274690\],
+.dark .text-blue-600,
+.dark .text-blue-700,
+.dark .text-blue-800 {
+  color: #8fb1ec !important;
+}
+
+.dark .bg-blue-50,
+.dark .bg-blue-50\/70,
+.dark .bg-blue-100,
+.dark .bg-blue-100\/60,
+.dark .bg-indigo-50,
+.dark .bg-indigo-100\/60,
+.dark .bg-\[\#eef2ff\],
+.dark .bg-\[\#274690\]\/5,
+.dark .bg-\[\#274690\]\/10 {
+  background-color: rgba(39, 70, 144, 0.28) !important;
+  color: #8fb1ec !important;
+  border-color: rgba(91, 131, 224, 0.3) !important;
+}
+
+/* 7. Form Controls: Inputs, Textareas, Selects & Native Dropdown Menus */
+.dark input:not([type="checkbox"]):not([type="radio"]),
+.dark textarea,
+.dark select {
+  background-color: #0b1120 !important;
+  color: #f8fafc !important;
+  border-color: #1e293b !important;
+}
+
+.dark input:focus,
+.dark textarea:focus,
+.dark select:focus {
+  border-color: #5b83e0 !important;
+  background-color: #0d1527 !important;
+  box-shadow: 0 0 0 2px rgba(91, 131, 224, 0.2) !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #64748b !important;
+}
+
+.dark select option {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+}
+
+/* Checkbox and Radio accents */
+.dark input[type="checkbox"],
+.dark input[type="radio"] {
+  accent-color: #5b83e0 !important;
+}
+
+/* 8. Tables, Thead, Tbody, Tr, Th, Td & Alternating Rows */
+.dark table {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+}
+
+.dark thead,
+.dark thead tr,
+.dark th {
+  background-color: #0a0f1d !important;
+  color: #94a3b8 !important;
+  border-color: #1e293b !important;
+}
+
+.dark tbody tr {
+  border-color: #1e293b !important;
+}
+
+.dark tbody tr:hover,
+.dark tr.hover\:bg-slate-50\/70:hover,
+.dark tr.hover\:bg-slate-50\/80:hover,
+.dark tr.hover\:bg-slate-50:hover,
+.dark tr.hover\:bg-slate-100:hover,
+.dark tr.hover\:bg-gray-50:hover,
+.dark .hover\:bg-slate-50:hover,
+.dark .hover\:bg-slate-100:hover,
+.dark .hover\:bg-gray-50:hover,
+.dark .hover\:bg-gray-100:hover {
+  background-color: #172138 !important;
+}
+
+/* 9. Soft Badges, Chips & Alert Boxes */
+/* Emerald / Success */
+.dark .bg-emerald-50,
+.dark .bg-emerald-50\/40,
+.dark .bg-emerald-50\/70,
+.dark .bg-emerald-100,
+.dark .bg-emerald-500\/10,
+.dark .bg-emerald-500\/20 {
+  background-color: rgba(16, 185, 129, 0.18) !important;
+  color: #34d399 !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+}
+
+.dark .text-emerald-800,
+.dark .text-emerald-700,
+.dark .text-emerald-600 {
+  color: #34d399 !important;
+}
+
+/* Amber / Warning / In Progress */
+.dark .bg-amber-50,
+.dark .bg-amber-50\/40,
+.dark .bg-amber-50\/70,
+.dark .bg-amber-100,
+.dark .bg-orange-50,
+.dark .bg-orange-100,
+.dark .bg-amber-500\/10,
+.dark .bg-amber-500\/20 {
+  background-color: rgba(245, 158, 11, 0.18) !important;
+  color: #fbbf24 !important;
+  border-color: rgba(245, 158, 11, 0.3) !important;
+}
+
+.dark .text-amber-800,
+.dark .text-amber-700,
+.dark .text-amber-600,
+.dark .text-orange-700 {
+  color: #fbbf24 !important;
+}
+
+/* Rose / Red / Danger */
+.dark .bg-rose-50,
+.dark .bg-rose-50\/40,
+.dark .bg-rose-50\/70,
+.dark .bg-rose-100,
+.dark .bg-red-50,
+.dark .bg-red-100,
+.dark .bg-red-500\/10,
+.dark .bg-rose-500\/10 {
+  background-color: rgba(239, 68, 68, 0.18) !important;
+  color: #f87171 !important;
+  border-color: rgba(239, 68, 68, 0.3) !important;
+}
+
+.dark .text-rose-800,
+.dark .text-rose-700,
+.dark .text-rose-600,
+.dark .text-red-800,
+.dark .text-red-700,
+.dark .text-red-600 {
+  color: #f87171 !important;
+}
+
+/* Purple / Indigo */
+.dark .bg-purple-50,
+.dark .bg-purple-100,
+.dark .bg-indigo-50,
+.dark .bg-indigo-100 {
+  background-color: rgba(139, 92, 246, 0.2) !important;
+  color: #c4b5fd !important;
+  border-color: rgba(139, 92, 246, 0.3) !important;
+}
+
+.dark .text-purple-800,
+.dark .text-purple-700,
+.dark .text-indigo-800 {
+  color: #c4b5fd !important;
+}
+
+/* 10. Modals, Popovers, Dialogs & Dropdown Menus */
+.dark [role="dialog"],
+.dark .modal-content,
+.dark [class*="Modal"],
+.dark [class*="modal"] {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #1e293b !important;
+}
+
+.dark .bg-slate-900\/50,
+.dark .bg-slate-900\/60,
+.dark .bg-slate-900\/70,
+.dark .bg-slate-900\/80,
+.dark .bg-black\/50,
+.dark .bg-black\/60,
+.dark .bg-black\/70 {
+  background-color: rgba(2, 6, 23, 0.82) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+/* Dropdown floating panels */
+.dark [class*="shadow-xl"],
+.dark [class*="shadow-2xl"],
+.dark [class*="shadow-lg"] {
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6) !important;
+}
+
+/* 11. Auth Pages & Public Shells */
+.dark [class*="AuthShell"],
+.dark .auth-card {
+  background-color: rgba(15, 23, 42, 0.88) !important;
+  border-color: #1e293b !important;
+}
+
+/* 12. Custom Scrollbars in Dark Mode */
+.dark ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: #080c16;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}

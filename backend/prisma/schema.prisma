@@ -1,0 +1,2804 @@
+// Prisma schema file for Enterprise AI Document Automation SaaS
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Organisation {
+  id          Int      @id @default(autoincrement())
+  name        String
+  branch      String?  @default("Headquarters")
+  email       String
+  phone       String?
+  website     String?
+  address     String?
+  city        String?
+  state       String?
+  country     String?
+  postal_code String?
+  status      String   @default("active")
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  locations     OrganisationLocation[]
+  users         User[]
+  departments   Department[]
+  teams         Team[]
+  documents     Document[]
+  activity_logs ActivityLog[]
+  aiModelAssignments OrganizationAIModelAssignment[]
+  invitations   OrganisationInvitation[]
+  workflows     Workflow[]
+  approvalRequests ApprovalRequest[]
+  approvalRules ApprovalRule[]
+  templates     DocumentTemplate[]
+  integrations  OrganisationIntegration[]
+  apiKeys       OrganisationApiKey[]
+  webhooks      OrganisationWebhook[]
+  integrationLogs IntegrationLog[]
+  webhookDeliveries WebhookDelivery[]
+  customRestIntegrations CustomRestIntegration[]
+  departmentAiRuns           DepartmentAiToolRun[]
+  departmentAiTemplates      DepartmentAiTemplate[]
+  departmentAiExtractedItems DepartmentAiExtractedRecord[]
+  tasks                      Task[]
+  notifications              Notification[]
+
+  @@index([name])
+  @@index([branch])
+  @@index([status])
+  @@map("organisations")
+}
+
+model OrganisationLocation {
+  id              Int          @id @default(autoincrement())
+  organisation_id Int
+  name            String?
+  city            String
+  state           String?
+  country         String?
+  postal_code     String?
+  status          String       @default("active")
+  created_at      DateTime     @default(now())
+  updated_at      DateTime     @updatedAt
+
+  organisation    Organisation @relation(fields: [organisation_id], references: [id], onDelete: Cascade)
+  users           User[]
+
+  @@unique([organisation_id, city])
+  @@index([organisation_id])
+  @@index([city])
+  @@map("organisation_locations")
+}
+
+model Role {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  users       User[]
+
+  @@map("roles")
+}
+
+model User {
+  id                   Int                   @id @default(autoincrement())
+  organisation_id      Int?
+  location_id          Int?
+  role_id              Int?
+  department_id        Int?
+  team_id              Int?
+  full_name            String
+  email                String                @unique
+  password_hash        String?
+  role                 String                @default("ORGANISATION_ADMIN")
+  status               String                @default("active")
+  must_change_password Boolean               @default(false)
+  reset_token          String?
+  reset_token_expires  DateTime?
+  custom_permissions   Json?
+  last_login           DateTime?
+  created_at           DateTime              @default(now())
+  updated_at           DateTime              @updatedAt
+
+  organisation         Organisation?         @relation(fields: [organisation_id], references: [id], onDelete: Cascade)
+  location             OrganisationLocation? @relation(fields: [location_id], references: [id], onDelete: SetNull)
+  userRole             Role?                 @relation(fields: [role_id], references: [id], onDelete: SetNull)
+  sessions             UserSession[]
+  reset_tokens         PasswordResetToken[]
+  createdWorkflows     Workflow[]
+  workflowSteps        WorkflowStep[]
+  requestedApprovals   ApprovalRequest[]
+  approvalActions      ApprovalAction[]
+  approvalHistoryItems ApprovalHistoryItem[]
+  createdApprovalRules ApprovalRule[]
+  createdTemplates     DocumentTemplate[]        @relation("TemplateCreatedBy")
+  updatedTemplates     DocumentTemplate[]        @relation("TemplateUpdatedBy")
+  createdTemplateVersions DocumentTemplateVersion[] @relation("TemplateVersionCreatedBy")
+  connectedIntegrations   OrganisationIntegration[] @relation("IntegrationConnectedBy")
+  createdApiKeys          OrganisationApiKey[]      @relation("ApiKeyCreatedBy")
+  createdWebhooks         OrganisationWebhook[]     @relation("WebhookCreatedBy")
+  failed_attempts      Int                   @default(0)
+  locked_until         DateTime?
+  last_password_change DateTime?
+  ownedDepartments     Department[]          @relation("DepartmentOwner")
+  departmentAiRuns           DepartmentAiToolRun[]
+  departmentAiTemplates      DepartmentAiTemplate[]
+  departmentAiExtractedItems DepartmentAiExtractedRecord[]
+
+  @@index([organisation_id])
+  @@index([department_id])
+  @@index([team_id])
+  @@index([location_id])
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+model OrganisationInvitation {
+  id              Int          @id @default(autoincrement())
+  organisation_id Int
+  email           String
+  token_hash      String       @unique
+  expires_at      DateTime
+  accepted_at     DateTime?
+  status          String       @default("PENDING") // PENDING, ACCEPTED, EXPIRED, REVOKED
+  created_at      DateTime     @default(now())
+  updated_at      DateTime     @updatedAt
+
+  organisation    Organisation @relation(fields: [organisation_id], references: [id], onDelete: Cascade)
+
+  @@index([organisation_id])
+  @@index([email])
+  @@index([token_hash])
+  @@map("organisation_invitations")
+}
+
+model UserSession {
+  id            Int      @id @default(autoincrement())
+  user_id       Int
+  refresh_token String   @unique
+  expires_at    DateTime
+  created_at    DateTime @default(now())
+
+  user          User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("user_sessions")
+}
+
+model PasswordResetToken {
+  id         Int      @id @default(autoincrement())
+  user_id    Int
+  token      String   @unique
+  is_used    Boolean  @default(false)
+  expires_at DateTime
+  created_at DateTime @default(now())
+
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
+}
+
+model Department {
+  id              Int          @id @default(autoincrement())
+  organisation_id Int
+  name            String
+  description     String?
+  head            String?
+  owner_user_id   Int?
+  employees_count Int          @default(0)
+  created_at      DateTime     @default(now())
+  updated_at      DateTime     @updatedAt
+
+  organisation    Organisation @relation(fields: [organisation_id], references: [id], onDelete: Cascade)
+  owner           User?        @relation("DepartmentOwner", fields: [owner_user_id], references: [id], onDelete: SetNull)
+
+  @@index([organisation_id])
+  @@index([owner_user_id])
+  @@map("departments")
+}
+
+model Team {
+  id              Int          @id @default(autoincrement())
+  organisation_id Int
+  name            String
+  department      String?
+  team_lead       String?
+  members         Int          @default(0)
+  created_at      DateTime     @default(now())
+  updated_at      DateTime     @updatedAt
+
+  organisation    Organisation @relation(fields: [organisation_id], references: [id], onDelete: Cascade)
+
+  @@map("teams")
+}
+
+model Document {
+  id                  Int          @id @default(autoincrement())
+  organisation_id     Int
+  department_id       Int?
+  team_id             Int?
+  created_by_user_id  Int?
+  name                String
+  original_name       String?
+  type                String?
+  mime_type           String?
+  size                Float        @default(0)
+  file_size_bytes     BigInt?      @default(0)
+  storage_provider    String?      @default("aws_s3")
+  s3_bucket           String?
+  s3_key              String?
+  folder              String?
+  folder_id           String?
+  status              String       @default("ACTIVE")
+  uploaded_by         String?
+  uploaded_at         DateTime     @default(now())
+  created_at          DateTime     @default(now())
+  updated_at          DateTime     @updatedAt
+
+  organisation        Organisation @relation(fields: [organisation_id], references: [id], onDelete: Cascade)
+  approvalRequests    ApprovalRequest[]
+
+  @@index([organisation_id])
+  @@index([department_id])
+  @@index([team_id])
+  @@index([s3_key])
+  @@map("documents")
+}
+
+model ActivityLog {
+  id              Int          @id @default(autoincrement())
+  organisation_id Int
+  action          String
+  user            String
+  timestamp       DateTime     @default(now())
+  ip_address      String?
+  details         String?
+  created_at      DateTime     @default(now())
+
+  organisation    Organisation @relation(fields: [organisation_id], references: [id], onDelete: Cascade)
+
+  @@map("activity_logs")
+}
+
+model Task {
+  id               String        @id @default(uuid())
+  organisation_id  Int
+  department_id    Int?
+  team_id          Int?
+  created_by_id    Int?
+  title            String
+  description      String?
+  assigned_to      String?
+  assigned_to_id   String?
+  assigned_email   String?
+  related_doc_id   String?
+  related_doc_name String?
+  priority         String        @default("NORMAL")
+  status           String        @default("PENDING")
+  start_date       String?
+  due_date         String?
+  instructions     String?
+  team             String?
+  created_at       DateTime      @default(now())
+  updated_at       DateTime      @updatedAt
+
+  organisation     Organisation  @relation(fields: [organisation_id], references: [id], onDelete: Cascade)
+  comments         TaskComment[]
+
+  @@index([organisation_id])
+  @@index([department_id])
+  @@index([team_id])
+  @@map("tasks")
+}
+
+model TaskComment {
+  id             String   @id @default(uuid())
+  taskId         String
+  organisationId Int
+  userId         Int?
+  authorName     String   @default("User")
+  content        String   @db.Text
+  createdAt      DateTime @default(now())
+
+  task           Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([organisationId])
+  @@map("task_comments")
+}
+
+model SecurityPolicy {
+  id                         String   @id @default(uuid())
+  organisationId             Int      @unique
+  mfaEnforced                Boolean  @default(false)
+  passwordMinLength          Int      @default(8)
+  passwordRequireComplexity  Boolean  @default(true)
+  lockoutDurationMinutes     Int      @default(15)
+  sessionTimeoutMinutes      Int      @default(60)
+  ipAllowlist                String[] @default([])
+  maxLoginAttempts           Int      @default(5)
+  sensitiveDocAiRestricted   Boolean  @default(false)
+  externalAiRestricted       Boolean  @default(false)
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  @@index([organisationId])
+  @@map("security_policies")
+}
+
+model AiUsagePolicy {
+  id                   String   @id @default(uuid())
+  organisationId       Int
+  departmentId         Int?
+  monthlyQuotaRequests Int      @default(10000)
+  allowedProviders     String[] @default(["GEMINI", "OPENAI", "CLAUDE"])
+  allowedTools         String[] @default(["DOCUMENT_GENERATION", "OCR", "QA", "SUMMARIZATION"])
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([organisationId])
+  @@index([organisationId, departmentId])
+  @@map("ai_usage_policies")
+}
+
+model Notification {
+  id               String       @id @default(uuid())
+  organisation_id  Int
+  user_id          Int?
+  title            String
+  message          String?
+  description      String?
+  type             String       @default("INFO")
+  category         String?
+  unread           Boolean      @default(true)
+  read             Boolean      @default(false)
+  link             String?
+  priority         String       @default("NORMAL")
+  related_document String?
+  created_at       DateTime     @default(now())
+  updated_at       DateTime     @updatedAt
+
+  organisation     Organisation @relation(fields: [organisation_id], references: [id], onDelete: Cascade)
+
+  @@index([organisation_id])
+  @@map("notifications")
+}
+
+model DepartmentAiToolRun {
+  id              String       @id @default(uuid())
+  organisation_id Int?
+  user_id         Int?
+  department_name String?
+  tool            String
+  title           String?
+  input           Json
+  output          Json
+  status          String       @default("COMPLETED")
+  created_at      DateTime     @default(now())
+  updated_at      DateTime     @updatedAt
+
+  organisation    Organisation? @relation(fields: [organisation_id], references: [id], onDelete: SetNull)
+  user            User?         @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  extractedRecords DepartmentAiExtractedRecord[]
+
+  @@index([organisation_id])
+  @@index([user_id])
+  @@index([tool])
+  @@index([created_at])
+  @@map("department_ai_tool_runs")
+}
+
+model DepartmentAiTemplate {
+  id              String       @id @default(uuid())
+  organisation_id Int?
+  user_id         Int?
+  name            String
+  template_body   String
+  fields          Json
+  created_at      DateTime     @default(now())
+  updated_at      DateTime     @updatedAt
+
+  organisation    Organisation? @relation(fields: [organisation_id], references: [id], onDelete: SetNull)
+  user            User?         @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@index([organisation_id])
+  @@index([user_id])
+  @@index([updated_at])
+  @@map("department_ai_templates")
+}
+
+model DepartmentAiExtractedRecord {
+  id              String       @id @default(uuid())
+  run_id          String?
+  organisation_id Int?
+  user_id         Int?
+  document_name   String?
+  record_type     String?
+  data            Json
+  saved_to        String?      @default("DOCUMENT")
+  created_at      DateTime     @default(now())
+
+  run             DepartmentAiToolRun? @relation(fields: [run_id], references: [id], onDelete: SetNull)
+  organisation    Organisation?        @relation(fields: [organisation_id], references: [id], onDelete: SetNull)
+  user            User?                @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@index([run_id])
+  @@index([organisation_id])
+  @@index([user_id])
+  @@map("department_ai_extracted_records")
+}
+
+// =====================================================
+// ENUMS FOR WORKFLOWS & APPROVALS
+// =====================================================
+
+enum WorkflowStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+}
+
+enum WorkflowTrigger {
+  DOCUMENT_CREATED
+  DOCUMENT_SUBMITTED
+  DOCUMENT_UPDATED
+  DOCUMENT_UPLOADED
+}
+
+enum ApprovalType {
+  INTERNAL
+  EXTERNAL
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+  OVERDUE
+}
+
+enum LogicType {
+  SEQUENTIAL
+  PARALLEL
+}
+
+enum LogicRequirement {
+  ALL_REQUIRED
+  ANY_ONE
+}
+
+// =====================================================
+// WORKFLOWS
+// =====================================================
+
+model Workflow {
+  id                    String           @id @default(uuid())
+  organisationId        Int
+  name                  String
+  description           String?
+  appliesTo             String
+  department            String?
+  trigger               WorkflowTrigger  @default(DOCUMENT_SUBMITTED)
+  logicType             LogicType        @default(SEQUENTIAL)
+  logicRequirement      LogicRequirement @default(ALL_REQUIRED)
+  status                WorkflowStatus   @default(DRAFT)
+  approvalDeadlineDays  Int              @default(3)
+  reminderAfterHours    Int              @default(24)
+  escalationAfterHours  Int              @default(48)
+  commentsRequiredOnRejection Boolean     @default(false)
+  allowRequestChanges   Boolean          @default(true)
+  lastRunAt             DateTime?
+  createdById           Int
+  createdBy             User             @relation(fields: [createdById], references: [id])
+  organisation          Organisation     @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  steps                 WorkflowStep[]
+  approvalRequests      ApprovalRequest[]
+
+  @@index([organisationId])
+  @@index([organisationId, status])
+  @@map("workflows")
+}
+
+model WorkflowStep {
+  id                      String      @id @default(uuid())
+  workflowId              String
+  stepOrder               Int
+  name                    String
+  approverType            String      @db.VarChar(50)
+  approvalType            ApprovalType @default(INTERNAL)
+  externalApproverName    String?
+  externalApproverEmail   String?
+  externalApproverCompany String?
+  createdById             Int
+  createdBy               User        @relation(fields: [createdById], references: [id])
+  workflow                Workflow    @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId])
+  @@map("workflow_steps")
+}
+
+// =====================================================
+// APPROVAL REQUESTS
+// =====================================================
+
+model ApprovalRequest {
+  id                String           @id @default(uuid())
+  organisationId    Int
+  workflowId        String
+  documentId        Int?
+  documentName      String
+  requestedById     Int
+  currentStepOrder  Int?             @default(0)
+  status            ApprovalStatus   @default(PENDING)
+  dueAt             DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  organisation      Organisation     @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  workflow          Workflow         @relation(fields: [workflowId], references: [id])
+  requestedBy       User             @relation(fields: [requestedById], references: [id])
+  document          Document?        @relation(fields: [documentId], references: [id])
+  actions           ApprovalAction[]
+  history           ApprovalHistoryItem[]
+
+  @@index([organisationId])
+  @@index([workflowId])
+  @@index([documentId])
+  @@index([status])
+  @@map("approval_requests")
+}
+
+model ApprovalAction {
+  id                String         @id @default(uuid())
+  approvalRequestId String
+  stepOrder         Int?
+  performedById     Int?
+  action            String         @db.VarChar(50)
+  comment           String?
+  createdAt         DateTime       @default(now())
+
+  approvalRequest   ApprovalRequest @relation(fields: [approvalRequestId], references: [id], onDelete: Cascade)
+  performedBy       User?           @relation(fields: [performedById], references: [id])
+
+  @@index([approvalRequestId])
+  @@map("approval_actions")
+}
+
+model ApprovalHistoryItem {
+  id                String         @id @default(uuid())
+  approvalRequestId String
+  workflowStepId    String?
+  userId            Int?
+  userRole          String?
+  action            String         @db.VarChar(50)
+  comment           String?
+  createdAt         DateTime       @default(now())
+
+  approvalRequest   ApprovalRequest @relation(fields: [approvalRequestId], references: [id], onDelete: Cascade)
+  user              User?           @relation(fields: [userId], references: [id])
+
+  @@index([approvalRequestId])
+  @@map("approval_history")
+}
+
+// =====================================================
+// APPROVAL RULES
+// =====================================================
+
+model ApprovalRule {
+  id             String   @id @default(uuid())
+  organisationId Int
+  workflowId     String?
+  name           String
+  conditionJson  String   @db.Text
+  approversJson  String   @db.Text
+  status         String   @default("ACTIVE")
+  createdById    Int
+  createdBy      User     @relation(fields: [createdById], references: [id])
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId])
+  @@index([organisationId, status])
+  @@map("approval_rules")
+}
+
+// ENUMS FOR AI MANAGEMENT
+// =========================
+
+enum AIProviderStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+}
+
+enum AIConnectionStatus {
+  CONNECTED
+  DISCONNECTED
+  FAILED
+  TESTING
+}
+
+enum AIModelStatus {
+  ACTIVE
+  INACTIVE
+  DEPRECATED
+}
+
+// =========================
+// AI PROVIDERS
+// =========================
+
+model AIProvider {
+  id                 String             @id @default(uuid())
+  providerName       String             @db.VarChar(100)
+  providerCode       String             @unique @db.VarChar(50)
+  description        String?            @db.Text
+  baseUrl            String?            @db.Text
+  apiVersion         String?            @db.VarChar(50)
+  apiKeyEncrypted    String?            @db.Text
+  region             String?            @db.VarChar(100)
+  status             AIProviderStatus   @default(ACTIVE)
+  connectionStatus   AIConnectionStatus @default(DISCONNECTED)
+  priority           Int                @default(1)
+  isDefault          Boolean            @default(false)
+  supportsChat       Boolean            @default(true)
+  supportsVision     Boolean            @default(false)
+  supportsOCR        Boolean            @default(false)
+  supportsStreaming  Boolean            @default(true)
+  requestTimeoutMs   Int                @default(60000)
+  maxRetries         Int                @default(3)
+  healthScore        Float?
+  lastConnectedAt    DateTime?
+  lastHealthCheckAt  DateTime?
+  createdBy          String?
+  updatedBy          String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  models             AIModel[]
+  jobs               AIJobQueue[]
+  logs               AILog[]
+  costUsages         AICostUsage[]
+  serviceHealth      AIServiceHealth?
+
+  @@index([providerCode])
+  @@index([status])
+  @@index([connectionStatus])
+  @@map("ai_providers")
+}
+
+// =========================
+// AI MODELS
+// =========================
+
+model AIModel {
+  id                      String        @id @default(uuid())
+  providerId              String
+  provider                AIProvider    @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  modelName               String        @db.VarChar(100)
+  modelCode               String        @db.VarChar(100)
+  modelVersion            String?       @db.VarChar(50)
+  description             String?       @db.Text
+  contextWindow           Int?
+  maxInputTokens          Int?
+  maxOutputTokens         Int?
+  inputCostPer1K          Decimal?      @db.Decimal(10, 4)
+  outputCostPer1K         Decimal?      @db.Decimal(10, 4)
+  supportsStreaming       Boolean       @default(true)
+  supportsVision          Boolean       @default(false)
+  supportsFunctionCalling Boolean       @default(false)
+  supportsJSONMode        Boolean       @default(false)
+  supportsImageInput      Boolean       @default(false)
+  status                  AIModelStatus @default(ACTIVE)
+  isDefault               Boolean       @default(false)
+  totalRequests           BigInt        @default(0)
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
+
+  jobs                    AIJobQueue[]
+  logs                    AILog[]
+  costUsages              AICostUsage[]
+  orgAssignments          OrganizationAIModelAssignment[]
+
+  @@unique([providerId, modelCode])
+  @@index([providerId])
+  @@index([status])
+  @@map("ai_models")
+}
+
+// =================================================
+// ORGANIZATION ↔ AI MODEL ASSIGNMENT
+// =================================================
+
+enum OrgModelAssignmentStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model OrganizationAIModelAssignment {
+  id             String                   @id @default(uuid())
+  organisationId Int
+  modelId        String
+  status         OrgModelAssignmentStatus @default(ACTIVE)
+  assignedBy     String?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  organisation   Organisation             @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  model          AIModel                  @relation(fields: [modelId], references: [id], onDelete: Cascade)
+
+  @@unique([organisationId, modelId])
+  @@index([organisationId])
+  @@index([modelId])
+  @@map("organization_ai_model_assignments")
+}
+
+model AICapability {
+  id            String   @id @default(uuid())
+  name          String   @db.VarChar(100)
+  code          String   @unique @db.VarChar(50)
+  description   String?  @db.Text
+  defaultModel  String   @default("gemini-3.5-flash") @db.VarChar(100)
+  fallbackModel String?  @default("gpt-4o-mini") @db.VarChar(100)
+  maxTokens     Int      @default(4096)
+  temperature   Float    @default(0.3)
+  systemPrompt  String?  @db.Text
+  status        String   @default("ACTIVE") // ACTIVE, INACTIVE
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([code])
+  @@index([status])
+  @@map("ai_capabilities")
+}
+
+// ===================================
+// ENUMS FOR OCR MANAGEMENT
+// ===================================
+
+enum OCRProviderStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+}
+
+enum OCRConnectionStatus {
+  CONNECTED
+  DISCONNECTED
+  FAILED
+  TESTING
+}
+
+enum OCRJobStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+  RETRYING
+  CANCELLED
+}
+
+enum OCREngineStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+}
+
+enum OCRRequestStatus {
+  QUEUED
+  PROCESSING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+// ===================================
+// OCR PROVIDERS (Google Document AI, AWS Textract, Azure Document Intelligence)
+// ===================================
+
+model OCRProvider {
+  id                   String              @id @default(uuid())
+  providerName         String              @db.VarChar(100)
+  providerCode         String              @unique @db.VarChar(50)
+  description          String?             @db.Text
+  apiEndpoint          String?             @db.Text
+  credentialsEncrypted String?             @db.Text
+  authType             String              @default("API_KEY") @db.VarChar(50) // API_KEY, SERVICE_ACCOUNT, AWS_IAM, AZURE_SECRET
+  region               String?             @default("global") @db.VarChar(100)
+  status               OCRProviderStatus   @default(ACTIVE)
+  connectionStatus     OCRConnectionStatus @default(CONNECTED)
+  priority             Int                 @default(1)
+  isEnabled            Boolean             @default(true)
+  isDefault            Boolean             @default(false)
+  supportedFormats     String[]            @default(["PDF", "PNG", "JPG", "TIFF", "WEBP"])
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  profiles             OCRProfile[]
+  jobs                 OCRJob[]
+  logs                 OCRLog[]
+  costUsages           OCRCostUsage[]
+  serviceHealth        OCRServiceHealth?
+
+  @@index([providerCode])
+  @@index([status])
+  @@index([connectionStatus])
+  @@map("ocr_providers")
+}
+
+// ===================================
+// OCR PROFILES
+// ===================================
+
+model OCRProfile {
+  id                   String        @id @default(uuid())
+  profileName          String        @db.VarChar(100)
+  profileCode          String        @unique @db.VarChar(50)
+  description          String?       @db.Text
+  providerId           String?
+  provider             OCRProvider?  @relation(fields: [providerId], references: [id], onDelete: SetNull)
+  language             String        @default("eng") @db.VarChar(50)
+  inputFormats         String[]      @default(["PDF", "PNG", "JPG", "TIFF"])
+  textDetection        Boolean       @default(true)
+  tableDetection       Boolean       @default(true)
+  layoutDetection      Boolean       @default(true)
+  handwritingDetection Boolean       @default(false)
+  confidenceThreshold  Float         @default(80.0)
+  outputFormat         String        @default("STRUCTURED_JSON") @db.VarChar(50) // PLAIN_TEXT, STRUCTURED_JSON, LAYOUT_DATA, TABLES
+  status               String        @default("ACTIVE") // ACTIVE, INACTIVE
+  isDefault            Boolean       @default(false)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  jobs                 OCRJob[]
+  logs                 OCRLog[]
+  costUsages           OCRCostUsage[]
+
+  @@index([profileCode])
+  @@index([status])
+  @@map("ocr_profiles")
+}
+
+// ===================================
+// OCR JOBS
+// ===================================
+
+model OCRJob {
+  id               String       @id @default(uuid())
+  jobCode          String       @unique @db.VarChar(50)
+  organisationId   String
+  userId           String?
+  documentId       String?
+  documentName     String?      @db.VarChar(255)
+  providerId       String?
+  provider         OCRProvider? @relation(fields: [providerId], references: [id], onDelete: SetNull)
+  profileId        String?
+  profile          OCRProfile?  @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  language         String?      @default("eng")
+  pages            Int          @default(1)
+  status           OCRJobStatus @default(QUEUED)
+  confidenceScore  Float?
+  processingTimeMs Int?
+  errorMessage     String?      @db.Text
+  startedAt        DateTime?
+  completedAt      DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([organisationId])
+  @@index([status])
+  @@index([providerId])
+  @@index([createdAt])
+  @@map("ocr_jobs")
+}
+
+// ===================================
+// OCR USAGE & COSTS
+// ===================================
+
+model OCRCostUsage {
+  id                  String        @id @default(uuid())
+  organisationId      String
+  providerId          String?
+  provider            OCRProvider?  @relation(fields: [providerId], references: [id], onDelete: SetNull)
+  profileId           String?
+  profile             OCRProfile?   @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  billingPeriod       BillingPeriod @default(MONTHLY)
+  billingDate         DateTime      @default(now())
+  requestCount        Int           @default(0)
+  documentsProcessed  Int           @default(0)
+  pagesProcessed      Int           @default(0)
+  totalCost           Decimal       @default(0.0000) @db.Decimal(12, 4)
+  currency            String        @default("INR")
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  @@index([organisationId])
+  @@index([billingDate])
+  @@map("ocr_cost_usage")
+}
+
+// ===================================
+// OCR LOGS
+// ===================================
+
+model OCRLog {
+  id               String       @id @default(uuid())
+  logCode          String       @unique @db.VarChar(50)
+  organisationId   String
+  userId           String?
+  documentId       String?
+  documentName     String?
+  providerId       String?
+  provider         OCRProvider? @relation(fields: [providerId], references: [id], onDelete: SetNull)
+  profileId        String?
+  profile          OCRProfile?  @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  pages            Int          @default(1)
+  status           String       @default("SUCCESS") // SUCCESS, FAILED, TIMEOUT
+  processingTimeMs Int          @default(0)
+  confidence       Float?
+  errorMessage     String?      @db.Text
+  createdAt        DateTime     @default(now())
+
+  @@index([organisationId])
+  @@index([providerId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("ocr_logs")
+}
+
+// ===================================
+// OCR SERVICE HEALTH
+// ===================================
+
+model OCRServiceHealth {
+  id               String          @id @default(uuid())
+  providerId       String          @unique
+  provider         OCRProvider     @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  uptimePercent    Decimal?        @default(99.9) @db.Decimal(5, 2)
+  averageLatencyMs Int?            @default(320)
+  errorRate        Decimal?        @default(0.1) @db.Decimal(5, 2)
+  requestsToday    Int             @default(0)
+  failedRequests   Int             @default(0)
+  successRate      Decimal?        @default(99.9) @db.Decimal(5, 2)
+  rateLimitStatus  String          @default("HEALTHY") // HEALTHY, NEAR_LIMIT, EXCEEDED
+  queueStatus      String          @default("IDLE") // IDLE, PROCESSING, CONGESTED
+  status           AIServiceStatus @default(OPERATIONAL)
+  lastCheckedAt    DateTime        @default(now())
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([status])
+  @@map("ocr_service_health")
+}
+
+// ===================================
+// LEGACY OCR ENGINES & REQUESTS (Backwards Compatibility)
+// ===================================
+
+model OCREngine {
+  id                  String          @id @default(uuid())
+  engineName          String          @db.VarChar(100)
+  engineCode          String          @unique @db.VarChar(50)
+  provider            String          @db.VarChar(100)
+  description         String?         @db.Text
+  supportedLanguages  Int
+  accuracy            Float?
+  averageResponseMs   Int?
+  status              OCREngineStatus @default(ACTIVE)
+  isDefault           Boolean         @default(false)
+  supportsHandwriting Boolean         @default(false)
+  supportsTables      Boolean         @default(false)
+  supportsForms       Boolean         @default(false)
+  supportsMultiPage   Boolean         @default(true)
+  version             String?         @db.VarChar(50)
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  requests            OCRRequest[]
+
+  @@index([status])
+  @@map("ocr_engines")
+}
+
+model OCRRequest {
+  id               String           @id @default(uuid())
+  requestCode      String           @unique @db.VarChar(50)
+  organisationId   String
+  documentId       String?
+  engineId         String
+  requestedBy      String?
+  fileName         String
+  fileType         String?
+  fileSizeMB       Decimal?         @db.Decimal(10, 2)
+  language         String?
+  confidence       Float?
+  extractedPages   Int?
+  processingTimeMs Int?
+  status           OCRRequestStatus @default(QUEUED)
+  errorMessage     String?          @db.Text
+  startedAt        DateTime?
+  completedAt      DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  engine           OCREngine        @relation(fields: [engineId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId])
+  @@index([status])
+  @@index([engineId])
+  @@map("ocr_requests")
+}
+
+// =========================================
+// ENUMS FOR AI JOBS & LOGS
+// =========================================
+
+enum AIJobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum AIJobPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AIRequestStatus {
+  SUCCESS
+  FAILED
+  TIMEOUT
+}
+
+// =========================================
+// AI JOB QUEUE
+// =========================================
+
+model AIJobQueue {
+  id               String        @id @default(uuid())
+  jobCode          String        @unique @db.VarChar(50)
+  organisationId   String
+  userId           String?
+  providerId       String
+  modelId          String
+  documentId       String?
+  requestType      String        @db.VarChar(100)
+  priority         AIJobPriority @default(MEDIUM)
+  status           AIJobStatus   @default(QUEUED)
+  retryCount       Int           @default(0)
+  maxRetries       Int           @default(3)
+  queueName        String?
+  startedAt        DateTime?
+  completedAt      DateTime?
+  processingTimeMs Int?
+  errorMessage     String?       @db.Text
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  provider         AIProvider    @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  model            AIModel       @relation(fields: [modelId], references: [id], onDelete: Restrict)
+  logs             AILog[]
+
+  @@index([organisationId])
+  @@index([status])
+  @@index([providerId])
+  @@index([modelId])
+  @@map("ai_jobs_queue")
+}
+
+// =========================================
+// AI LOGS
+// =========================================
+
+model AILog {
+  id               String          @id @default(uuid())
+  logCode          String          @unique @db.VarChar(50)
+  organisationId   String
+  userId           String?
+  providerId       String
+  modelId          String
+  jobId            String?
+  promptType       String
+  promptTokens     Int
+  completionTokens Int
+  totalTokens      Int
+  estimatedCost    Decimal         @db.Decimal(10, 4)
+  latencyMs        Int
+  requestStatus    AIRequestStatus
+  ipAddress        String?
+  errorMessage     String?         @db.Text
+  createdAt        DateTime        @default(now())
+
+  provider         AIProvider      @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  model            AIModel         @relation(fields: [modelId], references: [id], onDelete: Restrict)
+  job              AIJobQueue?     @relation(fields: [jobId], references: [id])
+
+  @@index([organisationId])
+  @@index([providerId])
+  @@index([modelId])
+  @@index([requestStatus])
+  @@index([createdAt])
+  @@map("ai_logs")
+}
+
+// ============================================
+// ENUMS FOR AI COST USAGE & SERVICE HEALTH
+// ============================================
+
+enum BillingPeriod {
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+enum AIServiceStatus {
+  OPERATIONAL
+  DEGRADED
+  DOWN
+  MAINTENANCE
+}
+
+// ============================================
+// AI COST USAGE
+// ============================================
+
+model AICostUsage {
+  id             String        @id @default(uuid())
+  organisationId String
+  providerId     String
+  modelId        String
+  billingPeriod  BillingPeriod
+  billingDate    DateTime
+  requestCount   Int           @default(0)
+  inputTokens    BigInt        @default(0)
+  outputTokens   BigInt        @default(0)
+  totalTokens    BigInt        @default(0)
+  totalCost      Decimal       @db.Decimal(12, 4)
+  currency       String        @default("INR")
+  averageCost    Decimal?      @db.Decimal(10, 4)
+  budgetLimit    Decimal?      @db.Decimal(12, 2)
+  budgetExceeded Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  provider       AIProvider    @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  model          AIModel       @relation(fields: [modelId], references: [id], onDelete: Restrict)
+
+  @@index([organisationId])
+  @@index([billingDate])
+  @@index([billingPeriod])
+  @@map("ai_cost_usage")
+}
+
+// ============================================
+// AI SERVICE HEALTH
+// ============================================
+
+model AIServiceHealth {
+  id               String          @id @default(uuid())
+  providerId       String          @unique
+  uptimePercent    Decimal?        @db.Decimal(5, 2)
+  averageLatencyMs Int?
+  errorRate        Decimal?        @db.Decimal(5, 2)
+  requestsToday    Int             @default(0)
+  failedRequests   Int             @default(0)
+  successRate      Decimal?        @db.Decimal(5, 2)
+  lastIncident     String?         @db.Text
+  status           AIServiceStatus @default(OPERATIONAL)
+  lastCheckedAt    DateTime
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  provider         AIProvider      @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("ai_service_health")
+}
+
+// =====================================================
+// ENUMS FOR STORAGE CONFIG
+// =====================================================
+
+enum StorageProviderType {
+  AWS_S3
+  AZURE_BLOB
+  GOOGLE_CLOUD_STORAGE
+  LOCAL_STORAGE
+}
+
+enum StorageClass {
+  STANDARD
+  STANDARD_IA
+  GLACIER
+  DEEP_ARCHIVE
+}
+
+enum StorageConfigStatus {
+  ACTIVE
+  DISABLED
+}
+
+// =====================================================
+// STORAGE CONFIG
+// =====================================================
+
+model StorageConfig {
+  id                      String              @id @default(uuid())
+  organisationId          String?             @unique
+  providerType            StorageProviderType @default(AWS_S3)
+  bucketName              String              @db.VarChar(150)
+  bucketRegion            String              @default("ap-south-1") @db.VarChar(80)
+  basePrefix              String?             @db.VarChar(150)
+  accessKeyIdEncrypted    String?             @db.Text
+  secretAccessKeyEncrypted String?            @db.Text
+  kmsKeyIdEncrypted       String?             @db.Text
+  encryptionType          String?             @default("SSE-S3") @db.VarChar(50)
+  connectionStatus        String              @default("NOT_CONFIGURED") @db.VarChar(50)
+  lastTestedAt            DateTime?
+  lastConnectionError     String?             @db.Text
+  storageClass            StorageClass        @default(STANDARD)
+  allocatedQuotaGB        Int                 @default(500)
+  maxUploadFileSizeMB     Int                 @default(50)
+  warningThresholdPercent Int                 @default(85)
+  autoCleanupAfterDays    Int                 @default(30)
+  encryptionEnabled       Boolean             @default(true)
+  compressionEnabled      Boolean             @default(true)
+  versioningEnabled       Boolean             @default(true)
+  isGlobalDefault         Boolean             @default(false)
+  status                  StorageConfigStatus @default(ACTIVE)
+  description             String?             @db.Text
+  createdBy               String?
+  updatedBy               String?
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+
+  @@index([organisationId])
+  @@index([providerType])
+  @@index([status])
+  @@index([connectionStatus])
+  @@map("storage_configs")
+}
+
+// =====================================================
+// ENUMS FOR ORGANISATION STORAGE USAGE
+// =====================================================
+
+enum StorageHealthStatus {
+  HEALTHY
+  WARNING
+  CRITICAL
+  EXCEEDED
+}
+
+// =====================================================
+// ORGANISATION STORAGE USAGE
+// =====================================================
+
+model OrganisationStorageUsage {
+  id               String              @id @default(uuid())
+  organisationId   String              @unique
+  totalAllocatedGB Decimal             @db.Decimal(12, 2)
+  usedStorageGB    Decimal             @default(0) @db.Decimal(12, 2)
+  totalFiles       Int                 @default(0)
+  totalFolders     Int                 @default(0)
+  totalDocuments   Int                 @default(0)
+  totalImages      Int                 @default(0)
+  totalArchives    Int                 @default(0)
+  healthStatus     StorageHealthStatus @default(HEALTHY)
+  lastUploadedAt   DateTime?
+  lastCalculatedAt DateTime            @default(now())
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([organisationId])
+  @@index([healthStatus])
+  @@map("organisation_storage_usage")
+}
+
+// =====================================================
+// ENUMS FOR STORAGE RETENTION POLICIES
+// =====================================================
+
+enum RetentionAction {
+  DELETE
+  ARCHIVE
+  MOVE_TO_COLD_STORAGE
+  KEEP_FOREVER
+}
+
+enum RetentionPolicyStatus {
+  ACTIVE
+  DISABLED
+  LOCKED
+}
+
+// =====================================================
+// STORAGE RETENTION POLICIES
+// =====================================================
+
+model StorageRetentionPolicy {
+  id               String                @id @default(uuid())
+  organisationId   String?
+  policyName       String                @db.VarChar(100)
+  description      String?               @db.Text
+  documentCategory String                @db.VarChar(100)
+  retentionDays    Int
+  actionOnExpiry   RetentionAction       @default(DELETE)
+  status           RetentionPolicyStatus @default(ACTIVE)
+  isGlobalDefault  Boolean               @default(false)
+  createdBy        String?
+  updatedBy        String?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  @@index([organisationId])
+  @@index([documentCategory])
+  @@index([status])
+  @@map("storage_retention_policies")
+}
+
+// =====================================================
+// ENUMS FOR STORAGE BACKUPS
+// =====================================================
+
+enum BackupType {
+  FULL
+  INCREMENTAL
+  SNAPSHOT
+}
+
+enum BackupStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  RESTORED
+}
+
+enum BackupTrigger {
+  MANUAL
+  SCHEDULED
+  SYSTEM
+}
+
+// =====================================================
+// STORAGE BACKUPS
+// =====================================================
+
+model StorageBackup {
+  id              String              @id @default(uuid())
+  backupCode      String              @unique @db.VarChar(50)
+  organisationId  String?
+  backupName      String              @db.VarChar(150)
+  backupType      BackupType
+  triggerType     BackupTrigger
+  storageProvider StorageProviderType @default(AWS_S3)
+  storagePath     String              @db.Text
+  bucketName      String?
+  backupSizeGB    Decimal             @db.Decimal(10, 2)
+  encrypted       Boolean             @default(true)
+  compressed      Boolean             @default(true)
+  status          BackupStatus        @default(PENDING)
+  errorMessage    String?             @db.Text
+  startedAt       DateTime?
+  completedAt     DateTime?
+  restoredAt      DateTime?
+  nextScheduledAt DateTime?
+  triggeredBy     String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([organisationId])
+  @@index([status])
+  @@index([backupType])
+  @@index([triggerType])
+  @@map("storage_backups")
+}
+
+// =====================================================
+// ENUMS FOR STORAGE ALERTS
+// =====================================================
+
+enum StorageAlertType {
+  NEAR_QUOTA
+  QUOTA_EXCEEDED
+  BACKUP_FAILED
+  STORAGE_FAILURE
+  ENCRYPTION_ERROR
+  RETENTION_POLICY_FAILED
+}
+
+enum StorageAlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum StorageAlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+// =====================================================
+// STORAGE ALERTS
+// =====================================================
+
+model StorageAlert {
+  id              String               @id @default(uuid())
+  alertCode       String               @unique @db.VarChar(50)
+  organisationId  String
+  alertType       StorageAlertType
+  severity        StorageAlertSeverity
+  status          StorageAlertStatus   @default(OPEN)
+  title           String               @db.VarChar(150)
+  message         String               @db.Text
+  currentUsageGB  Decimal?             @db.Decimal(12, 2)
+  quotaLimitGB    Decimal?             @db.Decimal(12, 2)
+  usagePercent    Decimal?             @db.Decimal(5, 2)
+  acknowledgedBy  String?
+  acknowledgedAt  DateTime?
+  resolvedBy      String?
+  resolvedAt      DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([organisationId])
+  @@index([alertType])
+  @@index([severity])
+  @@index([status])
+  @@map("storage_alerts")
+}
+
+// =====================================================
+// ENUMS FOR STORAGE USAGE HISTORY
+// =====================================================
+
+enum StorageHistoryPeriod {
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+// =====================================================
+// STORAGE USAGE HISTORY
+// =====================================================
+
+model StorageUsageHistory {
+  id                 String               @id @default(uuid())
+  organisationId     String
+  period             StorageHistoryPeriod
+  recordDate         DateTime
+  allocatedStorageGB Decimal              @db.Decimal(12, 2)
+  usedStorageGB      Decimal              @db.Decimal(12, 2)
+  uploadedStorageGB  Decimal              @default(0) @db.Decimal(12, 2)
+  deletedStorageGB   Decimal              @default(0) @db.Decimal(12, 2)
+  totalFiles         Int                  @default(0)
+  totalUploads       Int                  @default(0)
+  totalDeletes       Int                  @default(0)
+  averageFileSizeMB  Decimal?             @db.Decimal(10, 2)
+  createdAt          DateTime             @default(now())
+
+  @@unique([organisationId, period, recordDate])
+  @@index([organisationId])
+  @@index([recordDate])
+  @@index([period])
+  @@map("storage_usage_history")
+}
+
+// =====================================================
+// ENUMS FOR SUBSCRIPTION PLANS
+// =====================================================
+
+enum PlanStatus {
+  ACTIVE
+  INACTIVE
+  DISABLED
+}
+
+enum BillingCycle {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+  CUSTOM
+}
+
+enum SupportLevel {
+  STANDARD
+  PRIORITY
+  DEDICATED
+  EXECUTIVE
+}
+
+// =====================================================
+// SUBSCRIPTION PLANS
+// =====================================================
+
+model SubscriptionPlan {
+  id                String       @id @default(uuid())
+  planName          String       @unique @db.VarChar(100)
+  planCode          String       @unique @db.VarChar(50)
+  description       String?      @db.Text
+  monthlyPrice      Decimal      @db.Decimal(12, 2)
+  yearlyPrice       Decimal?     @db.Decimal(12, 2)
+  currency          String       @default("INR") @db.VarChar(10)
+  billingCycle      BillingCycle @default(MONTHLY)
+  userLimit         Int?
+  storageLimitGB    Int?
+  aiCredits         Int?
+  ocrLimit          Int?         @default(1000)
+  apiRateLimit      Int?
+  supportLevel      SupportLevel @default(STANDARD)
+  badge             String?      @db.VarChar(50)
+  whiteLabelEnabled Boolean      @default(false)
+  customBranding    Boolean      @default(false)
+  dedicatedApi      Boolean      @default(false)
+  customSLA         Boolean      @default(false)
+  isMostPopular     Boolean      @default(false)
+  isCustomPlan      Boolean      @default(false)
+  displayOrder      Int          @default(1)
+  isActive          Boolean      @default(true)
+  features          Json?
+  createdBy         String?
+  updatedBy         String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  subscriptions     OrganisationSubscription[]
+  currentRequests   SubscriptionRequest[]      @relation("CurrentSubscriptionPlan")
+  requestedRequests SubscriptionRequest[]      @relation("RequestedSubscriptionPlan")
+  historyOldPlans   SubscriptionHistory[]      @relation("HistoryOldPlan")
+  historyNewPlans   SubscriptionHistory[]      @relation("HistoryNewPlan")
+
+  @@index([isActive])
+  @@index([displayOrder])
+  @@map("subscription_plans")
+}
+
+// =====================================================
+// SUBSCRIPTION FEATURES & PLAN-FEATURE MAPPING
+// =====================================================
+
+model SubscriptionFeature {
+  id          String   @id @default(uuid())
+  featureKey  String   @unique @db.VarChar(100)
+  name        String   @db.VarChar(100)
+  description String?  @db.Text
+  category    String   @default("general") @db.VarChar(50)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  planFeatures SubscriptionPlanFeature[]
+
+  @@index([featureKey])
+  @@index([category])
+  @@map("subscription_features")
+}
+
+model SubscriptionPlanFeature {
+  id          String   @id @default(uuid())
+  planId      String
+  featureKey  String   @db.VarChar(100)
+  enabled     Boolean  @default(true)
+  limitValue  Decimal? @db.Decimal(12, 2)
+  limitUnit   String?  @db.VarChar(50)
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  feature     SubscriptionFeature? @relation(fields: [featureKey], references: [featureKey], onDelete: Cascade)
+
+  @@unique([planId, featureKey])
+  @@index([planId])
+  @@index([featureKey])
+  @@map("subscription_plan_features")
+}
+
+// =====================================================
+// ENUMS FOR ORGANISATION SUBSCRIPTIONS
+// =====================================================
+
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  EXPIRING
+  EXPIRED
+  SUSPENDED
+  CANCELLED
+}
+
+// =====================================================
+// ORGANISATION SUBSCRIPTIONS
+// =====================================================
+
+model OrganisationSubscription {
+  id                   String             @id @default(uuid())
+  organisationId       String
+  planId               String
+  billingCycle         BillingCycle       @default(MONTHLY)
+  status               SubscriptionStatus @default(PENDING)
+  startDate            DateTime
+  expiryDate           DateTime
+  autoRenew            Boolean            @default(true)
+  nextBillingDate      DateTime?
+  lastBillingDate      DateTime?
+  renewedAt            DateTime?
+  suspendedAt          DateTime?
+  cancelledAt          DateTime?
+  suspensionReason     String?            @db.Text
+  cancellationReason   String?            @db.Text
+  customUserLimit      Int?
+  customStorageLimitGB Int?
+  customAICredits      Int?
+  customOCRLimit       Int?
+  monthlyPrice         Decimal?           @db.Decimal(12, 2)
+  discountAmount       Decimal?           @db.Decimal(12, 2)
+  finalPrice           Decimal?           @db.Decimal(12, 2)
+  notes                String?            @db.Text
+  createdBy            String?
+  updatedBy            String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  plan                 SubscriptionPlan      @relation(fields: [planId], references: [id], onDelete: Restrict)
+  history              SubscriptionHistory[]
+
+  @@index([organisationId])
+  @@index([planId])
+  @@index([status])
+  @@index([expiryDate])
+  @@map("organisation_subscriptions")
+}
+
+// =====================================================
+// ENUMS FOR SUBSCRIPTION REQUESTS
+// =====================================================
+
+enum SubscriptionRequestType {
+  UPGRADE
+  DOWNGRADE
+  RENEWAL
+  CANCELLATION
+  CUSTOM_QUOTE
+  ADD_ON_CREDITS
+}
+
+enum SubscriptionRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+// =====================================================
+// SUBSCRIPTION REQUESTS
+// =====================================================
+
+model SubscriptionRequest {
+  id              String                    @id @default(uuid())
+  requestNumber   String                    @unique @db.VarChar(50)
+  organisationId  String
+  currentPlanId   String
+  requestedPlanId String?
+  requestType     SubscriptionRequestType
+  status          SubscriptionRequestStatus @default(PENDING)
+  requestReason   String?                   @db.Text
+  requestedBy     String
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  effectiveDate   DateTime?
+  rejectionReason String?                   @db.Text
+  adminNotes      String?                   @db.Text
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+
+  currentPlan     SubscriptionPlan          @relation("CurrentSubscriptionPlan", fields: [currentPlanId], references: [id], onDelete: Restrict)
+  requestedPlan   SubscriptionPlan?         @relation("RequestedSubscriptionPlan", fields: [requestedPlanId], references: [id], onDelete: SetNull)
+
+  @@index([organisationId])
+  @@index([status])
+  @@index([requestType])
+  @@index([createdAt])
+  @@map("subscription_requests")
+}
+
+// =====================================================
+// ENUMS FOR SUBSCRIPTION HISTORY
+// =====================================================
+
+enum SubscriptionHistoryAction {
+  CREATED
+  UPGRADED
+  DOWNGRADED
+  RENEWED
+  SUSPENDED
+  REACTIVATED
+  CANCELLED
+  EXPIRED
+}
+
+// =====================================================
+// SUBSCRIPTION HISTORY
+// =====================================================
+
+model SubscriptionHistory {
+  id                   String                    @id @default(uuid())
+  subscriptionId       String
+  organisationId       String
+  action               SubscriptionHistoryAction
+  oldPlanId            String?
+  newPlanId            String?
+  oldStatus            SubscriptionStatus?
+  newStatus            SubscriptionStatus?
+  amountPaid           Decimal?                  @db.Decimal(12, 2)
+  currency             String                    @default("INR") @db.VarChar(10)
+  transactionReference String?                   @db.VarChar(150)
+  performedBy          String?
+  remarks              String?                   @db.Text
+  effectiveDate        DateTime?
+  createdAt            DateTime                  @default(now())
+
+  subscription         OrganisationSubscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  oldPlan              SubscriptionPlan?         @relation("HistoryOldPlan", fields: [oldPlanId], references: [id], onDelete: SetNull)
+  newPlan              SubscriptionPlan?         @relation("HistoryNewPlan", fields: [newPlanId], references: [id], onDelete: SetNull)
+
+  @@index([organisationId])
+  @@index([subscriptionId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("subscription_history")
+}
+
+
+
+// =====================================================
+// ENUMS FOR AUDIT LOGS
+// =====================================================
+
+enum AuditModule {
+  ORGANISATION
+  USER
+  BILLING
+  STORAGE
+  AI_CONFIG
+  SECURITY
+  PLATFORM
+}
+
+enum AuditSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum AuditActorType {
+  SUPER_ADMIN
+  ORG_ADMIN
+  SYSTEM
+  SYSTEM_WORKER
+  SECURITY_GUARD
+}
+
+enum AuditResult {
+  SUCCESS
+  FAILED
+  PARTIAL
+}
+
+// =====================================================
+// AUDIT LOGS
+// =====================================================
+
+model AuditLog {
+  id               String          @id @default(uuid())
+  eventId          String          @unique @db.VarChar(50)
+  actorId          String?
+  actorUserId      String?
+  actorName        String          @db.VarChar(150)
+  actorRole        String?         @db.VarChar(50)
+  actorType        AuditActorType? @default(SUPER_ADMIN)
+  organisationId   String?
+  organisationName String?         @db.VarChar(150)
+  module           AuditModule?    @default(PLATFORM)
+  action           String          @db.VarChar(150)
+  resourceType     String?         @db.VarChar(100)
+  resourceId       String?         @db.VarChar(150)
+  resourceName     String?         @db.VarChar(255)
+  severity         AuditSeverity   @default(INFO)
+  status           String          @default("SUCCESS") @db.VarChar(50)
+  result           AuditResult?    @default(SUCCESS)
+  ipAddress        String?         @db.VarChar(100)
+  userAgent        String?         @db.Text
+  browser          String?         @db.VarChar(100)
+  operatingSystem  String?         @db.VarChar(100)
+  location         String?         @db.VarChar(150)
+  requestId        String?         @db.VarChar(100)
+  metadata         Json?
+  beforeData       Json?
+  afterData        Json?
+  details          Json?
+  retentionUntil   DateTime?
+  createdAt        DateTime        @default(now())
+
+  @@index([organisationId])
+  @@index([actorUserId])
+  @@index([action])
+  @@index([resourceType])
+  @@index([severity])
+  @@index([status])
+  @@index([createdAt])
+  @@index([eventId])
+  @@map("audit_logs")
+}
+
+// =====================================================
+// ENUMS FOR SUPPORT TICKETS
+// =====================================================
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_FOR_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+// =====================================================
+// SUPPORT TICKETS & REPLIES
+// =====================================================
+
+model SupportTicket {
+  id               String               @id @default(uuid())
+  ticketCode       String               @unique @db.VarChar(50)
+  organisationId   String?
+  organisationName String               @db.VarChar(255)
+  adminName        String               @db.VarChar(150)
+  adminEmail       String               @db.VarChar(150)
+  category         String               @db.VarChar(100)
+  priority         TicketPriority       @default(MEDIUM)
+  status           TicketStatus         @default(OPEN)
+  description      String               @db.Text
+  internalNotes    String?              @db.Text
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  replies          SupportTicketReply[]
+
+  @@index([organisationId])
+  @@index([status])
+  @@index([priority])
+  @@index([category])
+  @@map("support_tickets")
+}
+
+model SupportTicketReply {
+  id         String        @id @default(uuid())
+  ticketId   String
+  senderName String        @db.VarChar(150)
+  senderRole String        @db.VarChar(100)
+  message    String        @db.Text
+  createdAt  DateTime      @default(now())
+
+  ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@map("support_ticket_replies")
+}
+
+// =====================================================
+// PLATFORM SETTINGS
+// =====================================================
+
+model PlatformSetting {
+  id                    String   @id @default(uuid())
+  systemName            String   @default("DocuCore AI") @db.VarChar(100)
+  supportEmail          String   @default("support@docucore.ai") @db.VarChar(150)
+  maintenanceMode       Boolean  @default(false)
+  maxFileUploadMb       Int      @default(50)
+  defaultStorageQuotaGb Int      @default(500)
+  enforceTwoFactor      Boolean  @default(false)
+  sessionTimeoutMinutes Int      @default(60)
+  customConfig          Json?
+  updatedBy             String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("platform_settings")
+}
+
+// =====================================================
+// TEMPLATES & DOCUMENT BUILDER
+// =====================================================
+
+enum DocumentTemplateStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum TemplateFieldType {
+  TEXT
+  NUMBER
+  DATETIME
+  BOOLEAN
+  PHONE
+  EMAIL
+  CURRENCY
+  SELECT
+  TEXTAREA
+}
+
+model DocumentTemplate {
+  id              String                 @id @default(uuid())
+  organisationId Int
+  name            String
+  description     String?
+  category        String                 @default("HR")
+  documentType    String
+  content         String                 @db.Text
+  status          DocumentTemplateStatus @default(DRAFT)
+
+  createdById     Int
+  updatedById     Int?
+
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  organisation    Organisation           @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  createdBy       User                   @relation("TemplateCreatedBy", fields: [createdById], references: [id])
+  updatedBy       User?                  @relation("TemplateUpdatedBy", fields: [updatedById], references: [id])
+
+  versions        DocumentTemplateVersion[]
+  fields          DocumentTemplateField[]
+
+  @@index([organisationId])
+  @@index([organisationId, status])
+  @@index([createdById])
+  @@map("document_templates")
+}
+
+model DocumentTemplateVersion {
+  id          String           @id @default(uuid())
+  templateId  String
+  version     Int
+  content     String           @db.Text
+
+  createdById Int
+  createdAt   DateTime         @default(now())
+
+  template    DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  createdBy   User             @relation("TemplateVersionCreatedBy", fields: [createdById], references: [id])
+
+  @@unique([templateId, version])
+  @@index([templateId])
+  @@map("document_template_versions")
+}
+
+model DocumentTemplateField {
+  id           String            @id @default(uuid())
+  templateId   String
+  name         String
+  label        String
+  type         TemplateFieldType
+  required     Boolean           @default(false)
+  defaultValue String?
+
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  template     DocumentTemplate  @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId])
+  @@map("document_template_fields")
+}
+
+// =====================================================
+// ORGANISATION INTEGRATIONS, API KEYS & WEBHOOKS
+// =====================================================
+
+enum IntegrationProvider {
+  GOOGLE_WORKSPACE
+  GOOGLE_DRIVE
+  GOOGLE_DOCS
+  MICROSOFT_365
+  MICROSOFT_ONEDRIVE
+  MICROSOFT_TEAMS
+  AWS_S3
+  SLACK
+  SMTP_EMAIL
+  WHATSAPP_BUSINESS
+  SALESFORCE
+  HUBSPOT
+  ZOHO_CRM
+  DOCUSIGN
+  MICROSOFT_ENTRA_ID
+  CUSTOM_REST
+  WEBHOOK
+}
+
+enum IntegrationCategory {
+  STORAGE
+  COMMUNICATION
+  CRM
+  PRODUCTIVITY
+  E_SIGNATURE
+  AUTHENTICATION
+  DEVELOPER
+}
+
+enum IntegrationStatus {
+  CONNECTED
+  DISCONNECTED
+  FAILED
+  CONFIG_REQUIRED
+  NOT_CONFIGURED
+}
+
+model OrganisationIntegration {
+  id                    String              @id @default(uuid())
+  organisationId        Int
+  provider              IntegrationProvider
+  category              IntegrationCategory
+  status                IntegrationStatus   @default(DISCONNECTED)
+  accountName           String?
+  accountEmail          String?
+  accessTokenEncrypted  String?             @db.Text
+  refreshTokenEncrypted String?             @db.Text
+  expiresAt             DateTime?
+  metadata              Json?
+  connectedById         Int?
+  connectedAt           DateTime?
+  updatedAt             DateTime            @updatedAt
+  lastSyncedAt          DateTime?
+
+  organisation          Organisation        @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  connectedBy           User?               @relation("IntegrationConnectedBy", fields: [connectedById], references: [id], onDelete: SetNull)
+  logs                  IntegrationLog[]
+
+  @@unique([organisationId, provider])
+  @@index([organisationId])
+  @@index([organisationId, status])
+  @@map("organisation_integrations")
+}
+
+model IntegrationLog {
+  id              String       @id @default(uuid())
+  organisationId  Int
+  integrationId   String?
+  provider        String
+  action          String
+  status          String       @default("SUCCESS") // SUCCESS, FAILED, RUNNING
+  requestPayload  Json?
+  responsePayload Json?
+  errorMessage    String?      @db.Text
+  executionTimeMs Int          @default(0)
+  externalId      String?
+  createdAt       DateTime     @default(now())
+
+  organisation    Organisation              @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  integration     OrganisationIntegration?  @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+
+  @@index([organisationId])
+  @@index([organisationId, provider])
+  @@index([organisationId, createdAt])
+  @@map("integration_logs")
+}
+
+model CustomRestIntegration {
+  id             String       @id @default(uuid())
+  organisationId Int
+  name           String
+  baseUrl        String
+  authType       String       @default("NONE") // NONE, API_KEY, BEARER_TOKEN, BASIC_AUTH, OAUTH2
+  authConfig     Json?        // Encrypted headers / key / token
+  headers        Json?        // Custom static headers
+  timeoutMs      Int          @default(10000)
+  retryCount     Int          @default(1)
+  status         String       @default("ACTIVE")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId])
+  @@map("custom_rest_integrations")
+}
+
+model OrganisationApiKey {
+  id             String       @id @default(uuid())
+  organisationId Int
+  name           String
+  keyHash        String       @unique
+  prefix         String       @db.VarChar(50)
+  status         String       @default("ACTIVE")
+  createdById    Int?
+  createdAt      DateTime     @default(now())
+  lastUsedAt     DateTime?
+
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  createdBy      User?        @relation("ApiKeyCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([organisationId])
+  @@map("organisation_api_keys")
+}
+
+model OrganisationWebhook {
+  id             String            @id @default(uuid())
+  organisationId Int
+  name           String
+  url            String 
+  secretHash     String 
+  events         String[]
+  status         String            @default("ACTIVE")
+  createdById    Int?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  organisation   Organisation      @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  createdBy      User?             @relation("WebhookCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  deliveries     WebhookDelivery[]
+
+  @@index([organisationId])
+  @@map("organisation_webhooks")
+}
+
+model WebhookDelivery {
+  id             String              @id @default(uuid())
+  organisationId Int
+  webhookId      String
+  event          String
+  status         String              @default("PENDING") // SUCCESS, FAILED, PENDING, RETRYING
+  payload        Json
+  signature      String?
+  responseStatus Int?
+  responseBody   String?             @db.Text
+  attempts       Int                 @default(1)
+  errorMessage   String?             @db.Text
+  createdAt      DateTime            @default(now())
+  deliveredAt    DateTime?
+
+  organisation   Organisation        @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  webhook        OrganisationWebhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId])
+  @@index([webhookId])
+  @@index([organisationId, createdAt])
+  @@map("webhook_deliveries")
+}
+
+model PlatformIntegration {
+  id                    String              @id @default(uuid())
+  provider              IntegrationProvider @unique
+  name                  String
+  isEnabled             Boolean             @default(true)
+  clientIdEncrypted     String?             @db.Text
+  clientSecretEncrypted String?             @db.Text
+  redirectUri           String?
+  tenantId              String?
+  allowedScopes         String[]
+  settings              Json?               // AWS S3 bucket config, SMTP default config, WhatsApp platform config
+  status                String              @default("ACTIVE") // ACTIVE, NOT_CONFIGURED, DISABLED
+  healthStatus          String              @default("HEALTHY") // HEALTHY, DEGRADED, DOWN
+  errorRate             Float               @default(0.0)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  @@map("platform_integrations")
+}
+
+// =====================================================
+// ENTERPRISE CRM DATABASE PERSISTENCE
+// =====================================================
+
+model CrmClient {
+  id             String        @id @default(uuid())
+  organisationId Int
+  name           String
+  type           String        @default("Company")
+  contactPerson  String?
+  email          String?
+  phone          String?
+  website        String?
+  address        String?
+  city           String?
+  state          String?
+  country        String?
+  postalCode     String?
+  industry       String?
+  companySize    String?
+  status         String        @default("Active")
+  department     String?
+  assignedTo     String?
+  tags           String[]      @default([])
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  contacts       CrmContact[]
+  documents      CrmDocument[]
+  requests       CrmRequest[]
+  activities     CrmActivity[]
+  notesList      CrmNote[]
+
+  @@index([organisationId])
+  @@index([organisationId, status])
+  @@map("crm_clients")
+}
+
+model CrmContact {
+  id             String     @id @default(uuid())
+  clientId       String
+  organisationId Int
+  firstName      String
+  lastName       String?
+  designation    String?
+  email          String
+  phone          String?
+  department     String?
+  role           String?
+  isPrimary      Boolean    @default(false)
+  notes          String?
+  status         String     @default("Active")
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  client         CrmClient  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([organisationId])
+  @@map("crm_contacts")
+}
+
+model CrmDocument {
+  id             String     @id @default(uuid())
+  clientId       String
+  organisationId Int
+  title          String
+  type           String     @default("Contract")
+  status         String     @default("Draft")
+  owner          String?
+  fileKey        String?
+  version        String     @default("1.0")
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  client         CrmClient  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([organisationId])
+  @@map("crm_documents")
+}
+
+model CrmRequest {
+  id             String     @id @default(uuid())
+  clientId       String
+  organisationId Int
+  clientName     String
+  title          String
+  type           String     @default("New Document")
+  description    String?
+  priority       String     @default("Medium")
+  status         String     @default("New")
+  assignedTo     String?
+  dueDate        String?
+  requestedBy    String?
+  attachments    String[]   @default([])
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  client         CrmClient  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([organisationId])
+  @@map("crm_requests")
+}
+
+model CrmActivity {
+  id             String     @id @default(uuid())
+  clientId       String
+  organisationId Int
+  type           String
+  description    String
+  user           String     @default("Admin")
+  createdAt      DateTime   @default(now())
+
+  client         CrmClient  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([organisationId])
+  @@map("crm_activities")
+}
+
+model CrmNote {
+  id             String     @id @default(uuid())
+  clientId       String
+  organisationId Int
+  title          String
+  description    String
+  createdBy      String     @default("Admin")
+  isPinned       Boolean    @default(false)
+  createdAt      DateTime   @default(now())
+
+  client         CrmClient  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([organisationId])
+  @@map("crm_notes")
+}
+
+// =====================================================
+// BULK DOCUMENT GENERATION ENGINE
+// =====================================================
+
+model BulkGenerationJob {
+  id                 String                 @id @default(uuid())
+  organisationId     Int
+  templateId         String
+  templateName       String
+  totalRecords       Int                    @default(0)
+  processedRecords   Int                    @default(0)
+  successfulRecords  Int                    @default(0)
+  failedRecords      Int                    @default(0)
+  status             String                 @default("QUEUED")
+  downloadUrl        String?
+  zipKey             String?
+  createdById        Int?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  records            BulkGenerationRecord[]
+
+  @@index([organisationId])
+  @@index([organisationId, status])
+  @@map("bulk_generation_jobs")
+}
+
+model BulkGenerationRecord {
+  id           String            @id @default(uuid())
+  jobId        String
+  recordIndex  Int
+  documentId   Int?
+  documentName String?
+  status       String            @default("PENDING")
+  errorMessage String?
+  createdAt    DateTime          @default(now())
+
+  job          BulkGenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@map("bulk_generation_records")
+}
+
+// =====================================================
+// INTELLIGENT DOCUMENT PROCESSING (IDP)
+// =====================================================
+
+model DocumentExtraction {
+  id              String    @id @default(uuid())
+  organisationId  Int
+  documentId      Int?
+  documentName    String
+  documentType    String    @default("INVOICE")
+  structuredData  Json
+  confidenceScore Float     @default(95.0)
+  status          String    @default("COMPLETED")
+  reviewedById    Int?
+  reviewedAt      DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([organisationId])
+  @@index([organisationId, documentType])
+  @@map("document_extractions")
+}
+
+// =====================================================
+// E-SIGNATURE WORKFLOW ENGINE
+// =====================================================
+
+model SignatureEnvelope {
+  id              String               @id @default(uuid())
+  organisationId  Int
+  documentId      Int
+  title           String
+  status          String               @default("PENDING")
+  signingOrder    String               @default("SEQUENTIAL")
+  certificateHash String?
+  createdById     Int?
+  completedAt     DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  signers         SignatureRecipient[]
+
+  @@index([organisationId])
+  @@index([organisationId, status])
+  @@map("signature_envelopes")
+}
+
+model SignatureRecipient {
+  id            String            @id @default(uuid())
+  envelopeId    String
+  name          String
+  email         String
+  role          String            @default("SIGNER")
+  order         Int               @default(1)
+  status        String            @default("PENDING")
+  signedAt      DateTime?
+  signatureData String?
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime          @default(now())
+
+  envelope      SignatureEnvelope @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
+
+  @@index([envelopeId])
+  @@map("signature_recipients")
+}
+
+// =====================================================
+// AUTONOMOUS AI DOCUMENT AGENT
+// =====================================================
+
+model AIAgentExecution {
+  id             String   @id @default(uuid())
+  organisationId Int
+  userId         Int
+  prompt         String
+  intent         String
+  stepsExecuted  Json
+  status         String   @default("COMPLETED")
+  resultSummary  String?
+  createdAt      DateTime @default(now())
+
+  @@index([organisationId])
+  @@map("ai_agent_executions")
+}
+
+// =====================================================
+// AUTOMATION FORM BUILDER
+// =====================================================
+
+model AutomationForm {
+  id              String                   @id @default(uuid())
+  organisationId  Int
+  templateId      String?
+  title           String
+  description     String?
+  fields          Json
+  submitAction    Json?
+  status          String                   @default("ACTIVE")
+  createdById     Int?
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+
+  submissions     AutomationFormSubmission[]
+
+  @@index([organisationId])
+  @@index([organisationId, status])
+  @@map("automation_forms")
+}
+
+model AutomationFormSubmission {
+  id                  String         @id @default(uuid())
+  formId              String
+  organisationId      Int
+  submittedData       Json
+  generatedDocumentId Int?
+  status              String         @default("PROCESSED")
+  createdAt           DateTime       @default(now())
+
+  form                AutomationForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  @@index([formId])
+  @@index([organisationId])
+  @@map("automation_form_submissions")
+}
+
+// =====================================================
+// CRM SYNC AUDIT LOGS
+// =====================================================
+
+model CrmSyncLog {
+  id             String   @id @default(uuid())
+  organisationId Int
+  provider       String
+  direction      String   @default("OUTBOUND")
+  entityType     String   @default("CONTACT")
+  status         String   @default("SUCCESS")
+  details        String?
+  createdAt      DateTime @default(now())
+
+  @@index([organisationId])
+  @@index([organisationId, provider])
+  @@map("crm_sync_logs")
+}
+
+// =====================================================
+// DOCUMENT COLLABORATION & COMMENTS
+// =====================================================
+
+model DocumentComment {
+  id             String   @id @default(uuid())
+  documentId     Int
+  organisationId Int
+  userId         Int?
+  authorName     String   @default("User")
+  content        String   @db.Text
+  createdAt      DateTime @default(now())
+
+  @@index([documentId])
+  @@index([organisationId])
+  @@map("document_comments")
+}
+
+// =====================================================
+// PAYMENT TRANSACTIONS & USAGE SNAPSHOTS
+// =====================================================
+
+model PaymentTransaction {
+  id             String   @id @default(uuid())
+  organisationId Int
+  provider       String   @default("MANUAL")
+  transactionRef String   @unique
+  amount         Float    @default(0)
+  currency       String   @default("INR")
+  status         String   @default("SUCCESS")
+  planCode       String?
+  createdAt      DateTime @default(now())
+
+  @@index([organisationId])
+  @@map("payment_transactions")
+}
+
+model OrganisationUsageSnapshot {
+  id              String   @id @default(uuid())
+  organisationId  Int
+  period          String
+  aiRequestsUsed  Int      @default(0)
+  ocrPagesUsed    Int      @default(0)
+  storageBytesUsed BigInt  @default(0)
+  documentsCount  Int      @default(0)
+  workflowsCount  Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  @@unique([organisationId, period])
+  @@map("organisation_usage_snapshots")
+}
+
+// =====================================================
+// SUPER ADMIN PLATFORM CONTROL PLANE MODELS
+// =====================================================
+
+model FeatureFlag {
+  id                     String   @id @default(uuid())
+  name                   String
+  code                   String   @unique
+  description            String?
+  isEnabledGlobal        Boolean  @default(false)
+  organisationOverrides  Json?
+  category               String   @default("GENERAL")
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([code])
+  @@map("feature_flags")
+}
+
+model PlatformAnnouncement {
+  id               String    @id @default(uuid())
+  title            String
+  message          String    @db.Text
+  type             String    @default("BANNER")
+  startsAt         DateTime  @default(now())
+  endsAt           DateTime?
+  isActive         Boolean   @default(true)
+  affectedServices String[]  @default([])
+  createdAt        DateTime  @default(now())
+
+  @@index([isActive])
+  @@map("platform_announcements")
+}
+
+model EmergencyAccessLog {
+  id                String   @id @default(uuid())
+  superAdminId      Int
+  organisationId    Int
+  reason            String   @db.Text
+  authorizedUntil   DateTime
+  actionsPerformed  Json?
+  createdAt         DateTime @default(now())
+
+  @@index([superAdminId])
+  @@index([organisationId])
+  @@map("emergency_access_logs")
+}
+
+// =====================================================
+// ENTERPRISE GOVERNANCE & COMPLIANCE MODULES
+// =====================================================
+
+model GovernanceChangeRequest {
+  id              String    @id @default(uuid())
+  changeRequestId String    @unique
+  organisationId  Int
+  requesterId     Int
+  requesterName   String?
+  changeType      String    // ROLE_ESCALATION, SECURITY_POLICY, RETENTION_POLICY, DEPARTMENT_OWNERSHIP, INTEGRATION_CONFIG, SYSTEM_STRUCTURE
+  title           String
+  description     String    @db.Text
+  currentValue    Json?
+  requestedValue  Json?
+  severity        String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  status          String    @default("PENDING_APPROVAL") // DRAFT, PENDING_APPROVAL, APPROVED, REJECTED, APPLIED
+  approverId      Int?
+  approverName    String?
+  approvalReason  String?   @db.Text
+  reviewedAt      DateTime?
+  appliedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([organisationId])
+  @@index([status])
+  @@index([changeType])
+  @@map("governance_change_requests")
+}
+
+model AccessReviewCampaign {
+  id             String             @id @default(uuid())
+  name           String
+  description    String?            @db.Text
+  organisationId Int
+  reviewerId     Int?
+  reviewerName   String?
+  startDate      DateTime           @default(now())
+  dueDate        DateTime
+  status         String             @default("ACTIVE") // ACTIVE, IN_PROGRESS, COMPLETED, EXPIRED
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  items          AccessReviewItem[]
+
+  @@index([organisationId])
+  @@index([status])
+  @@map("access_review_campaigns")
+}
+
+model AccessReviewItem {
+  id                  String               @id @default(uuid())
+  campaignId          String
+  userId              Int
+  userName            String
+  userEmail           String
+  currentRole         String
+  currentDepartmentId Int?
+  currentDepartment   String?
+  lastLogin           DateTime?
+  status              String               @default("PENDING") // PENDING, CERTIFIED, REVOKED, CHANGE_REQUESTED
+  decisionReason      String?              @db.Text
+  decidedById         Int?
+  decidedByName       String?
+  decidedAt           DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  campaign            AccessReviewCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([userId])
+  @@index([status])
+  @@map("access_review_items")
+}
+
+model Incident {
+  id                 String            @id @default(uuid())
+  incidentNumber     String            @unique
+  organisationId     Int
+  title              String
+  description        String            @db.Text
+  category           String            @default("SECURITY") // SECURITY, ACCESS, DATA_LEAK, SYSTEM_OUTAGE, POLICY_VIOLATION, OTHER
+  severity           String            @default("MEDIUM")   // LOW, MEDIUM, HIGH, CRITICAL
+  status             String            @default("OPEN")     // OPEN, INVESTIGATING, CONTAINED, RESOLVED, CLOSED
+  reporterId         Int?
+  reporterName       String?
+  assigneeId         Int?
+  assigneeName       String?
+  resolution         String?           @db.Text
+  investigationNotes String?           @db.Text
+  resolvedAt         DateTime?
+  closedAt           DateTime?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  history            IncidentHistory[]
+
+  @@index([organisationId])
+  @@index([status])
+  @@index([severity])
+  @@map("governance_incidents")
+}
+
+model IncidentHistory {
+  id             String    @id @default(uuid())
+  incidentId     String
+  actorId        Int?
+  actorName      String?
+  action         String
+  previousStatus String?
+  newStatus      String?
+  notes          String?   @db.Text
+  createdAt      DateTime  @default(now())
+
+  incident       Incident  @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+
+  @@index([incidentId])
+  @@map("governance_incident_history")
+}
+
+model Risk {
+  id             String        @id @default(uuid())
+  riskId         String        @unique
+  organisationId Int
+  title          String
+  description    String        @db.Text
+  category       String        @default("SECURITY") // SECURITY, COMPLIANCE, OPERATIONAL, DATA_PRIVACY, AVAILABILITY
+  likelihood     String        @default("LOW")      // LOW, MEDIUM, HIGH
+  impact         String        @default("MEDIUM")   // LOW, MEDIUM, HIGH, CRITICAL
+  riskScore      Int           @default(6)
+  severity       String        @default("MEDIUM")   // LOW, MEDIUM, HIGH, CRITICAL
+  ownerId        Int?
+  ownerName      String?
+  status         String        @default("IDENTIFIED") // IDENTIFIED, ASSESSING, MITIGATING, CONTROLLED, ACCEPTED, CLOSED
+  mitigationPlan String?       @db.Text
+  dueDate        DateTime?
+  createdById    Int?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  history        RiskHistory[]
+
+  @@index([organisationId])
+  @@index([status])
+  @@index([severity])
+  @@map("governance_risks")
+}
+
+model RiskHistory {
+  id             String    @id @default(uuid())
+  riskId         String
+  actorId        Int?
+  actorName      String?
+  action         String
+  previousStatus String?
+  newStatus      String?
+  changes        Json?
+  createdAt      DateTime  @default(now())
+
+  risk           Risk      @relation(fields: [riskId], references: [id], onDelete: Cascade)
+
+  @@index([riskId])
+  @@map("governance_risk_history")
+}
+
+
+
+
