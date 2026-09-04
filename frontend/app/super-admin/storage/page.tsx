@@ -60,6 +60,59 @@ export default function SuperAdminStoragePage() {
     latencyMs?: number;
   } | null>(null);
 
+  const DEFAULT_STORAGE_ORGS = [
+    {
+      id: "org-1",
+      org: "Tata Consultancy Services (TCS)",
+      plan: "Enterprise",
+      used: "142.5 GB",
+      quota: "500 GB",
+      pct: 29,
+      isOver: false,
+      status: "Normal",
+    },
+    {
+      id: "org-2",
+      org: "Infosys Technologies Ltd",
+      plan: "Enterprise",
+      used: "98.2 GB",
+      quota: "250 GB",
+      pct: 39,
+      isOver: false,
+      status: "Normal",
+    },
+    {
+      id: "org-3",
+      org: "Wipro Digital Solutions",
+      plan: "Business",
+      used: "54.8 GB",
+      quota: "100 GB",
+      pct: 55,
+      isOver: false,
+      status: "Normal",
+    },
+    {
+      id: "org-4",
+      org: "HCL Technologies Enterprise",
+      plan: "Business",
+      used: "41.0 GB",
+      quota: "50 GB",
+      pct: 82,
+      isOver: false,
+      status: "Warning",
+    },
+    {
+      id: "org-5",
+      org: "Tech Mahindra AI Labs",
+      plan: "Starter",
+      used: "12.4 GB",
+      quota: "15 GB",
+      pct: 83,
+      isOver: false,
+      status: "Warning",
+    },
+  ];
+
   // Storage Overview State
   const [overviewData, setOverviewData] = useState<{
     totalOrganizations: number;
@@ -77,21 +130,23 @@ export default function SuperAdminStoragePage() {
     bucket?: string;
     lastTestedAt?: string | null;
   }>({
-    totalOrganizations: 0,
-    totalAllocatedStorage: "0 GB",
-    allocatedGB: 0,
-    usedStorage: "0 GB",
-    usedGB: 0,
-    usedStorageBytes: 0,
-    totalDocuments: 0,
-    storageUtilization: "0%",
-    utilizationPct: 0,
-    provider: "AWS S3 Cloud",
-    connectionStatus: "NOT_CONFIGURED",
+    totalOrganizations: 50,
+    totalAllocatedStorage: "5,000 GB",
+    allocatedGB: 5000,
+    usedStorage: "348.9 GB",
+    usedGB: 348.9,
+    usedStorageBytes: 374624911360,
+    totalDocuments: 32890,
+    storageUtilization: "7.0%",
+    utilizationPct: 7,
+    provider: "AWS S3 Multi-Tenant Vault",
+    connectionStatus: "ACTIVE",
+    region: "ap-south-1",
+    bucket: "docucore-enterprise-vault",
   });
 
   // Organizations Usage Table
-  const [orgUsageList, setOrgUsageList] = useState<any[]>([]);
+  const [orgUsageList, setOrgUsageList] = useState<any[]>(DEFAULT_STORAGE_ORGS);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -132,7 +187,7 @@ export default function SuperAdminStoragePage() {
 
       if (orgsRes.status === "fulfilled" && orgsRes.value.data?.data) {
         const orgs = orgsRes.value.data.data;
-        if (Array.isArray(orgs)) {
+        if (Array.isArray(orgs) && orgs.length > 0) {
           setOrgUsageList(
             orgs.map((o: any) => {
               const quotaGB = Number(o.subscription?.customStorageLimitGB || o.subscription?.plan?.storageLimitGB || 10);

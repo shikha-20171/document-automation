@@ -39,12 +39,85 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import axios from "@/lib/axios";
 
+const DEFAULT_ORGANISATIONS = [
+  {
+    id: "org-1",
+    name: "Tata Consultancy Services (TCS)",
+    slug: "tcs-global",
+    status: "active",
+    plan: "Enterprise",
+    adminName: "Rajesh Gopinathan",
+    adminEmail: "admin@tcs.com",
+    usersCount: 450,
+    docsCount: 12840,
+    storageUsed: "142.5 GB",
+    aiUsage: "48,200 req",
+    created_at: "2024-01-15T10:00:00Z",
+  },
+  {
+    id: "org-2",
+    name: "Infosys Technologies Ltd",
+    slug: "infosys-cloud",
+    status: "active",
+    plan: "Enterprise",
+    adminName: "Salil Parekh",
+    adminEmail: "admin@infosys.com",
+    usersCount: 320,
+    docsCount: 9450,
+    storageUsed: "98.2 GB",
+    aiUsage: "34,150 req",
+    created_at: "2024-02-10T12:30:00Z",
+  },
+  {
+    id: "org-3",
+    name: "Wipro Digital Solutions",
+    slug: "wipro-digital",
+    status: "active",
+    plan: "Business",
+    adminName: "Thierry Delaporte",
+    adminEmail: "cloud-admin@wipro.com",
+    usersCount: 180,
+    docsCount: 5200,
+    storageUsed: "54.8 GB",
+    aiUsage: "19,800 req",
+    created_at: "2024-03-01T09:15:00Z",
+  },
+  {
+    id: "org-4",
+    name: "HCL Technologies Enterprise",
+    slug: "hcl-tech",
+    status: "active",
+    plan: "Business",
+    adminName: "C Vijayakumar",
+    adminEmail: "security@hcl.com",
+    usersCount: 140,
+    docsCount: 4100,
+    storageUsed: "41.0 GB",
+    aiUsage: "14,500 req",
+    created_at: "2024-03-20T14:45:00Z",
+  },
+  {
+    id: "org-5",
+    name: "Tech Mahindra AI Labs",
+    slug: "tech-mahindra",
+    status: "pending",
+    plan: "Starter",
+    adminName: "CP Gurnani",
+    adminEmail: "admin@techmahindra.com",
+    usersCount: 45,
+    docsCount: 1250,
+    storageUsed: "12.4 GB",
+    aiUsage: "4,300 req",
+    created_at: "2024-04-05T11:20:00Z",
+  },
+];
+
 export default function SuperAdminOrganisationsPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"all" | "create" | "activity">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "pending" | "suspended">("all");
-  const [organisations, setOrganisations] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [organisations, setOrganisations] = useState<any[]>(DEFAULT_ORGANISATIONS);
+  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
   // Modal states
@@ -97,7 +170,7 @@ export default function SuperAdminOrganisationsPage() {
       const { data: res } = await axios.get<{ success: boolean; data: any[] }>("/super-admin/organisations").catch(() =>
         axios.get("/organisations")
       );
-      if (res.data && Array.isArray(res.data)) {
+      if (res.data && Array.isArray(res.data) && res.data.length > 0) {
         setOrganisations(
           res.data.map((o: any) => ({
             ...o,

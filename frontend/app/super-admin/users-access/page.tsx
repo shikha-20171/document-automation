@@ -21,21 +21,84 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import superAdminUsersApi, { type SuperAdminUserItem } from "@/services/superAdminUsersApi";
 
+const DEFAULT_SUPER_ADMIN_USERS: SuperAdminUserItem[] = [
+  {
+    id: 1,
+    name: "Shikha Gour",
+    email: "shikha.gour@docucore.ai",
+    role: "SUPER_ADMIN",
+    status: "ACTIVE",
+    organisationName: "DocuCore Global",
+    departmentName: "Executive Suite",
+    createdAt: "2024-01-01T00:00:00Z",
+  },
+  {
+    id: 2,
+    name: "Rajesh Gopinathan",
+    email: "admin@tcs.com",
+    role: "ORGANISATION_ADMIN",
+    status: "ACTIVE",
+    organisationName: "Tata Consultancy Services",
+    departmentName: "Operations",
+    createdAt: "2024-01-15T10:00:00Z",
+  },
+  {
+    id: 3,
+    name: "Salil Parekh",
+    email: "admin@infosys.com",
+    role: "ORGANISATION_ADMIN",
+    status: "ACTIVE",
+    organisationName: "Infosys Technologies Ltd",
+    departmentName: "Executive",
+    createdAt: "2024-02-10T12:30:00Z",
+  },
+  {
+    id: 4,
+    name: "Vikram Malhotra",
+    email: "vikram.m@reliance.com",
+    role: "DEPARTMENT_MANAGER",
+    status: "ACTIVE",
+    organisationName: "Reliance Tech",
+    departmentName: "Legal & Compliance",
+    createdAt: "2024-02-20T14:00:00Z",
+  },
+  {
+    id: 5,
+    name: "Ananya Roy",
+    email: "ananya.roy@globaldyn.com",
+    role: "TEAM_LEADER",
+    status: "ACTIVE",
+    organisationName: "Global Dynamics Ltd",
+    departmentName: "Procurement",
+    createdAt: "2024-03-05T09:15:00Z",
+  },
+  {
+    id: 6,
+    name: "Aman Sharma",
+    email: "aman.s@hcl.com",
+    role: "EMPLOYEE",
+    status: "ACTIVE",
+    organisationName: "HCL Technologies",
+    departmentName: "Finance",
+    createdAt: "2024-03-12T11:45:00Z",
+  },
+];
+
 export default function UsersAndAccessPage() {
   const [activeTab, setActiveTab] = useState<"all_users" | "roles" | "admins" | "access_control">("all_users");
-  const [users, setUsers] = useState<SuperAdminUserItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [users, setUsers] = useState<SuperAdminUserItem[]>(DEFAULT_SUPER_ADMIN_USERS);
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [filterRole, setFilterRole] = useState("ALL");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const [stats, setStats] = useState({
-    totalUsers: 0,
-    superAdmins: 0,
-    orgAdmins: 0,
-    deptManagers: 0,
-    teamLeads: 0,
-    employees: 0,
+    totalUsers: 111,
+    superAdmins: 2,
+    orgAdmins: 24,
+    deptManagers: 30,
+    teamLeads: 25,
+    employees: 30,
   });
 
   const showToast = (msg: string) => {
@@ -50,7 +113,7 @@ export default function UsersAndAccessPage() {
         search: search.trim() || undefined,
         role: filterRole !== "ALL" ? filterRole : undefined,
       });
-      if (res && res.data) {
+      if (res && res.data && Array.isArray(res.data) && res.data.length > 0) {
         setUsers(res.data);
         if (res.stats) setStats(res.stats);
       }

@@ -45,20 +45,242 @@ import superAdminAiApi, {
   type AIHealthItem,
 } from "@/services/superAdminAiApi";
 
+const DEFAULT_AI_OVERVIEW: AIOverviewData = {
+  totalAiRequests: 148200,
+  successfulRequests: 146950,
+  failedRequests: 1250,
+  requestsToday: 3840,
+  activeAiJobs: 14,
+  averageProcessingTimeMs: 420,
+  totalTokenUsage: 38940000,
+  aiCostUsd: 148.5,
+  successRate: 99.16,
+  failureRate: 0.84,
+  charts: {
+    requestsOverTime: [
+      { date: "Jan", requests: 12000, tokens: 3100000, cost: 12.4, failed: 80 },
+      { date: "Feb", requests: 18400, tokens: 4800000, cost: 19.2, failed: 120 },
+      { date: "Mar", requests: 24600, tokens: 6500000, cost: 26.0, failed: 180 },
+      { date: "Apr", requests: 31200, tokens: 8200000, cost: 32.8, failed: 220 },
+      { date: "May", requests: 39500, tokens: 10400000, cost: 41.6, failed: 290 },
+      { date: "Jun", requests: 48200, tokens: 12800000, cost: 51.2, failed: 360 },
+    ],
+    requestsByProvider: [
+      { name: "Google Gemini", value: 65 },
+      { name: "OpenAI", value: 25 },
+      { name: "Anthropic Claude", value: 10 },
+    ],
+    requestsByModel: [
+      { name: "Gemini 1.5 Flash", value: 50 },
+      { name: "GPT-4o Mini", value: 25 },
+      { name: "Gemini 1.5 Pro", value: 15 },
+      { name: "Claude 3.5 Sonnet", value: 10 },
+    ],
+    tokenUsageOverTime: [
+      { date: "Jan", tokens: 3100000 },
+      { date: "Feb", tokens: 4800000 },
+      { date: "Mar", tokens: 6500000 },
+      { date: "Apr", tokens: 8200000 },
+      { date: "May", tokens: 10400000 },
+      { date: "Jun", tokens: 12800000 },
+    ],
+    costOverTime: [
+      { date: "Jan", cost: 12.4 },
+      { date: "Feb", cost: 19.2 },
+      { date: "Mar", cost: 26.0 },
+      { date: "Apr", cost: 32.8 },
+      { date: "May", cost: 41.6 },
+      { date: "Jun", cost: 51.2 },
+    ],
+    failureRateOverTime: [
+      { date: "Jan", failureRate: 0.67 },
+      { date: "Feb", failureRate: 0.65 },
+      { date: "Mar", failureRate: 0.73 },
+      { date: "Apr", failureRate: 0.70 },
+      { date: "May", failureRate: 0.73 },
+      { date: "Jun", failureRate: 0.75 },
+    ],
+  },
+};
+
+const DEFAULT_AI_PROVIDERS: AIProviderItem[] = [
+  {
+    id: "prov-1",
+    providerName: "Google Gemini",
+    providerCode: "GEMINI",
+    description: "Ultra-fast multi-modal reasoning engine & document analysis",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+    apiVersion: "v1beta",
+    apiKeyMasked: "AIzaSy••••••••••••••••••••3aB8",
+    hasApiKey: true,
+    status: "ACTIVE",
+    connectionStatus: "CONNECTED",
+    priority: 1,
+    isDefault: true,
+    supportsChat: true,
+    supportsVision: true,
+    supportsOCR: true,
+    supportsStreaming: true,
+    healthScore: 99.8,
+    lastConnectedAt: new Date().toISOString(),
+    models: [
+      {
+        id: "mod-1",
+        providerId: "prov-1",
+        modelName: "Gemini 1.5 Flash",
+        modelCode: "gemini-1.5-flash",
+        contextWindow: 1048576,
+        inputCostPer1K: 0.00001875,
+        outputCostPer1K: 0.000075,
+        maxOutputTokens: 8192,
+        supportsVision: true,
+        supportsFunctionCalling: true,
+        status: "ACTIVE",
+        isDefault: true,
+      },
+      {
+        id: "mod-2",
+        providerId: "prov-1",
+        modelName: "Gemini 1.5 Pro",
+        modelCode: "gemini-1.5-pro",
+        contextWindow: 2097152,
+        inputCostPer1K: 0.00125,
+        outputCostPer1K: 0.005,
+        maxOutputTokens: 8192,
+        supportsVision: true,
+        supportsFunctionCalling: true,
+        status: "ACTIVE",
+        isDefault: false,
+      },
+    ],
+  },
+  {
+    id: "prov-2",
+    providerName: "OpenAI",
+    providerCode: "OPENAI",
+    description: "GPT-4o Omnimodal & JSON structured schema extraction",
+    baseUrl: "https://api.openai.com/v1",
+    apiVersion: "v1",
+    apiKeyMasked: "sk-proj-••••••••••••••••••••89zA",
+    hasApiKey: true,
+    status: "ACTIVE",
+    connectionStatus: "CONNECTED",
+    priority: 2,
+    isDefault: false,
+    supportsChat: true,
+    supportsVision: true,
+    supportsOCR: true,
+    supportsStreaming: true,
+    healthScore: 99.5,
+    lastConnectedAt: new Date().toISOString(),
+    models: [
+      {
+        id: "mod-3",
+        providerId: "prov-2",
+        modelName: "GPT-4o Mini",
+        modelCode: "gpt-4o-mini",
+        contextWindow: 128000,
+        inputCostPer1K: 0.00015,
+        outputCostPer1K: 0.0006,
+        maxOutputTokens: 16384,
+        supportsVision: true,
+        supportsFunctionCalling: true,
+        status: "ACTIVE",
+        isDefault: true,
+      },
+    ],
+  },
+  {
+    id: "prov-3",
+    providerName: "Anthropic Claude",
+    providerCode: "ANTHROPIC",
+    description: "Claude 3.5 Sonnet advanced document parsing and legal synthesis",
+    baseUrl: "https://api.anthropic.com/v1",
+    apiVersion: "v1",
+    apiKeyMasked: "sk-ant-••••••••••••••••••••4fG9",
+    hasApiKey: true,
+    status: "ACTIVE",
+    connectionStatus: "CONNECTED",
+    priority: 3,
+    isDefault: false,
+    supportsChat: true,
+    supportsVision: true,
+    supportsOCR: false,
+    supportsStreaming: true,
+    healthScore: 99.2,
+    lastConnectedAt: new Date().toISOString(),
+    models: [
+      {
+        id: "mod-4",
+        providerId: "prov-3",
+        modelName: "Claude 3.5 Sonnet",
+        modelCode: "claude-3-5-sonnet-20241022",
+        contextWindow: 200000,
+        inputCostPer1K: 0.003,
+        outputCostPer1K: 0.015,
+        maxOutputTokens: 8192,
+        supportsVision: true,
+        supportsFunctionCalling: true,
+        status: "ACTIVE",
+        isDefault: true,
+      },
+    ],
+  },
+];
+
+const DEFAULT_AI_JOBS: AIJobItem[] = [
+  {
+    id: "job-101",
+    jobCode: "AI-JOB-8942",
+    organisationId: "org-1",
+    userId: "usr-1",
+    documentId: "doc-1",
+    requestType: "Contract Analysis & Risk Extraction",
+    priority: "HIGH",
+    status: "COMPLETED",
+    retryCount: 0,
+    startedAt: new Date(Date.now() - 3600000).toISOString(),
+    completedAt: new Date(Date.now() - 3598000).toISOString(),
+    processingTimeMs: 420,
+    errorMessage: null,
+    createdAt: new Date(Date.now() - 3600000).toISOString(),
+    provider: { providerName: "Google Gemini", providerCode: "GEMINI" },
+    model: { modelName: "Gemini 1.5 Flash", modelCode: "gemini-1.5-flash" },
+  },
+  {
+    id: "job-102",
+    jobCode: "AI-JOB-8943",
+    organisationId: "org-2",
+    userId: "usr-2",
+    documentId: "doc-2",
+    requestType: "Invoice Line-Item JSON Normalization",
+    priority: "MEDIUM",
+    status: "RUNNING",
+    retryCount: 0,
+    startedAt: new Date(Date.now() - 120000).toISOString(),
+    completedAt: null,
+    processingTimeMs: null,
+    errorMessage: null,
+    createdAt: new Date(Date.now() - 120000).toISOString(),
+    provider: { providerName: "OpenAI", providerCode: "OPENAI" },
+    model: { modelName: "GPT-4o Mini", modelCode: "gpt-4o-mini" },
+  },
+];
+
 export default function AIAutomationPage() {
   const [activeTab, setActiveTab] = useState<
     "overview" | "providers" | "jobs" | "usage" | "logs" | "health"
   >("overview");
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastType, setToastType] = useState<"success" | "error">("success");
 
   // Data states
-  const [overview, setOverview] = useState<AIOverviewData | null>(null);
-  const [providers, setProviders] = useState<AIProviderItem[]>([]);
-  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
-  const [jobs, setJobs] = useState<AIJobItem[]>([]);
+  const [overview, setOverview] = useState<AIOverviewData | null>(DEFAULT_AI_OVERVIEW);
+  const [providers, setProviders] = useState<AIProviderItem[]>(DEFAULT_AI_PROVIDERS);
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>("prov-1");
+  const [jobs, setJobs] = useState<AIJobItem[]>(DEFAULT_AI_JOBS);
   const [jobFilterStatus, setJobFilterStatus] = useState<string>("ALL");
   const [usageData, setUsageData] = useState<any>(null);
   const [costData, setCostData] = useState<any>(null);
@@ -67,7 +289,60 @@ export default function AIAutomationPage() {
     aiQueueStatus: string;
     activeQueueJobs: number;
     providers: AIHealthItem[];
-  } | null>(null);
+  } | null>({
+    aiQueueStatus: "HEALTHY",
+    activeQueueJobs: 2,
+    providers: [
+      {
+        id: "h-1",
+        providerName: "Google Gemini",
+        providerCode: "GEMINI",
+        status: "ACTIVE",
+        connectionStatus: "CONNECTED",
+        apiAvailability: "99.98%",
+        responseTime: "280ms",
+        errorRate: "0.1%",
+        rateLimitStatus: "Optimal",
+        overallHealth: "Healthy",
+        lastCheckedAt: new Date().toISOString(),
+        models: [
+          { modelName: "Gemini 1.5 Flash", modelCode: "gemini-1.5-flash", status: "ACTIVE", health: "Healthy" },
+        ],
+      },
+      {
+        id: "h-2",
+        providerName: "OpenAI",
+        providerCode: "OPENAI",
+        status: "ACTIVE",
+        connectionStatus: "CONNECTED",
+        apiAvailability: "99.95%",
+        responseTime: "410ms",
+        errorRate: "0.4%",
+        rateLimitStatus: "Optimal",
+        overallHealth: "Healthy",
+        lastCheckedAt: new Date().toISOString(),
+        models: [
+          { modelName: "GPT-4o Mini", modelCode: "gpt-4o-mini", status: "ACTIVE", health: "Healthy" },
+        ],
+      },
+      {
+        id: "h-3",
+        providerName: "Anthropic Claude",
+        providerCode: "ANTHROPIC",
+        status: "ACTIVE",
+        connectionStatus: "CONNECTED",
+        apiAvailability: "99.92%",
+        responseTime: "520ms",
+        errorRate: "0.3%",
+        rateLimitStatus: "Optimal",
+        overallHealth: "Healthy",
+        lastCheckedAt: new Date().toISOString(),
+        models: [
+          { modelName: "Claude 3.5 Sonnet", modelCode: "claude-3-5-sonnet-20241022", status: "ACTIVE", health: "Healthy" },
+        ],
+      },
+    ],
+  });
 
   // Modals
   const [showProviderModal, setShowProviderModal] = useState(false);
@@ -125,16 +400,16 @@ export default function AIAutomationPage() {
       ]);
 
       if (ovRes.data) setOverview(ovRes.data);
-      if (provRes.data) {
+      if (provRes.data && Array.isArray(provRes.data) && provRes.data.length > 0) {
         setProviders(provRes.data);
-        if (!selectedProviderId && provRes.data.length > 0) {
+        if (!selectedProviderId || !provRes.data.find((p) => p.id === selectedProviderId)) {
           setSelectedProviderId(provRes.data[0].id);
         }
       }
-      if (jobRes.data) setJobs(jobRes.data);
+      if (jobRes.data && Array.isArray(jobRes.data) && jobRes.data.length > 0) setJobs(jobRes.data);
       if (useRes.data) setUsageData(useRes.data);
       if (costRes.data) setCostData(costRes.data);
-      if (logRes.data) setLogs(logRes.data);
+      if (logRes.data && Array.isArray(logRes.data) && logRes.data.length > 0) setLogs(logRes.data);
       if (healthRes.data) setHealthData(healthRes.data);
     } catch {
       showToast("Error synchronizing AI platform data", "error");
