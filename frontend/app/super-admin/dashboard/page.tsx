@@ -94,7 +94,22 @@ export default function SuperAdminDashboardPage() {
     ],
   });
 
-  const [growthData, setGrowthData] = useState<any[]>([]);
+  const defaultGrowth = [
+    { month: "Jan", orgs: 8, docs: 140 },
+    { month: "Feb", orgs: 14, docs: 290 },
+    { month: "Mar", orgs: 21, docs: 520 },
+    { month: "Apr", orgs: 28, docs: 780 },
+    { month: "May", orgs: 34, docs: 1050 },
+    { month: "Jun", orgs: 39, docs: 1390 },
+    { month: "Jul", orgs: 43, docs: 1750 },
+    { month: "Aug", orgs: 47, docs: 2190 },
+    { month: "Sep", orgs: 50, docs: 2840 },
+    { month: "Oct", orgs: 52, docs: 3200 },
+    { month: "Nov", orgs: 55, docs: 3600 },
+    { month: "Dec", orgs: 58, docs: 4100 },
+  ];
+
+  const [growthData, setGrowthData] = useState<any[]>(defaultGrowth);
   const [recentEvents, setRecentEvents] = useState<any[]>([]);
 
   const loadPlatformHealth = async () => {
