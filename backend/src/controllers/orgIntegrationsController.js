@@ -2,7 +2,7 @@ const prisma = require("../config/prismaClient");
 const { encryptText, hashString } = require("../utils/cryptoUtils");
 const crypto = require("crypto");
 const IntegrationManager = require("../services/integrations/IntegrationManager");
-const AuditLogService = require("../services/AuditLogService");
+const AuditLogService = require("../services/auditLogService");
 const GoogleDriveAdapter = require("../services/integrations/GoogleDriveAdapter");
 const SlackAdapter = require("../services/integrations/SlackAdapter");
 const MicrosoftTeamsAdapter = require("../services/integrations/MicrosoftTeamsAdapter");
@@ -363,7 +363,7 @@ const oauthCallback = async (req, res) => {
         const decoded = JSON.parse(Buffer.from(state, "base64").toString("utf8"));
         if (decoded.organisationId) organisationId = Number(decoded.organisationId);
         if (decoded.provider) providerEnum = normalizeProvider(decoded.provider);
-      } catch {}
+      } catch { }
     }
 
     if (providerEnum === "GOOGLE_WORKSPACE" || providerEnum === "GOOGLE_DRIVE") {

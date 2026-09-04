@@ -1,7 +1,7 @@
 const prisma = require("../config/prismaClient");
 const { encryptText, decryptText } = require("../utils/cryptoUtils");
 const IntegrationManager = require("../services/integrations/IntegrationManager");
-const AuditLogService = require("../services/AuditLogService");
+const AuditLogService = require("../services/auditLogService");
 
 function maskSecret(val) {
   if (!val) return null;
