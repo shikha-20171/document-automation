@@ -7,6 +7,7 @@ import {
   Sparkles,
   Bell,
   UserCheck,
+  BarChart3,
 } from "lucide-react";
 
 export interface EmployeeNavItem {
@@ -47,6 +48,11 @@ export const employeeNavItems: EmployeeNavItem[] = [
     name: "AI Tools",
     href: "/employee/ai-tools",
     icon: Sparkles,
+  },
+  {
+    name: "Reports & Performance",
+    href: "/employee/reports",
+    icon: BarChart3,
   },
   {
     name: "Notifications",

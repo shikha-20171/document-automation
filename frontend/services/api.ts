@@ -6,17 +6,30 @@ import axios, {
 
 // ─── Base URL Normalizer ──────────────────────────────────────────────────────
 export function getApiBaseUrl(): string {
-  const envUrl =
-    process.env.NEXT_PUBLIC_API_URL ||
-    process.env.NEXT_PUBLIC_API_BASE_URL ||
-    "http://localhost:5001/api";
+  const envUrl = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL;
 
-  let clean = envUrl.trim().replace(/\/+$/, "");
-  // If the URL does not already end with /api, append /api
-  if (!clean.endsWith("/api")) {
-    clean = `${clean}/api`;
+  if (envUrl && envUrl.trim()) {
+    let clean = envUrl.trim().replace(/\/+$/, "");
+    if (!clean.endsWith("/api")) {
+      clean = `${clean}/api`;
+    }
+    return clean;
   }
-  return clean;
+
+  // If running in browser and NOT localhost/127.0.0.1, automatically target production Render backend
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (host !== "localhost" && host !== "127.0.0.1") {
+      return "https://document-automation-backend-1jte.onrender.com/api";
+    }
+  }
+
+  // If server-side production build on Vercel
+  if (process.env.NODE_ENV === "production") {
+    return "https://document-automation-backend-1jte.onrender.com/api";
+  }
+
+  return "http://localhost:5001/api";
 }
 
 export const API_BASE = getApiBaseUrl();
@@ -76,7 +89,7 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// ─── Response Interceptor (error handling & 401 redirect) ──────────────────────
+// ─── Response Interceptor (error handling & safe 401 redirect) ─────────────────
 api.interceptors.response.use(
   (response: AxiosResponse) => response,
   (error) => {
@@ -86,12 +99,21 @@ api.interceptors.response.use(
       const message =
         data?.message ?? error.message ?? "Something went wrong.";
 
-      // 401 → clear tokens and redirect to login (client-side only)
+      // 401 → only clear tokens and redirect if on a protected route and not already on auth/landing
       if (status === 401 && typeof window !== "undefined") {
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("refreshToken");
-        localStorage.removeItem("token");
-        window.location.href = "/auth/login";
+        const path = window.location.pathname;
+        const isAuthOrPublic =
+          path.startsWith("/auth/") ||
+          path.startsWith("/accept-invitation") ||
+          path === "/" ||
+          path === "/pricing";
+
+        if (!isAuthOrPublic) {
+          localStorage.removeItem("accessToken");
+          localStorage.removeItem("refreshToken");
+          localStorage.removeItem("token");
+          window.location.href = "/auth/login";
+        }
       }
 
       return Promise.reject(new ApiError(message, status, data));

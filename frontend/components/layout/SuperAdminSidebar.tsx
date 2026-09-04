@@ -23,6 +23,10 @@ import {
   ChevronRight,
   Search,
   X,
+  Users,
+  Receipt,
+  ShoppingBag,
+  ScanSearch,
 } from "lucide-react";
 
 export interface MenuItem {
@@ -51,9 +55,19 @@ export const superAdminNavSections: MenuSection[] = [
         icon: Building2,
       },
       {
+        title: "Users & Access",
+        href: "/super-admin/users-access",
+        icon: Users,
+      },
+      {
         title: "Subscriptions",
         href: "/super-admin/subscriptions",
         icon: CreditCard,
+      },
+      {
+        title: "Billing & Revenue",
+        href: "/super-admin/billing",
+        icon: Receipt,
       },
     ],
   },
@@ -73,6 +87,11 @@ export const superAdminNavSections: MenuSection[] = [
         hasSubmodules: true,
       },
       {
+        title: "OCR Processing",
+        href: "/super-admin/ocr-processing",
+        icon: ScanSearch,
+      },
+      {
         title: "Storage Management",
         href: "/super-admin/storage",
         icon: HardDrive,
@@ -83,6 +102,11 @@ export const superAdminNavSections: MenuSection[] = [
         href: "/super-admin/platform-integrations",
         icon: Plug,
         hasSubmodules: true,
+      },
+      {
+        title: "Marketplace",
+        href: "/super-admin/marketplace",
+        icon: ShoppingBag,
       },
     ],
   },
