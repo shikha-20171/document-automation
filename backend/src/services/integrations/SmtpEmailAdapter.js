@@ -1,4 +1,9 @@
+const dns = require("dns");
 const nodemailer = require("nodemailer");
+
+const ipv4Lookup = (hostname, options, callback) => {
+  return dns.lookup(hostname, { family: 4 }, callback);
+};
 
 /**
  * Enterprise SMTP & Email Provider Adapter
@@ -6,11 +11,11 @@ const nodemailer = require("nodemailer");
  */
 class SmtpEmailAdapter {
   constructor(config = {}) {
-    this.host = config.host || process.env.SMTP_HOST;
-    this.port = Number(config.port || process.env.SMTP_PORT || 587);
+    this.host = config.host || process.env.SMTP_HOST || "smtp.gmail.com";
+    this.port = Number(config.port || process.env.SMTP_PORT || 465);
     this.secure = config.secure !== undefined ? Boolean(config.secure) : Boolean(process.env.SMTP_SECURE === "true" || this.port === 465);
-    this.user = config.user || process.env.SMTP_USER;
-    this.pass = config.pass || process.env.SMTP_PASSWORD || process.env.SMTP_PASS;
+    this.user = config.user || process.env.SMTP_USER || process.env.EMAIL_USER;
+    this.pass = config.pass || process.env.SMTP_PASSWORD || process.env.SMTP_PASS || process.env.EMAIL_PASS;
     this.fromEmail = config.fromEmail || process.env.SMTP_FROM_EMAIL || this.user;
     this.fromName = config.fromName || process.env.SMTP_FROM_NAME || "DocuCore Automated Notifications";
   }
@@ -28,6 +33,7 @@ class SmtpEmailAdapter {
       host: this.host,
       port: this.port,
       secure: this.secure,
+      lookup: ipv4Lookup,
       auth: {
         user: this.user,
         pass: this.pass,

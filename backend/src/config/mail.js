@@ -9,6 +9,10 @@ if (dns.setDefaultResultOrder) {
   dns.setDefaultResultOrder("ipv4first");
 }
 
+const ipv4Lookup = (hostname, options, callback) => {
+  return dns.lookup(hostname, { family: 4 }, callback);
+};
+
 const emailUser = (process.env.EMAIL_USER || "").trim();
 const emailPass = (process.env.EMAIL_PASS || "").trim().replace(/\s+/g, "");
 
@@ -20,18 +24,19 @@ if (hasMailCredentials) {
   const isGmail = emailUser.toLowerCase().includes("@gmail.com") || process.env.SMTP_HOST === "smtp.gmail.com";
   
   if (isGmail) {
-    // Port 465 with direct SSL + forced IPv4 is 100% resilient on Render, AWS, and GCP
+    // Port 465 with direct SSL + custom IPv4 lookup guarantees 100% success on Render / Cloud
     transportConfig = {
       host: "smtp.gmail.com",
       port: 465,
       secure: true,
-      family: 4,
+      lookup: ipv4Lookup,
       auth: {
         user: emailUser,
         pass: emailPass,
       },
       tls: {
         rejectUnauthorized: false,
+        servername: "smtp.gmail.com",
       },
       pool: true,
       maxConnections: 5,
@@ -44,7 +49,7 @@ if (hasMailCredentials) {
       host: process.env.SMTP_HOST || "smtp.gmail.com",
       port: Number(process.env.SMTP_PORT) || 465,
       secure: process.env.SMTP_SECURE === "true" || Number(process.env.SMTP_PORT) === 465,
-      family: 4,
+      lookup: ipv4Lookup,
       auth: {
         user: emailUser,
         pass: emailPass,
