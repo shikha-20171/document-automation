@@ -174,12 +174,19 @@ const resilientTransporter = {
           if (brevoApiKey.startsWith("xsmtpsib-")) {
             console.log("[MailConfig] Attempting Brevo SMTP relay dispatch (smtp-relay.brevo.com:587)...");
             try {
+              const brevoLoginUser = (
+                process.env.BREVO_SMTP_USER ||
+                process.env.SMTP_USER ||
+                process.env.EMAIL_USER ||
+                "b7f8d2001@smtp-brevo.com"
+              ).trim();
+
               const brevoSmtpTransporter = nodemailer.createTransport({
                 host: "smtp-relay.brevo.com",
                 port: 587,
                 secure: false,
                 auth: {
-                  user: senderEmail,
+                  user: brevoLoginUser,
                   pass: brevoApiKey,
                 },
                 tls: { rejectUnauthorized: false },
