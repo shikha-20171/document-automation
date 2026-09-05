@@ -23,6 +23,8 @@ import {
   Shield,
   Trash2,
   RotateCcw,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -64,6 +66,15 @@ export default function SuperAdminSettingsPage() {
     maxTokenLimitPerReq: 8000,
   });
 
+  // Brevo & Email Configuration State
+  const [brevoApiKey, setBrevoApiKey] = useState("");
+  const [senderEmail, setSenderEmail] = useState("gourshikha2001@gmail.com");
+  const [senderName, setSenderName] = useState("DocuCore AI");
+  const [isTestingEmail, setIsTestingEmail] = useState(false);
+  const [emailTestStatus, setEmailTestStatus] = useState<{ success: boolean; message: string } | null>(null);
+  const [isSavingEmail, setIsSavingEmail] = useState(false);
+  const [showBrevoKey, setShowBrevoKey] = useState(false);
+
   // Live System Health
   const [systemHealth, setSystemHealth] = useState<any>({
     status: "UP",
@@ -81,6 +92,61 @@ export default function SuperAdminSettingsPage() {
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  useEffect(() => {
+    axios.get("/super-admin/platform-integrations").then((res) => {
+      const brevo = res.data?.data?.find((p: any) => p.id === "BREVO");
+      if (brevo) {
+        if (brevo.settings?.fromEmail) setSenderEmail(brevo.settings.fromEmail);
+        if (brevo.settings?.fromName) setSenderName(brevo.settings.fromName);
+      }
+    }).catch(() => {});
+  }, []);
+
+  const handleTestBrevo = async () => {
+    setIsTestingEmail(true);
+    setEmailTestStatus(null);
+    try {
+      const res = await axios.post("/super-admin/platform-integrations/BREVO/test", {
+        settings: {
+          apiKey: brevoApiKey,
+          fromEmail: senderEmail,
+          fromName: senderName,
+        },
+      });
+      if (res.data?.success) {
+        setEmailTestStatus({ success: true, message: "✓ Brevo API verified! Test connection successful." });
+        showToast("Brevo API Connection Verified");
+      } else {
+        setEmailTestStatus({ success: false, message: res.data?.message || res.data?.error || "Brevo test failed." });
+      }
+    } catch (err: any) {
+      setEmailTestStatus({ success: false, message: err.response?.data?.message || err.message || "Failed to reach Brevo." });
+    } finally {
+      setIsTestingEmail(false);
+    }
+  };
+
+  const handleSaveBrevo = async () => {
+    setIsSavingEmail(true);
+    try {
+      const res = await axios.put("/super-admin/platform-integrations/BREVO", {
+        isEnabled: true,
+        settings: {
+          apiKey: brevoApiKey,
+          fromEmail: senderEmail,
+          fromName: senderName,
+        },
+      });
+      if (res.data?.success) {
+        showToast("✓ Brevo Email Configuration Saved & Encrypted in Database!");
+      }
+    } catch (err: any) {
+      showToast(err.response?.data?.message || err.message || "Failed to save Brevo config");
+    } finally {
+      setIsSavingEmail(false);
+    }
   };
 
   const fetchHealth = async () => {
@@ -361,34 +427,160 @@ export default function SuperAdminSettingsPage() {
         </Card>
       )}
 
-      {/* TAB 4: NOTIFICATIONS */}
+      {/* TAB 4: NOTIFICATIONS & EMAIL */}
       {activeTab === "notifications" && (
-        <Card className="rounded-3xl border-slate-200/80 dark:border-slate-800 p-6 max-w-2xl space-y-4 text-xs">
-          <CardTitle className="text-base font-black text-slate-900 dark:text-slate-100">
-            Multi-Channel Dispatch Notification Gateways
-          </CardTitle>
-          <div className="space-y-3">
-            {[
-              { name: "Transactional Email (Amazon SES / SMTP)", status: "Connected", icon: Mail },
-              { name: "In-App Push WebSockets", status: "Active", icon: Bell },
-              { name: "SMS Gateway (Twilio / AWS SNS)", status: "Active", icon: MessageSquare },
-              { name: "WhatsApp Business Notifications", status: "Configured", icon: Zap },
-            ].map((n, i) => {
-              const Icon = n.icon;
-              return (
-                <div key={i} className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Icon size={16} className="text-[#274690] dark:text-blue-400" />
-                    <span className="font-bold text-slate-800 dark:text-slate-200">{n.name}</span>
-                  </div>
-                  <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-bold">
-                    {n.status}
-                  </Badge>
+        <div className="space-y-6 max-w-2xl">
+          {/* Brevo HTTPS API Configuration Card */}
+          <Card className="rounded-3xl border-slate-200/80 dark:border-slate-800 p-6 space-y-4 text-xs bg-white dark:bg-slate-900 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-[#274690] dark:text-blue-400 font-black">
+                  <Mail size={16} />
                 </div>
-              );
-            })}
-          </div>
-        </Card>
+                <div>
+                  <CardTitle className="text-base font-black text-slate-900 dark:text-slate-100">
+                    Brevo (Sendinblue) HTTPS Email API
+                  </CardTitle>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    Cloud-native Port 443 HTTPS delivery. 100% immune to cloud SMTP port blocks (300 free emails/day).
+                  </p>
+                </div>
+              </div>
+              <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-bold">
+                Cloud-Safe (HTTPS)
+              </Badge>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Brevo API Key <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showBrevoKey ? "text" : "password"}
+                    value={brevoApiKey}
+                    onChange={(e) => setBrevoApiKey(e.target.value)}
+                    placeholder="xkeysib-..."
+                    className="w-full h-9 px-3 pr-10 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-xs focus:outline-none focus:border-[#274690]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowBrevoKey(!showBrevoKey)}
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
+                  >
+                    {showBrevoKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Obtain from Brevo Dashboard &gt; SMTP &amp; API &gt; Generate API Key.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Verified Sender Email
+                  </label>
+                  <input
+                    type="email"
+                    value={senderEmail}
+                    onChange={(e) => setSenderEmail(e.target.value)}
+                    placeholder="gourshikha2001@gmail.com"
+                    className="w-full h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-bold focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Sender Display Name
+                  </label>
+                  <input
+                    type="text"
+                    value={senderName}
+                    onChange={(e) => setSenderName(e.target.value)}
+                    placeholder="DocuCore AI"
+                    className="w-full h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-bold focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {emailTestStatus && (
+                <div
+                  className={`p-3 rounded-xl text-xs font-medium border ${
+                    emailTestStatus.success
+                      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                      : "bg-red-50 text-red-800 border-red-200"
+                  }`}
+                >
+                  {emailTestStatus.message}
+                </div>
+              )}
+
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <Button
+                  type="button"
+                  onClick={handleTestBrevo}
+                  disabled={isTestingEmail || !brevoApiKey}
+                  variant="outline"
+                  className="h-8 text-xs font-bold"
+                >
+                  {isTestingEmail ? (
+                    <>
+                      <RefreshCw size={12} className="animate-spin mr-1.5" />
+                      Testing API Key...
+                    </>
+                  ) : (
+                    "Test Brevo Connection"
+                  )}
+                </Button>
+
+                <Button
+                  type="button"
+                  onClick={handleSaveBrevo}
+                  disabled={isSavingEmail || !brevoApiKey}
+                  className="h-8 bg-[#274690] hover:bg-[#1e3561] text-white text-xs font-bold"
+                >
+                  {isSavingEmail ? (
+                    <>
+                      <RefreshCw size={12} className="animate-spin mr-1.5" />
+                      Saving to Database...
+                    </>
+                  ) : (
+                    "Save & Encrypt in Database"
+                  )}
+                </Button>
+              </div>
+            </div>
+          </Card>
+
+          {/* Channels Overview */}
+          <Card className="rounded-3xl border-slate-200/80 dark:border-slate-800 p-6 space-y-3 text-xs bg-white dark:bg-slate-900 shadow-sm">
+            <CardTitle className="text-sm font-black text-slate-900 dark:text-slate-100">
+              Notification Gateways Overview
+            </CardTitle>
+            <div className="space-y-2.5">
+              {[
+                { name: "Brevo (Sendinblue) Cloud API", status: brevoApiKey ? "Configured" : "Ready to Configure", icon: Mail },
+                { name: "Gmail / Custom SMTP Relay", status: "Fallback Active", icon: Mail },
+                { name: "In-App Push WebSockets", status: "Active", icon: Bell },
+                { name: "WhatsApp Business Notifications", status: "Configured", icon: Zap },
+              ].map((n, i) => {
+                const Icon = n.icon;
+                return (
+                  <div key={i} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <Icon size={15} className="text-[#274690] dark:text-blue-400" />
+                      <span className="font-bold text-slate-800 dark:text-slate-200">{n.name}</span>
+                    </div>
+                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-bold">
+                      {n.status}
+                    </Badge>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        </div>
       )}
 
       {/* TAB 5: INTEGRATIONS */}

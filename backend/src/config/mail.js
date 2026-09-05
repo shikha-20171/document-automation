@@ -82,6 +82,31 @@ function createTransporter(targetPort = smtpPort, secureFlag = smtpSecure) {
   });
 }
 
+async function getDynamicBrevoApiKey() {
+  if (process.env.BREVO_API_KEY && process.env.BREVO_API_KEY.trim()) {
+    return process.env.BREVO_API_KEY.trim();
+  }
+  try {
+    const prisma = require("./prismaClient");
+    const { decryptText } = require("../utils/cryptoUtils");
+    const integration = await prisma.platformIntegration.findFirst({
+      where: { provider: "BREVO" },
+    });
+    if (integration && integration.isEnabled) {
+      if (integration.clientSecretEncrypted) {
+        return decryptText(integration.clientSecretEncrypted);
+      }
+      if (integration.clientIdEncrypted) {
+        return decryptText(integration.clientIdEncrypted);
+      }
+      if (integration.settings?.apiKey) {
+        return integration.settings.apiKey;
+      }
+    }
+  } catch (e) {}
+  return null;
+}
+
 const resilientTransporter = {
   getSenderEmail() {
     return (
@@ -102,15 +127,57 @@ const resilientTransporter = {
   },
 
   async sendMail(mailOptions) {
-    const senderEmail = this.getSenderEmail();
-    const senderName = this.getSenderName();
+    let senderEmail = this.getSenderEmail();
+    let senderName = this.getSenderName();
+
+    try {
+      const prisma = require("./prismaClient");
+      const integration = await prisma.platformIntegration.findFirst({
+        where: { provider: { in: ["BREVO", "SMTP_EMAIL"] } },
+      }).catch(() => null);
+      if (integration?.settings?.fromEmail) senderEmail = integration.settings.fromEmail;
+      if (integration?.settings?.fromName) senderName = integration.settings.fromName;
+    } catch (e) {}
+
     const defaultFrom = `"${senderName}" <${senderEmail}>`;
     const finalMailOptions = {
       ...mailOptions,
       from: mailOptions.from || defaultFrom,
     };
 
-    // 1. Check for HTTPS REST Email API (Resend) - 100% immune to cloud SMTP port blocks
+    // 1. Check for Brevo HTTPS REST API (from Database UI config or .env) - 100% Cloud Safe
+    const brevoApiKey = await getDynamicBrevoApiKey();
+    if (brevoApiKey) {
+      try {
+        const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+          method: "POST",
+          headers: {
+            "api-key": brevoApiKey,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+          },
+          body: JSON.stringify({
+            sender: { name: senderName, email: senderEmail },
+            to: (Array.isArray(finalMailOptions.to) ? finalMailOptions.to : [finalMailOptions.to]).map((t) => ({ email: typeof t === "string" ? t.trim() : t.email })),
+            subject: finalMailOptions.subject,
+            htmlContent: finalMailOptions.html || `<p>${finalMailOptions.text || ""}</p>`,
+            textContent: finalMailOptions.text,
+          }),
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+          console.log(`[MailConfig] Successfully dispatched email via Brevo HTTPS API. MessageId: ${data.messageId}`);
+          return { messageId: data.messageId, success: true };
+        } else {
+          console.warn(`[MailConfig] Brevo API notice: ${data.message || JSON.stringify(data)}. Falling back to SMTP...`);
+        }
+      } catch (httpErr) {
+        console.warn(`[MailConfig] Brevo HTTPS dispatch notice: ${httpErr.message}`);
+      }
+    }
+
+    // 2. Check for Resend HTTPS REST Email API
     if (process.env.RESEND_API_KEY) {
       try {
         const response = await fetch("https://api.resend.com/emails", {
@@ -137,37 +204,6 @@ const resilientTransporter = {
         }
       } catch (httpErr) {
         console.warn(`[MailConfig] Resend HTTPS dispatch notice: ${httpErr.message}`);
-      }
-    }
-
-    // 2. Check for HTTPS REST Email API (Brevo) - 100% immune to cloud SMTP port blocks
-    if (process.env.BREVO_API_KEY) {
-      try {
-        const response = await fetch("https://api.brevo.com/v3/smtp/email", {
-          method: "POST",
-          headers: {
-            "api-key": process.env.BREVO_API_KEY.trim(),
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-          },
-          body: JSON.stringify({
-            sender: { name: senderName, email: senderEmail },
-            to: (Array.isArray(finalMailOptions.to) ? finalMailOptions.to : [finalMailOptions.to]).map((t) => ({ email: t })),
-            subject: finalMailOptions.subject,
-            htmlContent: finalMailOptions.html,
-            textContent: finalMailOptions.text,
-          }),
-        });
-
-        const data = await response.json();
-        if (response.ok) {
-          console.log(`[MailConfig] Successfully dispatched email via Brevo HTTPS API. MessageId: ${data.messageId}`);
-          return { messageId: data.messageId, success: true };
-        } else {
-          console.warn(`[MailConfig] Brevo API notice: ${data.message || JSON.stringify(data)}. Falling back to SMTP...`);
-        }
-      } catch (httpErr) {
-        console.warn(`[MailConfig] Brevo HTTPS dispatch notice: ${httpErr.message}`);
       }
     }
 

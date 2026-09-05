@@ -130,6 +130,10 @@ const updatePlatformIntegrationConfig = async (req, res) => {
     let processedSettings = settings !== undefined ? settings : existing?.settings;
     if (processedSettings && typeof processedSettings === "object") {
       processedSettings = { ...processedSettings };
+      if (processedSettings.apiKey && processedSettings.apiKey !== "••••••••") {
+        processedSettings.apiKeyEncrypted = encryptText(processedSettings.apiKey);
+        delete processedSettings.apiKey;
+      }
       if (processedSettings.secretAccessKey && processedSettings.secretAccessKey !== "••••••••") {
         processedSettings.secretAccessKeyEncrypted = encryptText(processedSettings.secretAccessKey);
         delete processedSettings.secretAccessKey;

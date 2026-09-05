@@ -5,6 +5,7 @@ const MicrosoftTeamsAdapter = require("./MicrosoftTeamsAdapter");
 const SlackAdapter = require("./SlackAdapter");
 const AwsS3Adapter = require("./AwsS3Adapter");
 const SmtpEmailAdapter = require("./SmtpEmailAdapter");
+const BrevoEmailAdapter = require("./BrevoEmailAdapter");
 const WhatsAppAdapter = require("./WhatsAppAdapter");
 
 /**
@@ -156,6 +157,27 @@ class IntegrationManager {
       setupGuide: "Use DocuCore Platform Email Infrastructure or configure Custom Corporate SMTP.",
     },
     {
+      id: "BREVO",
+      name: "Brevo (Sendinblue) Email API",
+      slug: "brevo",
+      category: "COMMUNICATION",
+      description: "Cloud-native HTTPS Transactional Email REST API on Port 443. 100% immune to cloud SMTP blocks with 300 free emails/day.",
+      authType: "API_KEY",
+      icon: "https://assets.brevo.com/assets/images/logo/brevo-logo.svg",
+      requiredEnv: ["BREVO_API_KEY"],
+      configFields: [
+        { key: "apiKey", label: "Brevo API Key", type: "password", required: true, placeholder: "xkeysib-..." },
+        { key: "fromEmail", label: "Verified Sender Email", type: "text", required: true, placeholder: "gourshikha2001@gmail.com" },
+        { key: "fromName", label: "Sender Display Name", type: "text", default: "DocuCore AI", placeholder: "DocuCore AI" },
+      ],
+      actions: [
+        { id: "test_connection", name: "Test Brevo Connection", description: "Validate Brevo API key and fetch credit status." },
+        { id: "send_test_email", name: "Send Test Email", description: "Dispatch test email via Brevo HTTPS API." },
+        { id: "send_workflow_email", name: "Send Workflow Email", description: "Dispatch transactional document notifications." },
+      ],
+      setupGuide: "Get a free API key from Brevo.com > SMTP & API > API Keys.",
+    },
+    {
       id: "WHATSAPP_BUSINESS",
       name: "WhatsApp Business API",
       slug: "whatsapp",
@@ -189,6 +211,7 @@ class IntegrationManager {
     if (p === "AWS_S3" || p === "S3" || p === "AWS") return "AWS_S3";
     if (p === "SLACK") return "SLACK";
     if (p === "MICROSOFT_TEAMS" || p === "TEAMS" || p === "MSTEAMS") return "MICROSOFT_TEAMS";
+    if (p === "BREVO" || p === "BREVO_EMAIL" || p === "SENDINBLUE") return "BREVO";
     if (p === "SMTP_EMAIL" || p === "EMAIL" || p === "SMTP") return "SMTP_EMAIL";
     if (p === "WHATSAPP_BUSINESS" || p === "WHATSAPP") return "WHATSAPP_BUSINESS";
     return p;
@@ -405,6 +428,11 @@ class IntegrationManager {
         }
         const adapter = new MicrosoftTeamsAdapter();
         testResult = await adapter.testConnection(creds.accessToken);
+      } else if (canonicalId === "BREVO") {
+        const creds = await this.getProviderCredentials(organisationId, canonicalId);
+        const brevoConfig = creds?.metadata || (await this.getPlatformConfig("BREVO")).settings || {};
+        const adapter = new BrevoEmailAdapter(brevoConfig);
+        testResult = await adapter.testConnection();
       } else if (canonicalId === "SMTP_EMAIL") {
         const creds = await this.getProviderCredentials(organisationId, canonicalId);
         const smtpConfig = creds?.metadata || (await this.getPlatformConfig("SMTP_EMAIL")).settings || {};
@@ -549,6 +577,20 @@ class IntegrationManager {
         else if (action === "send_message") result = await adapter.sendMessage(token, payload);
         else if (action === "send_approval_alert") result = await adapter.sendApprovalNotification(token, payload);
         else throw new Error(`Unsupported action '${action}' for Slack.`);
+      } else if (canonicalId === "BREVO") {
+        const creds = await this.getProviderCredentials(organisationId, canonicalId);
+        const brevoConfig = creds?.metadata || (await this.getPlatformConfig("BREVO")).settings || {};
+        const adapter = new BrevoEmailAdapter(brevoConfig);
+        if (action === "send_test_email") {
+          result = await adapter.sendMail({
+            to: payload.to || "admin@company.com",
+            subject: "DocuCore Brevo API Integration Verification",
+            html: "<p>This is a verification email sent via Brevo HTTPS API from DocuCore AI Platform.</p>",
+            text: "This is a verification email sent via Brevo HTTPS API from DocuCore AI Platform.",
+          });
+        } else {
+          result = await adapter.sendMail(payload);
+        }
       } else if (canonicalId === "SMTP_EMAIL") {
         const creds = await this.getProviderCredentials(organisationId, canonicalId);
         const smtpConfig = creds?.metadata || (await this.getPlatformConfig("SMTP_EMAIL")).settings || {};
