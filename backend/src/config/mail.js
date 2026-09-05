@@ -102,27 +102,90 @@ const resilientTransporter = {
   },
 
   async sendMail(mailOptions) {
-    if (!hasMailCredentials) {
-      console.warn("[MailConfig] SMTP credentials not detected. Simulating dispatch.");
-      const fallbackTransporter = nodemailer.createTransport({ jsonTransport: true });
-      return fallbackTransporter.sendMail(mailOptions);
-    }
-
-    const defaultFrom = `"${this.getSenderName()}" <${this.getSenderEmail()}>`;
+    const senderEmail = this.getSenderEmail();
+    const senderName = this.getSenderName();
+    const defaultFrom = `"${senderName}" <${senderEmail}>`;
     const finalMailOptions = {
       ...mailOptions,
       from: mailOptions.from || defaultFrom,
     };
 
+    // 1. Check for HTTPS REST Email API (Resend) - 100% immune to cloud SMTP port blocks
+    if (process.env.RESEND_API_KEY) {
+      try {
+        const response = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${process.env.RESEND_API_KEY.trim()}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            from: finalMailOptions.from,
+            to: Array.isArray(finalMailOptions.to) ? finalMailOptions.to : [finalMailOptions.to],
+            subject: finalMailOptions.subject,
+            html: finalMailOptions.html,
+            text: finalMailOptions.text,
+          }),
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+          console.log(`[MailConfig] Successfully dispatched email via Resend HTTPS API. ID: ${data.id}`);
+          return { messageId: data.id, success: true };
+        } else {
+          console.warn(`[MailConfig] Resend API notice: ${data.message || JSON.stringify(data)}. Falling back to SMTP...`);
+        }
+      } catch (httpErr) {
+        console.warn(`[MailConfig] Resend HTTPS dispatch notice: ${httpErr.message}`);
+      }
+    }
+
+    // 2. Check for HTTPS REST Email API (Brevo) - 100% immune to cloud SMTP port blocks
+    if (process.env.BREVO_API_KEY) {
+      try {
+        const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+          method: "POST",
+          headers: {
+            "api-key": process.env.BREVO_API_KEY.trim(),
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+          },
+          body: JSON.stringify({
+            sender: { name: senderName, email: senderEmail },
+            to: (Array.isArray(finalMailOptions.to) ? finalMailOptions.to : [finalMailOptions.to]).map((t) => ({ email: t })),
+            subject: finalMailOptions.subject,
+            htmlContent: finalMailOptions.html,
+            textContent: finalMailOptions.text,
+          }),
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+          console.log(`[MailConfig] Successfully dispatched email via Brevo HTTPS API. MessageId: ${data.messageId}`);
+          return { messageId: data.messageId, success: true };
+        } else {
+          console.warn(`[MailConfig] Brevo API notice: ${data.message || JSON.stringify(data)}. Falling back to SMTP...`);
+        }
+      } catch (httpErr) {
+        console.warn(`[MailConfig] Brevo HTTPS dispatch notice: ${httpErr.message}`);
+      }
+    }
+
+    if (!hasMailCredentials) {
+      console.warn("[MailConfig] SMTP credentials not detected. Simulating dispatch.");
+      const fallbackTransporter = nodemailer.createTransport({ jsonTransport: true });
+      return fallbackTransporter.sendMail(finalMailOptions);
+    }
+
     try {
-      // 1. Primary Transporter (service: gmail or configured host)
+      // 3. Primary SMTP Transporter (service: gmail or configured host)
       const primaryTransporter = createTransporter(smtpPort, smtpSecure);
       const info = await primaryTransporter.sendMail(finalMailOptions);
       return info;
     } catch (primaryErr) {
       console.warn(`[MailConfig] Primary SMTP dispatch attempt notice: ${primaryErr.message}`);
 
-      // 2. Automated fallback: Port 587 STARTTLS direct
+      // 4. Automated fallback: Port 587 STARTTLS direct
       try {
         const fallbackTransporter = nodemailer.createTransport({
           host: smtpHost,
@@ -150,7 +213,12 @@ const resilientTransporter = {
   },
 
   async verify(callback) {
-    if (!hasMailCredentials) {
+    if (!hasMailCredentials && !process.env.RESEND_API_KEY && !process.env.BREVO_API_KEY) {
+      if (callback) return callback(null, true);
+      return true;
+    }
+
+    if (process.env.RESEND_API_KEY || process.env.BREVO_API_KEY) {
       if (callback) return callback(null, true);
       return true;
     }
@@ -161,7 +229,11 @@ const resilientTransporter = {
 };
 
 // Safe startup logging without logging raw passwords
-if (hasMailCredentials) {
+if (process.env.RESEND_API_KEY) {
+  console.log(`[MailConfig] Configured Resend HTTPS Email API (Port 443 Cloud Safe).`);
+} else if (process.env.BREVO_API_KEY) {
+  console.log(`[MailConfig] Configured Brevo HTTPS Email API (Port 443 Cloud Safe).`);
+} else if (hasMailCredentials) {
   console.log(`[MailConfig] SMTP configuration loaded for sender: ${maskUser(emailUser)} on ${smtpHost}:${smtpPort}`);
 } else {
   console.warn(`[MailConfig] WARNING: SMTP credentials (SMTP_USER / SMTP_PASS or EMAIL_USER / EMAIL_PASS) not configured.`);
