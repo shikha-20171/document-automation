@@ -349,8 +349,7 @@ const createOrganisation = async (data) => {
         data: {
           organisation_id: organisation.id,
           name: "General Management",
-          code: "GEN",
-          status: "active",
+          description: "Primary organization department",
         },
       });
     }
@@ -461,13 +460,13 @@ const getAllOrganisations = async (filters = {}) => {
           },
         },
         departments: {
-          select: { id: true, name: true, status: true },
+          select: { id: true, name: true, description: true },
         },
         teams: {
-          select: { id: true, name: true, status: true },
+          select: { id: true, name: true, members: true },
         },
         documents: {
-          select: { id: true, file_size: true, status: true },
+          select: { id: true, size: true, file_size_bytes: true },
         },
       },
     }),
@@ -489,7 +488,11 @@ const getAllOrganisations = async (filters = {}) => {
     const orgSub = subMap.get(String(org.id));
     const primaryAdmin = org.users.find((u) => u.role === "ORGANISATION_ADMIN") || org.users[0];
 
-    const totalStorageBytes = org.documents.reduce((sum, d) => sum + (Number(d.file_size) || 0), 0);
+    const totalStorageBytes = (org.documents || []).reduce((sum, d) => {
+      if (d.file_size_bytes) return sum + Number(d.file_size_bytes);
+      if (d.size) return sum + Number(d.size) * 1024 * 1024;
+      return sum;
+    }, 0);
     const storageUsedMB = (totalStorageBytes / (1024 * 1024)).toFixed(1);
     const storageUsedGB = (totalStorageBytes / (1024 * 1024 * 1024)).toFixed(2);
 
@@ -589,22 +592,22 @@ const getOrganisationById = async (id) => {
           status: true,
           must_change_password: true,
           created_at: true,
-          last_login_at: true,
+          last_login: true,
         },
       },
-      departments: {
-        include: { teams: true },
-      },
+      departments: true,
       teams: true,
       documents: {
         take: 10,
         orderBy: { created_at: "desc" },
         select: {
           id: true,
-          title: true,
-          file_name: true,
-          file_size: true,
-          status: true,
+          name: true,
+          original_name: true,
+          type: true,
+          mime_type: true,
+          size: true,
+          file_size_bytes: true,
           created_at: true,
         },
       },
@@ -622,7 +625,11 @@ const getOrganisationById = async (id) => {
     include: { plan: true },
   }).catch(() => null);
 
-  const totalStorageBytes = org.documents.reduce((sum, d) => sum + (Number(d.file_size) || 0), 0);
+  const totalStorageBytes = (org.documents || []).reduce((sum, d) => {
+    if (d.file_size_bytes) return sum + Number(d.file_size_bytes);
+    if (d.size) return sum + Number(d.size) * 1024 * 1024;
+    return sum;
+  }, 0);
   const storageUsedGB = (totalStorageBytes / (1024 * 1024 * 1024)).toFixed(2);
 
   const primaryAdmin = org.users.find((u) => u.role === "ORGANISATION_ADMIN") || org.users[0];

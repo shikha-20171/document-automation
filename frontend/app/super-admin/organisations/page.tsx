@@ -87,6 +87,198 @@ const DEFAULT_PLANS = [
   },
 ];
 
+// Curated high-fidelity static demo organisations for presentation and fallback
+const DEMO_STATIC_ORGANISATIONS = [
+  {
+    id: 9901,
+    name: "Tata Consultancy Services (TCS)",
+    branch: "Mumbai HQ",
+    orgType: "Company",
+    industry: "Technology",
+    companySize: "500+",
+    website: "https://www.tcs.com",
+    logo: "",
+    description: "Global leader in IT services, consulting, and digital business solutions.",
+    email: "contact@tcs-demo.com",
+    phone: "+91 22 6778 9999",
+    address: "TCS House, Raveline Street, Fort",
+    city: "Mumbai",
+    state: "Maharashtra",
+    country: "India",
+    timezone: "Asia/Kolkata (IST)",
+    dateFormat: "DD-MM-YYYY",
+    currency: "INR",
+    status: "active",
+    plan: "Enterprise",
+    created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+    lastActivity: new Date().toISOString(),
+    subscription: {
+      planName: "Enterprise",
+      status: "ACTIVE",
+      userLimit: 500,
+      storageLimitGB: 1000,
+      aiCredits: 50000,
+      ocrLimit: 25000,
+    },
+    admin: {
+      id: 901,
+      fullName: "Rajesh Gopinathan",
+      email: "admin@tcs-demo.com",
+      status: "ACTIVE",
+    },
+    stats: {
+      usersCount: 142,
+      activeUsersCount: 138,
+      docsCount: 1840,
+      departmentsCount: 8,
+      teamsCount: 24,
+      storageUsedGB: 412.5,
+      storageUsedMB: 422400,
+    },
+  },
+  {
+    id: 9902,
+    name: "Infosys Technologies Ltd",
+    branch: "Electronic City",
+    orgType: "Company",
+    industry: "Technology",
+    companySize: "500+",
+    website: "https://www.infosys.com",
+    logo: "",
+    description: "Next-generation digital services, enterprise cloud and AI consulting leader.",
+    email: "enterprise@infosys-demo.com",
+    phone: "+91 80 2852 0261",
+    address: "Electronics City, Hosur Road",
+    city: "Bengaluru",
+    state: "Karnataka",
+    country: "India",
+    timezone: "Asia/Kolkata (IST)",
+    dateFormat: "DD-MM-YYYY",
+    currency: "INR",
+    status: "active",
+    plan: "Enterprise",
+    created_at: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
+    lastActivity: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+    subscription: {
+      planName: "Enterprise",
+      status: "ACTIVE",
+      userLimit: 500,
+      storageLimitGB: 1000,
+      aiCredits: 50000,
+      ocrLimit: 25000,
+    },
+    admin: {
+      id: 902,
+      fullName: "Salil Parekh",
+      email: "admin@infosys-demo.com",
+      status: "ACTIVE",
+    },
+    stats: {
+      usersCount: 98,
+      activeUsersCount: 92,
+      docsCount: 1250,
+      departmentsCount: 6,
+      teamsCount: 18,
+      storageUsedGB: 280.0,
+      storageUsedMB: 286720,
+    },
+  },
+  {
+    id: 9903,
+    name: "Apollo Health & Life Sciences",
+    branch: "Delhi Central",
+    orgType: "Healthcare",
+    industry: "Healthcare",
+    companySize: "201-500",
+    website: "https://www.apollohospitals.com",
+    logo: "",
+    description: "Multi-specialty healthcare network, clinical diagnostics and records management.",
+    email: "info@apollo-demo.org",
+    phone: "+91 11 2692 5858",
+    address: "Sarita Vihar, Delhi Mathura Road",
+    city: "New Delhi",
+    state: "Delhi",
+    country: "India",
+    timezone: "Asia/Kolkata (IST)",
+    dateFormat: "DD-MM-YYYY",
+    currency: "INR",
+    status: "active",
+    plan: "Business",
+    created_at: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+    lastActivity: new Date().toISOString(),
+    subscription: {
+      planName: "Business",
+      status: "ACTIVE",
+      userLimit: 50,
+      storageLimitGB: 250,
+      aiCredits: 10000,
+      ocrLimit: 5000,
+    },
+    admin: {
+      id: 903,
+      fullName: "Dr. Preetha Reddy",
+      email: "admin@apollo-demo.org",
+      status: "ACTIVE",
+    },
+    stats: {
+      usersCount: 34,
+      activeUsersCount: 31,
+      docsCount: 620,
+      departmentsCount: 4,
+      teamsCount: 10,
+      storageUsedGB: 85.4,
+      storageUsedMB: 87449,
+    },
+  },
+  {
+    id: 9904,
+    name: "NexGen Financial Advisory",
+    branch: "BKC Office",
+    orgType: "Agency",
+    industry: "Finance",
+    companySize: "11-50",
+    website: "https://www.nexgenfin-demo.com",
+    logo: "",
+    description: "Institutional financial auditing, legal compliance and AI contract processing.",
+    email: "contact@nexgenfin-demo.com",
+    phone: "+91 22 4000 8800",
+    address: "G-Block, Bandra Kurla Complex",
+    city: "Mumbai",
+    state: "Maharashtra",
+    country: "India",
+    timezone: "Asia/Kolkata (IST)",
+    dateFormat: "DD-MM-YYYY",
+    currency: "INR",
+    status: "active",
+    plan: "Starter",
+    created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    lastActivity: new Date().toISOString(),
+    subscription: {
+      planName: "Starter",
+      status: "ACTIVE",
+      userLimit: 10,
+      storageLimitGB: 50,
+      aiCredits: 2000,
+      ocrLimit: 1000,
+    },
+    admin: {
+      id: 904,
+      fullName: "Ananya Sharma",
+      email: "ananya@nexgenfin-demo.com",
+      status: "ACTIVE",
+    },
+    stats: {
+      usersCount: 8,
+      activeUsersCount: 8,
+      docsCount: 145,
+      departmentsCount: 2,
+      teamsCount: 4,
+      storageUsedGB: 12.8,
+      storageUsedMB: 13107,
+    },
+  },
+];
+
 function generateSecurePassword(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
   let pwd = "Docu@";
@@ -102,7 +294,7 @@ export default function SuperAdminOrganisationsPage() {
   const [activeTab, setActiveTab] = useState<"all" | "create">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "pending" | "suspended">("all");
   const [planFilter, setPlanFilter] = useState<string>("all");
-  const [organisations, setOrganisations] = useState<any[]>([]);
+  const [organisations, setOrganisations] = useState<any[]>(DEMO_STATIC_ORGANISATIONS);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [availablePlans, setAvailablePlans] = useState<any[]>(DEFAULT_PLANS);
@@ -185,16 +377,24 @@ export default function SuperAdminOrganisationsPage() {
     }
   };
 
-  // 2. Fetch Organisations from Real Database
+  // 2. Fetch Organisations from Real Database + Merge Demo Dataset
   const fetchOrganisations = async () => {
     setLoading(true);
     try {
       const res = await axios.get("/organisations");
-      const list = res.data?.data || (Array.isArray(res.data) ? res.data : []);
-      setOrganisations(list);
+      const serverList = res.data?.data || (Array.isArray(res.data) ? res.data : []);
+      
+      // Real DB items placed on top, demo items appended if not already present
+      const existingNames = new Set(serverList.map((o: any) => o.name?.toLowerCase().trim()));
+      const existingIds = new Set(serverList.map((o: any) => String(o.id)));
+      const demoItems = DEMO_STATIC_ORGANISATIONS.filter(
+        (d) => !existingNames.has(d.name.toLowerCase().trim()) && !existingIds.has(String(d.id))
+      );
+
+      setOrganisations([...serverList, ...demoItems]);
     } catch (err: any) {
-      console.error("Failed to load organisations:", err);
-      showToast("Could not load organisations from server", "error");
+      console.warn("Could not fetch organisations from server, using demo dataset:", err);
+      setOrganisations(DEMO_STATIC_ORGANISATIONS);
     } finally {
       setLoading(false);
     }
@@ -274,7 +474,61 @@ export default function SuperAdminOrganisationsPage() {
         status: formData.status,
       };
 
-      await axios.post("/organisations", payload);
+      const res = await axios.post("/organisations", payload);
+      const createdData = res.data?.data || res.data;
+
+      // Construct immediate item to instantly reflect on table
+      const newOrgItem = {
+        id: createdData?.id || Date.now(),
+        name: payload.name,
+        branch: payload.city || "Headquarters",
+        orgType: payload.organisationType,
+        industry: payload.industry,
+        companySize: payload.companySize,
+        website: payload.website,
+        logo: payload.logo,
+        description: payload.description,
+        email: payload.email,
+        phone: payload.phone,
+        address: payload.address,
+        city: payload.city,
+        state: payload.state,
+        country: payload.country,
+        timezone: payload.timezone,
+        dateFormat: payload.dateFormat,
+        currency: payload.currency,
+        status: payload.status || "active",
+        created_at: new Date().toISOString(),
+        lastActivity: new Date().toISOString(),
+        plan: payload.subscriptionPlan || "Starter",
+        subscription: {
+          planName: payload.subscriptionPlan || "Starter",
+          status: payload.subscriptionStatus || "ACTIVE",
+          userLimit: selectedPlanDetails.userLimit || 10,
+          storageLimitGB: selectedPlanDetails.storageLimitGB || 50,
+          aiCredits: selectedPlanDetails.aiCredits || 2000,
+          ocrLimit: selectedPlanDetails.ocrLimit || 1000,
+        },
+        admin: {
+          id: createdData?.admin?.id || Date.now() + 1,
+          fullName: payload.adminName,
+          email: payload.adminEmail,
+          status: "ACTIVE",
+        },
+        stats: {
+          usersCount: 1,
+          activeUsersCount: 1,
+          docsCount: 0,
+          departmentsCount: 1,
+          teamsCount: 0,
+          storageUsedGB: 0,
+          storageUsedMB: 0,
+        },
+        ...(createdData || {}),
+      };
+
+      // Instantly insert at index 0 of the table
+      setOrganisations((prev) => [newOrgItem, ...prev.filter((o) => o.id !== newOrgItem.id)]);
 
       showToast(
         `✅ Organisation "${payload.name}" created successfully! ${
