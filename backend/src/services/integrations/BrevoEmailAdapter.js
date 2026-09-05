@@ -48,14 +48,18 @@ class BrevoEmailAdapter {
           companyName: data.companyName,
           plan: data.plan?.[0]?.type || "FREE",
           credits: data.plan?.[0]?.credits || 300,
-          message: `Brevo API Key verified successfully. Account: ${data.email} (${data.companyName || "Active"}).`,
+          message: `Brevo REST API verified successfully. Account: ${data.email} (${data.companyName || "Active"}).`,
         };
       } else {
+        let errorMsg = data.message || "Invalid Brevo API Key or unauthorized access.";
+        if (this.apiKey.startsWith("xsmtpsib-")) {
+          errorMsg = "You provided a Brevo SMTP Key (xsmtpsib-...). For HTTPS REST API delivery (best on Render/Vercel port 443), copy your API Key (starting with xkeysib-...) from Brevo Dashboard -> Top-right profile -> SMTP & API -> API Keys tab.";
+        }
         return {
           success: false,
           status: "CONNECTION_FAILED",
           latencyMs,
-          error: data.message || "Invalid Brevo API Key or unauthorized access.",
+          error: errorMsg,
         };
       }
     } catch (err) {

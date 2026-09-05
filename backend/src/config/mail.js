@@ -170,7 +170,28 @@ const resilientTransporter = {
           console.log(`[MailConfig] Successfully dispatched email via Brevo HTTPS API. MessageId: ${data.messageId}`);
           return { messageId: data.messageId, success: true };
         } else {
-          console.warn(`[MailConfig] Brevo API notice: ${data.message || JSON.stringify(data)}. Falling back to SMTP...`);
+          console.warn(`[MailConfig] Brevo REST API notice: ${data.message || JSON.stringify(data)}.`);
+          if (brevoApiKey.startsWith("xsmtpsib-")) {
+            console.log("[MailConfig] Attempting Brevo SMTP relay dispatch (smtp-relay.brevo.com:587)...");
+            try {
+              const brevoSmtpTransporter = nodemailer.createTransport({
+                host: "smtp-relay.brevo.com",
+                port: 587,
+                secure: false,
+                auth: {
+                  user: senderEmail,
+                  pass: brevoApiKey,
+                },
+                tls: { rejectUnauthorized: false },
+                connectionTimeout: 8000,
+              });
+              const info = await brevoSmtpTransporter.sendMail(finalMailOptions);
+              console.log(`[MailConfig] Dispatched via Brevo SMTP relay. MessageId: ${info.messageId}`);
+              return info;
+            } catch (smtpErr) {
+              console.warn(`[MailConfig] Brevo SMTP relay attempt notice: ${smtpErr.message}`);
+            }
+          }
         }
       } catch (httpErr) {
         console.warn(`[MailConfig] Brevo HTTPS dispatch notice: ${httpErr.message}`);
