@@ -221,12 +221,45 @@ const getDashboardStats = async (req, res, next) => {
   }
 };
 
+const updateOrganisationStatus = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    const org = await organisationService.updateOrganisationStatus(id, status || "active");
+    return res.status(200).json({
+      success: true,
+      message: `Organisation status updated to ${status}`,
+      data: org,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const resendWelcomeEmail = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const result = await organisationService.resendWelcomeEmail(id);
+    return res.status(200).json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 module.exports = {
   getAllOrganisations,
   getOrganisationById,
   createOrganisation,
   updateOrganisation,
   deleteOrganisation,
+  updateOrganisationStatus,
+  resendWelcomeEmail,
   getOrganisationAdmins,
   getOrganisationDepartments,
   getOrganisationTeams,

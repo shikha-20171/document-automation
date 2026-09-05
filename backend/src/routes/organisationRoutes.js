@@ -8,6 +8,8 @@ const {
   createOrganisation,
   updateOrganisation,
   deleteOrganisation,
+  updateOrganisationStatus,
+  resendWelcomeEmail,
   getOrganisationAdmins,
   getOrganisationDepartments,
   getOrganisationTeams,
@@ -129,13 +131,13 @@ router.get("/", getAllOrganisations);
 router.post("/", createOrganisation);
 router.get("/stats/summary", getDashboardStats);
 
+router.patch("/:id/status", updateOrganisationStatus);
+router.post("/:id/status", updateOrganisationStatus);
+router.post("/:id/resend-welcome-email", resendWelcomeEmail);
+
 router.post("/:id/suspend", async (req, res, next) => {
   try {
-    const org = await prismaClient.organisation.update({
-      where: { id: Number(req.params.id) },
-      data: { status: "SUSPENDED" },
-    });
-    return res.status(200).json({ success: true, message: "Organisation suspended successfully", data: org });
+    const org = await updateOrganisationStatus(req, res, next);
   } catch (err) {
     next(err);
   }
@@ -143,11 +145,7 @@ router.post("/:id/suspend", async (req, res, next) => {
 
 router.post("/:id/activate", async (req, res, next) => {
   try {
-    const org = await prismaClient.organisation.update({
-      where: { id: Number(req.params.id) },
-      data: { status: "ACTIVE" },
-    });
-    return res.status(200).json({ success: true, message: "Organisation activated successfully", data: org });
+    const org = await updateOrganisationStatus(req, res, next);
   } catch (err) {
     next(err);
   }

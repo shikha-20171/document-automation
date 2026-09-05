@@ -20,6 +20,16 @@ model Organisation {
   state       String?
   country     String?
   postal_code String?
+  orgType     String?  @default("Company")
+  industry    String?
+  companySize String?  @default("1-10")
+  logo        String?
+  description String?  @db.Text
+  timezone    String?  @default("UTC")
+  dateFormat  String?  @default("YYYY-MM-DD")
+  currency    String?  @default("USD")
+  createdById Int?
+  lastActivity DateTime? @default(now())
   status      String   @default("active")
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
@@ -96,6 +106,8 @@ model User {
   team_id              Int?
   full_name            String
   email                String                @unique
+  phone                String?
+  username             String?
   password_hash        String?
   role                 String                @default("ORGANISATION_ADMIN")
   status               String                @default("active")
