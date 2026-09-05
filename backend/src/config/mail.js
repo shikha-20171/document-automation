@@ -13,9 +13,12 @@ let transportConfig;
 if (hasMailCredentials) {
   const isGmail = emailUser.toLowerCase().includes("@gmail.com") || process.env.SMTP_HOST === "smtp.gmail.com";
   
-  if (isGmail && !process.env.SMTP_PORT) {
+  if (isGmail) {
+    // Port 465 with direct SSL is the most resilient across cloud providers (Render, AWS, Vercel)
     transportConfig = {
-      service: "gmail",
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true,
       auth: {
         user: emailUser,
         pass: emailPass,
@@ -23,11 +26,16 @@ if (hasMailCredentials) {
       tls: {
         rejectUnauthorized: false,
       },
+      pool: true,
+      maxConnections: 5,
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 20000,
     };
   } else {
     transportConfig = {
       host: process.env.SMTP_HOST || "smtp.gmail.com",
-      port: Number(process.env.SMTP_PORT) || 587,
+      port: Number(process.env.SMTP_PORT) || 465,
       secure: process.env.SMTP_SECURE === "true" || Number(process.env.SMTP_PORT) === 465,
       auth: {
         user: emailUser,
@@ -36,7 +44,10 @@ if (hasMailCredentials) {
       tls: {
         rejectUnauthorized: false,
       },
+      pool: true,
       connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 20000,
     };
   }
 } else {
@@ -54,4 +65,5 @@ if (hasMailCredentials) {
 }
 
 module.exports = transporter;
+
 
