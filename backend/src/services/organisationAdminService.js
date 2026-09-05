@@ -142,7 +142,7 @@ const getAllOrganisationAdmins = async (filters = {}) => {
   const take = Number(limit);
 
   const where = {
-    role: "ORGANISATION_ADMIN",
+    role: { in: ["ORGANISATION_ADMIN", "ORGANIZATION_ADMIN"] },
   };
 
   if (organisation_id) {

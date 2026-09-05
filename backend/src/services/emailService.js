@@ -22,9 +22,12 @@ const sendAdminCredentialsEmail = async ({
     return { success: false, error: "Recipient email address is required." };
   }
 
+  const senderEmail = transporter.getSenderEmail();
+  const senderName = transporter.getSenderName();
+
   console.log("==========================================================");
-  console.log(`[EmailService] PREPARING DYNAMIC GMAIL DISPATCH`);
-  console.log(`[EmailService] Sender (FROM): ${process.env.EMAIL_USER}`);
+  console.log(`[EmailService] PREPARING SMTP EMAIL DISPATCH`);
+  console.log(`[EmailService] Sender: ${senderName} <${senderEmail}>`);
   console.log(`[EmailService] Recipient (TO): ${cleanEmail}`);
   console.log(`[EmailService] Organization: ${organisationName}`);
   console.log(`[EmailService] Admin Name: ${adminName}`);
@@ -41,7 +44,7 @@ const sendAdminCredentialsEmail = async ({
   });
 
   const mailOptions = {
-    from: `DocuCore AI <${process.env.EMAIL_USER || "gourshikha2001@gmail.com"}>`,
+    from: `"${senderName}" <${senderEmail}>`,
     to: cleanEmail,
     subject: `Welcome to DocuCore AI - Credentials for ${organisationName || "your Organization"}`,
     html,
@@ -49,12 +52,12 @@ const sendAdminCredentialsEmail = async ({
 
   try {
     const info = await transporter.sendMail(mailOptions);
-    console.log(`[EmailService]  GMAIL DISPATCH SUCCESSFUL to ${cleanEmail}!`);
+    console.log(`[EmailService] SMTP DISPATCH SUCCESSFUL to ${cleanEmail}!`);
     console.log(`[EmailService] Message ID: ${info.messageId || JSON.stringify(info)}`);
     console.log("==========================================================");
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error(`[EmailService]  GMAIL DISPATCH FAILED for ${cleanEmail}:`, error.message);
+    console.error(`[EmailService] SMTP DISPATCH FAILED for ${cleanEmail}:`, error.message);
     console.log("==========================================================");
     return { success: false, error: error.message };
   }
@@ -63,11 +66,13 @@ const sendAdminCredentialsEmail = async ({
 const sendForgotPasswordEmail = async ({ email, name, resetLink }) => {
   const cleanEmail = (email || "").trim().toLowerCase();
   const html = forgotPasswordTemplate(name, resetLink);
+  const senderEmail = transporter.getSenderEmail();
+  const senderName = transporter.getSenderName();
 
-  console.log(`[EmailService]  Sending Forgot Password Email to: ${cleanEmail}`);
+  console.log(`[EmailService] Sending Forgot Password Email to: ${cleanEmail}`);
 
   const mailOptions = {
-    from: `DocuCore AI <${process.env.EMAIL_USER || "gourshikha2001@gmail.com"}>`,
+    from: `"${senderName}" <${senderEmail}>`,
     to: cleanEmail,
     subject: "Reset Password - DocuCore AI Platform",
     html,
@@ -75,10 +80,10 @@ const sendForgotPasswordEmail = async ({ email, name, resetLink }) => {
 
   try {
     const info = await transporter.sendMail(mailOptions);
-    console.log(`[EmailService]  Forgot password email sent to ${cleanEmail}. Message ID: ${info.messageId}`);
+    console.log(`[EmailService] Forgot password email sent to ${cleanEmail}. Message ID: ${info.messageId}`);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error(`[EmailService]  Failed to send forgot password email to ${cleanEmail}:`, error.message);
+    console.error(`[EmailService] Failed to send forgot password email to ${cleanEmail}:`, error.message);
     return { success: false, error: error.message };
   }
 };
@@ -95,6 +100,9 @@ const sendInvitationEmail = async ({
     return { success: false, error: "Recipient email address is required." };
   }
 
+  const senderEmail = transporter.getSenderEmail();
+  const senderName = transporter.getSenderName();
+
   const html = invitationTemplate({
     adminName: adminName || "Organisation Admin",
     organisationName: organisationName || "Organisation",
@@ -104,7 +112,7 @@ const sendInvitationEmail = async ({
   });
 
   const mailOptions = {
-    from: `DocuCore AI <${process.env.EMAIL_USER || "gourshikha2001@gmail.com"}>`,
+    from: `"${senderName}" <${senderEmail}>`,
     to: cleanEmail,
     subject: `You're invited to join ${organisationName || "DocuCore AI"}`,
     html,
@@ -112,10 +120,10 @@ const sendInvitationEmail = async ({
 
   try {
     const info = await transporter.sendMail(mailOptions);
-    console.log(`[EmailService]  INVITATION EMAIL DISPATCH SUCCESSFUL to ${cleanEmail}! Message ID: ${info.messageId}`);
+    console.log(`[EmailService] INVITATION EMAIL DISPATCH SUCCESSFUL to ${cleanEmail}! Message ID: ${info.messageId}`);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error(`[EmailService]  INVITATION EMAIL DISPATCH FAILED for ${cleanEmail}:`, error.message);
+    console.error(`[EmailService] INVITATION EMAIL DISPATCH FAILED for ${cleanEmail}:`, error.message);
     return { success: false, error: error.message };
   }
 };
@@ -136,6 +144,8 @@ const sendTeamMemberInvitationEmail = async ({
     return { success: false, error: "Recipient email address is required." };
   }
 
+  const senderEmail = transporter.getSenderEmail();
+  const senderName = transporter.getSenderName();
   const { teamMemberInvitationTemplate } = require("../utils/emailTemplates");
 
   const html = teamMemberInvitationTemplate({
@@ -149,9 +159,9 @@ const sendTeamMemberInvitationEmail = async ({
   });
 
   const mailOptions = {
-    from: `DocuCore AI <${process.env.EMAIL_USER || "gourshikha2001@gmail.com"}>`,
+    from: `"${senderName}" <${senderEmail}>`,
     to: cleanEmail,
-    replyTo: process.env.EMAIL_USER || "gourshikha2001@gmail.com",
+    replyTo: senderEmail,
     subject: `DocuCore AI - You have been added as ${role || "Department Manager"}`,
     text: `Hello ${name || cleanEmail},\n\nYou have been added as ${role || "Staff Member"} in the ${department || "Operations"} Department on DocuCore AI.\n\nTemporary Password: ${password || "Please set upon login"}\nAccept Invitation: ${invitationUrl || loginUrl}\nLogin Link: ${loginUrl}\n\nRegards,\nDocuCore AI Team`,
     html,
@@ -186,6 +196,8 @@ const sendTeamLeaderInvitationEmail = async ({
     return { success: false, error: "Recipient email address is required." };
   }
 
+  const senderEmail = transporter.getSenderEmail();
+  const senderName = transporter.getSenderName();
   const { teamLeaderInvitationTemplate } = require("../utils/emailTemplates");
 
   const html = teamLeaderInvitationTemplate({
@@ -200,16 +212,16 @@ const sendTeamLeaderInvitationEmail = async ({
   });
 
   const mailOptions = {
-    from: `DocuCore AI <${process.env.EMAIL_USER || "gourshikha2001@gmail.com"}>`,
+    from: `"${senderName}" <${senderEmail}>`,
     to: cleanEmail,
-    replyTo: process.env.EMAIL_USER || "gourshikha2001@gmail.com",
+    replyTo: senderEmail,
     subject: `You're invited as Team Leader for ${teamName} (${organisationName}) - Set Password`,
     text: `Hello ${teamLeadName || cleanEmail},\n\nYou have been appointed as Team Leader for "${teamName}" in ${departmentName} (${organisationName}) by ${managerName}.\n\nClick the link below to set your password and activate your account:\n${invitationUrl}\n\nThis invitation link is valid for 48 hours.\n\nRegards,\nDocuCore AI Platform`,
     html,
   };
 
   console.log("==========================================================");
-  console.log(`[EmailService] DISPATCHING TEAM LEADER GMAIL INVITATION`);
+  console.log(`[EmailService] DISPATCHING TEAM LEADER SMTP INVITATION`);
   console.log(`[EmailService] TO: ${cleanEmail}`);
   console.log(`[EmailService] Team Lead: ${teamLeadName}`);
   console.log(`[EmailService] Team: ${teamName} | Dept: ${departmentName}`);
@@ -219,6 +231,7 @@ const sendTeamLeaderInvitationEmail = async ({
   try {
     const info = await transporter.sendMail(mailOptions);
     console.log(`[EmailService] TEAM LEADER INVITATION DISPATCH SUCCESSFUL to ${cleanEmail}! Message ID: ${info.messageId}`);
+    return { success: true, messageId: info.messageId };
   } catch (error) {
     console.error(`[EmailService] TEAM LEADER INVITATION DISPATCH FAILED for ${cleanEmail}:`, error.message);
     return { success: false, error: error.message };
@@ -242,6 +255,9 @@ const sendTaskAssignmentEmail = async ({
   if (!cleanEmail) {
     return { success: false, error: "Employee email is required." };
   }
+
+  const senderEmail = transporter.getSenderEmail();
+  const senderName = transporter.getSenderName();
 
   const html = `
     <!DOCTYPE html>
@@ -293,7 +309,7 @@ const sendTaskAssignmentEmail = async ({
   `;
 
   const mailOptions = {
-    from: `DocuCore AI <${process.env.EMAIL_USER || "gourshikha2001@gmail.com"}>`,
+    from: `"${senderName}" <${senderEmail}>`,
     to: cleanEmail,
     subject: `New Task Assigned: ${taskTitle} [Due: ${dueDate}]`,
     html,
