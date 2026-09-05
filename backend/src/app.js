@@ -1,8 +1,14 @@
 const path = require("path");
+const dns = require("dns");
 require("dotenv").config({
   path: path.resolve(__dirname, "../.env"),
 });
 require("dotenv").config();
+
+// Globally prefer IPv4 DNS resolution to prevent cloud ENETUNREACH errors on IPv6
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder("ipv4first");
+}
 
 // Global BigInt JSON serialization support
 if (!BigInt.prototype.toJSON) {
