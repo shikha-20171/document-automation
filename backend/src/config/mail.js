@@ -1,5 +1,6 @@
 const path = require("path");
 const dns = require("dns");
+const util = require("util");
 const nodemailer = require("nodemailer");
 require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
 require("dotenv").config();
@@ -9,6 +10,8 @@ if (dns.setDefaultResultOrder) {
   dns.setDefaultResultOrder("ipv4first");
 }
 
+const lookupAsync = util.promisify(dns.lookup);
+
 const emailUser = (process.env.EMAIL_USER || "").trim();
 const emailPass = (process.env.EMAIL_PASS || "").trim().replace(/\s+/g, "");
 
@@ -16,12 +19,12 @@ const hasMailCredentials = Boolean(emailUser && emailPass);
 
 async function getIPv4Host(hostname) {
   try {
-    const ips = await dns.promises.resolve4(hostname);
-    if (ips && ips.length > 0) {
-      return ips[0];
+    const res = await lookupAsync(hostname, { family: 4 });
+    if (res && res.address) {
+      return res.address;
     }
   } catch (err) {
-    console.warn(`[MailConfig] DNS resolve4 notice for ${hostname}:`, err.message);
+    console.warn(`[MailConfig] DNS lookupAsync notice for ${hostname}:`, err.message);
   }
   return hostname;
 }
@@ -37,6 +40,9 @@ function createDirectTransporter(hostIp, servername = "smtp.gmail.com") {
     host: hostIp,
     port: targetPort,
     secure: targetPort === 465 || process.env.SMTP_SECURE === "true",
+    lookup: (hostname, options, callback) => {
+      return dns.lookup(hostname, { ...(options || {}), family: 4 }, callback);
+    },
     auth: {
       user: emailUser,
       pass: emailPass,
