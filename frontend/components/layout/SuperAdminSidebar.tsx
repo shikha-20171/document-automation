@@ -103,11 +103,6 @@ export const superAdminNavSections: MenuSection[] = [
         icon: Plug,
         hasSubmodules: true,
       },
-      {
-        title: "Marketplace",
-        href: "/super-admin/marketplace",
-        icon: ShoppingBag,
-      },
     ],
   },
   {
