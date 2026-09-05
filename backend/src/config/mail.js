@@ -5,7 +5,6 @@ const nodemailer = require("nodemailer");
 require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
 require("dotenv").config();
 
-// Global preference for IPv4
 if (dns.setDefaultResultOrder) {
   dns.setDefaultResultOrder("ipv4first");
 }
@@ -24,25 +23,17 @@ async function getIPv4Host(hostname) {
       return res.address;
     }
   } catch (err) {
-    console.warn(`[MailConfig] DNS lookupAsync notice for ${hostname}:`, err.message);
+    console.warn(`[MailConfig] DNS lookup notice for ${hostname}:`, err.message);
   }
   return hostname;
 }
 
-function createDirectTransporter(hostIp, servername = "smtp.gmail.com") {
-  if (!hasMailCredentials) {
-    return nodemailer.createTransport({ jsonTransport: true });
-  }
-
-  const targetPort = Number(process.env.SMTP_PORT) || 465;
-
+function createTransporterForPort(hostIp, port, servername = "smtp.gmail.com") {
+  const isSecure = port === 465 || process.env.SMTP_SECURE === "true";
   return nodemailer.createTransport({
     host: hostIp,
-    port: targetPort,
-    secure: targetPort === 465 || process.env.SMTP_SECURE === "true",
-    lookup: (hostname, options, callback) => {
-      return dns.lookup(hostname, { ...(options || {}), family: 4 }, callback);
-    },
+    port: port,
+    secure: isSecure,
     auth: {
       user: emailUser,
       pass: emailPass,
@@ -51,55 +42,77 @@ function createDirectTransporter(hostIp, servername = "smtp.gmail.com") {
       servername: servername,
       rejectUnauthorized: false,
     },
-    pool: true,
-    maxConnections: 5,
-    connectionTimeout: 15000,
-    greetingTimeout: 15000,
-    socketTimeout: 20000,
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
   });
 }
 
-const defaultTargetHost = process.env.SMTP_HOST || "smtp.gmail.com";
-const baseTransporter = createDirectTransporter(defaultTargetHost, defaultTargetHost);
-
-// Resilient wrapper that guarantees direct IPv4 dispatch in cloud hosting environments (Render / AWS)
+// Resilient wrapper with port failover (587 -> 465) and direct IPv4 resolution
 const resilientTransporter = {
   async sendMail(mailOptions) {
     if (!hasMailCredentials) {
-      console.warn("[MailConfig] EMAIL_USER or EMAIL_PASS missing. Simulating mail send.");
-      return baseTransporter.sendMail(mailOptions);
+      console.warn("[MailConfig] EMAIL_USER or EMAIL_PASS missing. Using JSON simulation.");
+      const fallbackTransporter = nodemailer.createTransport({ jsonTransport: true });
+      return fallbackTransporter.sendMail(mailOptions);
     }
 
     const hostName = process.env.SMTP_HOST || "smtp.gmail.com";
-    try {
-      const ipv4 = await getIPv4Host(hostName);
-      const activeTransporter = createDirectTransporter(ipv4, hostName);
-      return await activeTransporter.sendMail(mailOptions);
-    } catch (err) {
-      console.warn(`[MailConfig] IPv4 dispatch retry with fallback for ${hostName}:`, err.message);
-      return await baseTransporter.sendMail(mailOptions);
+    const hostIp = await getIPv4Host(hostName);
+    const portsToTry = process.env.SMTP_PORT
+      ? [Number(process.env.SMTP_PORT)]
+      : [587, 465];
+
+    let lastError = null;
+    for (const port of portsToTry) {
+      try {
+        const transporter = createTransporterForPort(hostIp, port, hostName);
+        const info = await transporter.sendMail(mailOptions);
+        return info;
+      } catch (err) {
+        lastError = err;
+        console.warn(`[MailConfig] Dispatch on port ${port} notice: ${err.message}. Retrying fallback port...`);
+      }
     }
+
+    throw lastError || new Error("Failed to dispatch email across available SMTP ports.");
   },
+
   async verify(callback) {
-    try {
-      const hostName = process.env.SMTP_HOST || "smtp.gmail.com";
-      const ipv4 = await getIPv4Host(hostName);
-      const activeTransporter = createDirectTransporter(ipv4, hostName);
-      return await activeTransporter.verify(callback);
-    } catch (err) {
-      if (callback) return callback(err);
-      throw err;
+    if (!hasMailCredentials) {
+      if (callback) return callback(null, true);
+      return true;
     }
+
+    const hostName = process.env.SMTP_HOST || "smtp.gmail.com";
+    const hostIp = await getIPv4Host(hostName);
+    const portsToTry = process.env.SMTP_PORT ? [Number(process.env.SMTP_PORT)] : [587, 465];
+
+    let lastError = null;
+    for (const port of portsToTry) {
+      try {
+        const transporter = createTransporterForPort(hostIp, port, hostName);
+        const res = await transporter.verify();
+        if (callback) return callback(null, res);
+        return res;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    if (callback) return callback(lastError);
+    throw lastError;
   },
 };
 
 if (hasMailCredentials) {
-  console.log(`[MailConfig] Configured resilient IPv4 SMTP transporter for user: ${emailUser}`);
+  console.log(`[MailConfig] Configured resilient multi-port IPv4 SMTP transporter for user: ${emailUser}`);
 } else {
   console.warn(`[MailConfig] WARNING: EMAIL_USER / EMAIL_PASS not set. Using JSON fallback mailer.`);
 }
 
 module.exports = resilientTransporter;
+
 
 
 
