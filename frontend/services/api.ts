@@ -6,22 +6,34 @@ import axios, {
 
 // ─── Base URL Normalizer ──────────────────────────────────────────────────────
 export function getApiBaseUrl(): string {
-  const envUrl = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL;
+  // If running in browser and NOT localhost/127.0.0.1, automatically target production Render backend
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    const isLocalhost =
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "0.0.0.0" ||
+      host.startsWith("192.168.") ||
+      host.startsWith("10.");
 
+    if (!isLocalhost) {
+      const envUrl = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL;
+      if (envUrl && envUrl.trim().startsWith("https://")) {
+        let clean = envUrl.trim().replace(/\/+$/, "");
+        if (!clean.endsWith("/api")) clean = `${clean}/api`;
+        return clean;
+      }
+      return "https://document-automation-backend-1jte.onrender.com/api";
+    }
+  }
+
+  const envUrl = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL;
   if (envUrl && envUrl.trim()) {
     let clean = envUrl.trim().replace(/\/+$/, "");
     if (!clean.endsWith("/api")) {
       clean = `${clean}/api`;
     }
     return clean;
-  }
-
-  // If running in browser and NOT localhost/127.0.0.1, automatically target production Render backend
-  if (typeof window !== "undefined") {
-    const host = window.location.hostname;
-    if (host !== "localhost" && host !== "127.0.0.1") {
-      return "https://document-automation-backend-1jte.onrender.com/api";
-    }
   }
 
   // If server-side production build on Vercel
@@ -67,6 +79,8 @@ export const api: AxiosInstance = axios.create({
 // ─── Request Interceptor (attach auth token & normalize paths) ────────────────
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    config.baseURL = getApiBaseUrl();
+
     // Prevent duplicate /api/api if a caller passed "/api/something"
     if (config.url) {
       if (config.url.startsWith("/api/")) {
