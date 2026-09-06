@@ -104,63 +104,71 @@ const DEFAULT_PROVIDERS = [
   },
 ];
 
+let _aiProviderSeeded = false;
+
 const aiProviderService = {
   async ensureSeeded() {
-    for (const def of DEFAULT_PROVIDERS) {
-      const existing = await prisma.aIProvider.findUnique({
-        where: { providerCode: def.providerCode },
-      });
-
-      const envGeminiKey = process.env.GEMINI_API_KEY;
-      const isGemini = def.providerCode === "gemini";
-
-      if (!existing) {
-        const created = await prisma.aIProvider.create({
-          data: {
-            providerName: def.providerName,
-            providerCode: def.providerCode,
-            description: def.description,
-            baseUrl: def.baseUrl,
-            apiVersion: def.apiVersion,
-            priority: def.priority,
-            isDefault: def.isDefault,
-            supportsChat: def.supportsChat,
-            supportsVision: def.supportsVision,
-            supportsOCR: def.supportsOCR,
-            supportsStreaming: def.supportsStreaming,
-            status: isGemini && envGeminiKey ? "ACTIVE" : "INACTIVE",
-            connectionStatus: isGemini && envGeminiKey ? "CONNECTED" : "DISCONNECTED",
-            apiKeyEncrypted: isGemini && envGeminiKey ? encryptApiKey(envGeminiKey) : null,
-            lastConnectedAt: isGemini && envGeminiKey ? new Date() : null,
-          },
+    if (_aiProviderSeeded) return;
+    try {
+      for (const def of DEFAULT_PROVIDERS) {
+        const existing = await prisma.aIProvider.findUnique({
+          where: { providerCode: def.providerCode },
         });
 
-        for (const m of def.models) {
-          await prisma.aIModel.create({
+        const envGeminiKey = process.env.GEMINI_API_KEY;
+        const isGemini = def.providerCode === "gemini";
+
+        if (!existing) {
+          const created = await prisma.aIProvider.create({
             data: {
-              providerId: created.id,
-              modelName: m.modelName,
-              modelCode: m.modelCode,
-              contextWindow: m.contextWindow,
-              maxOutputTokens: m.maxOutputTokens,
-              inputCostPer1K: m.inputCostPer1K,
-              outputCostPer1K: m.outputCostPer1K,
-              isDefault: m.isDefault,
-              status: "ACTIVE",
+              providerName: def.providerName,
+              providerCode: def.providerCode,
+              description: def.description,
+              baseUrl: def.baseUrl,
+              apiVersion: def.apiVersion,
+              priority: def.priority,
+              isDefault: def.isDefault,
+              supportsChat: def.supportsChat,
+              supportsVision: def.supportsVision,
+              supportsOCR: def.supportsOCR,
+              supportsStreaming: def.supportsStreaming,
+              status: isGemini && envGeminiKey ? "ACTIVE" : "INACTIVE",
+              connectionStatus: isGemini && envGeminiKey ? "CONNECTED" : "DISCONNECTED",
+              apiKeyEncrypted: isGemini && envGeminiKey ? encryptApiKey(envGeminiKey) : null,
+              lastConnectedAt: isGemini && envGeminiKey ? new Date() : null,
             },
-          }).catch(() => null);
+          });
+
+          for (const m of def.models) {
+            await prisma.aIModel.create({
+              data: {
+                providerId: created.id,
+                modelName: m.modelName,
+                modelCode: m.modelCode,
+                contextWindow: m.contextWindow,
+                maxOutputTokens: m.maxOutputTokens,
+                inputCostPer1K: m.inputCostPer1K,
+                outputCostPer1K: m.outputCostPer1K,
+                isDefault: m.isDefault,
+                status: "ACTIVE",
+              },
+            }).catch(() => null);
+          }
+        } else if (isGemini && envGeminiKey && (!existing.apiKeyEncrypted || existing.connectionStatus !== "CONNECTED")) {
+          await prisma.aIProvider.update({
+            where: { id: existing.id },
+            data: {
+              apiKeyEncrypted: encryptApiKey(envGeminiKey),
+              status: "ACTIVE",
+              connectionStatus: "CONNECTED",
+              lastConnectedAt: new Date(),
+            },
+          });
         }
-      } else if (isGemini && envGeminiKey && (!existing.apiKeyEncrypted || existing.connectionStatus !== "CONNECTED")) {
-        await prisma.aIProvider.update({
-          where: { id: existing.id },
-          data: {
-            apiKeyEncrypted: encryptApiKey(envGeminiKey),
-            status: "ACTIVE",
-            connectionStatus: "CONNECTED",
-            lastConnectedAt: new Date(),
-          },
-        });
       }
+      _aiProviderSeeded = true;
+    } catch (err) {
+      console.warn("[aiProviderService] Seed notice:", err.message);
     }
   },
 

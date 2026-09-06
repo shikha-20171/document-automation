@@ -212,9 +212,10 @@ const DEFAULT_PLANS = [
 
 class SubscriptionService {
   /**
-   * Seed / Update default plans in the database
+   * Seed / Update default plans in the database (cached in-memory after first run)
    */
   static async ensurePlansSeeded() {
+    if (this._plansSeeded) return;
     try {
       for (const plan of DEFAULT_PLANS) {
         const existing = await prisma.subscriptionPlan.findFirst({
@@ -230,30 +231,9 @@ class SubscriptionService {
           await prisma.subscriptionPlan.create({
             data: plan,
           });
-        } else {
-          // Keep plan metadata, quotas and pricing up-to-date with current specifications
-          await prisma.subscriptionPlan.update({
-            where: { id: existing.id },
-            data: {
-              planName: plan.planName,
-              description: plan.description,
-              monthlyPrice: plan.monthlyPrice,
-              yearlyPrice: plan.yearlyPrice,
-              userLimit: plan.userLimit,
-              storageLimitGB: plan.storageLimitGB,
-              aiCredits: plan.aiCredits,
-              ocrLimit: plan.ocrLimit,
-              apiRateLimit: plan.apiRateLimit,
-              supportLevel: plan.supportLevel,
-              badge: plan.badge,
-              isMostPopular: plan.isMostPopular,
-              displayOrder: plan.displayOrder,
-              isActive: true,
-              features: plan.features,
-            },
-          });
         }
       }
+      this._plansSeeded = true;
     } catch (err) {
       console.warn("ensurePlansSeeded error:", err.message);
     }

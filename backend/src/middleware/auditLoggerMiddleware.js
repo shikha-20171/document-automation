@@ -1,16 +1,13 @@
 const prisma = require("../config/prismaClient");
 
-/**
- * Audit Logger Middleware
- * Logs incoming request events and status for security audit trails
- */
+
 const auditLogger = (actionName) => {
   return async (req, res, next) => {
     const startTime = Date.now();
 
-    // Capture response finish
+    
     res.on("finish", async () => {
-      // Only log mutations (POST, PUT, PATCH, DELETE) or explicitly named actions
+      
       const isMutation = ["POST", "PUT", "PATCH", "DELETE"].includes(req.method);
       if (!isMutation && !actionName) return;
 
@@ -40,7 +37,7 @@ const auditLogger = (actionName) => {
           });
         }
       } catch (err) {
-        // Fail silently so logging never breaks core API
+        
       }
     });
 

@@ -46,6 +46,16 @@ export function getApiBaseUrl(): string {
 
 export const API_BASE = getApiBaseUrl();
 
+// Non-blocking background keepalive/warm-up ping for cloud backend
+if (typeof window !== "undefined") {
+  try {
+    const rawBase = getApiBaseUrl().replace(/\/api$/, "");
+    if (rawBase.startsWith("https://")) {
+      fetch(`${rawBase}/health`, { mode: "no-cors", cache: "no-cache", keepalive: true }).catch(() => {});
+    }
+  } catch (e) {}
+}
+
 // ─── Custom Error ─────────────────────────────────────────────────────────────
 export class ApiError extends Error {
   status: number;

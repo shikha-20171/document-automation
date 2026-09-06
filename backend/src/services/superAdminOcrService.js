@@ -168,9 +168,10 @@ const INITIAL_OCR_PROFILES = [
 
 class SuperAdminOcrService {
   /**
-   * Auto-seed initial 3 OCR Providers and 8 OCR Profiles
+   * Auto-seed initial 3 OCR Providers and 8 OCR Profiles (cached in-memory)
    */
   static async ensureOcrSeeded() {
+    if (this._ocrSeeded) return;
     try {
       for (const p of INITIAL_OCR_PROVIDERS) {
         let dbProvider = await prisma.oCRProvider.findUnique({
@@ -230,6 +231,7 @@ class SuperAdminOcrService {
           }).catch(() => null);
         }
       }
+      this._ocrSeeded = true;
     } catch (err) {
       console.warn("[SuperAdminOcrService] Seed notice:", err.message);
     }

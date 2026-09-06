@@ -22,6 +22,8 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${serifFont.variable} font-serif`} suppressHydrationWarning data-scroll-behavior="smooth">
       <head>
+        <link rel="preconnect" href="https://document-automation-backend-1jte.onrender.com" />
+        <link rel="dns-prefetch" href="https://document-automation-backend-1jte.onrender.com" />
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -34,6 +36,17 @@ export default function RootLayout({
                   document.documentElement.classList.remove('dark');
                 }
               } catch (e) {}
+
+              // Non-blocking early cloud backend pre-warm on page load
+              try {
+                if (typeof window !== 'undefined' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+                  fetch('https://document-automation-backend-1jte.onrender.com/health', {
+                    mode: 'no-cors',
+                    cache: 'no-cache',
+                    keepalive: true
+                  }).catch(function() {});
+                }
+              } catch(e) {}
             `,
           }}
         />

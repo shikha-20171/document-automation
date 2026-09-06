@@ -265,9 +265,10 @@ const INITIAL_AI_CAPABILITIES = [
 
 class SuperAdminAiService {
   /**
-   * Auto-seed initial 3 AI Providers and 11 AI Capabilities
+   * Auto-seed initial 3 AI Providers and 11 AI Capabilities (cached in-memory)
    */
   static async ensureAiSeeded() {
+    if (this._aiSeeded) return;
     try {
       const geminiEnvKey = process.env.GEMINI_API_KEY;
       const openAiEnvKey = process.env.OPENAI_API_KEY;
@@ -303,12 +304,12 @@ class SuperAdminAiService {
               apiVersion: p.apiVersion,
               priority: p.priority,
               isDefault: p.isDefault,
-              status: "ACTIVE",
-              connectionStatus: isConnected ? "CONNECTED" : "DISCONNECTED",
               supportsChat: p.supportsChat,
               supportsVision: p.supportsVision,
-              supportsOCR: false,
+              supportsOCR: p.supportsOCR,
               supportsStreaming: p.supportsStreaming,
+              status: isConnected ? "ACTIVE" : "INACTIVE",
+              connectionStatus: isConnected ? "CONNECTED" : "DISCONNECTED",
               apiKeyEncrypted,
               lastConnectedAt: isConnected ? new Date() : null,
             },
@@ -322,13 +323,15 @@ class SuperAdminAiService {
                 modelName: m.modelName,
                 modelCode: m.modelCode,
                 contextWindow: m.contextWindow,
-                maxOutputTokens: m.maxOutputTokens,
-                inputCostPer1K: m.inputCostPer1K,
-                outputCostPer1K: m.outputCostPer1K,
-                supportsVision: m.supportsVision,
-                supportsFunctionCalling: m.supportsFunctionCalling,
-                isDefault: m.isDefault,
-                status: m.status,
+                inputPricePerK: m.inputPricePerK,
+                outputPricePerK: m.outputPricePerK,
+                isVisionCapable: m.isVisionCapable,
+                isRecommended: m.isRecommended,
+                maxTokens: m.maxTokens,
+                latencyScoreMs: m.latencyScoreMs,
+                qualityScore: m.qualityScore,
+                capabilities: m.capabilities,
+                isEnabled: true,
               },
             }).catch(() => null);
           }
@@ -337,9 +340,9 @@ class SuperAdminAiService {
           await prisma.aIServiceHealth.create({
             data: {
               providerId: dbProvider.id,
-              uptimePercent: isConnected ? 99.9 : 0.0,
-              averageLatencyMs: isConnected ? 280 : null,
-              errorRate: 0.0,
+              uptimePercent: 99.9,
+              averageLatencyMs: p.providerCode === "gemini" ? 140 : p.providerCode === "openai" ? 210 : 260,
+              errorRate: 0.1,
               requestsToday: 0,
               failedRequests: 0,
               successRate: 100.0,
@@ -372,6 +375,7 @@ class SuperAdminAiService {
           }).catch(() => null);
         }
       }
+      this._aiSeeded = true;
     } catch (err) {
       console.warn("[SuperAdminAiService] Seed notice:", err.message);
     }

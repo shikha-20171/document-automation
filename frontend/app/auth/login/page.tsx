@@ -95,6 +95,14 @@ export default function LoginPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [serverWarming, setServerWarming] = useState(false);
+
+  // Pre-warm backend immediately when login page mounts
+  useState(() => {
+    if (typeof window !== "undefined") {
+      axios.get("/health").catch(() => {});
+    }
+  });
 
   const selectDemoRole = (role: DemoRole) => {
     setSelectedRole(role.title);
@@ -112,6 +120,11 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     setMessage(null);
+
+    // If backend cold start takes more than 2 seconds, show reassuring status
+    const warmTimer = setTimeout(() => {
+      setServerWarming(true);
+    }, 2000);
 
     try {
       const { data: response } = await axios.post<{
@@ -133,6 +146,9 @@ export default function LoginPage() {
         role: selectedRole || "Super Admin",
       });
 
+      clearTimeout(warmTimer);
+      setServerWarming(false);
+
       const { accessToken, refreshToken, user } = response;
 
       localStorage.setItem("accessToken", accessToken);
@@ -151,96 +167,84 @@ export default function LoginPage() {
         );
       }
 
-      try {
-        const { data: companyResponse } = await axios.get<{
+      // Fetch company asynchronously in background without blocking login redirect
+      axios
+        .get<{
           success: boolean;
           data: { company_name: string; logo?: string; id: string };
-        }>("/companies");
-        const company = companyResponse.data;
-        if (company && company.company_name) {
-          localStorage.setItem(
-            "organization",
-            JSON.stringify({
-              companyName: company.company_name,
-              name: company.company_name,
-              logo: company.logo,
-              id: company.id,
-            })
-          );
-        }
-      } catch (e) {}
+        }>("/companies")
+        .then((compRes) => {
+          const company = compRes.data?.data;
+          if (company && company.company_name) {
+            localStorage.setItem(
+              "organization",
+              JSON.stringify({
+                companyName: company.company_name,
+                name: company.company_name,
+                logo: company.logo,
+                id: company.id,
+              })
+            );
+          }
+        })
+        .catch(() => {});
 
       setMessage(response.message || "Login Successful.");
 
-      setTimeout(() => {
-        const userRole = (user?.role || "").toLowerCase();
-        const selRole = (selectedRole || "").toLowerCase();
+      // Instant redirect based on role
+      const userRole = (user?.role || "").toLowerCase();
+      const selRole = (selectedRole || "").toLowerCase();
 
-        // 1. Employee / Staff check
-        if (
-          selRole === "employee" ||
-          userRole === "staff" ||
-          userRole.includes("employee") ||
-          userRole.includes("staff")
-        ) {
-          window.location.href = "/employee/dashboard";
-          return;
-        }
+      let targetUrl = "/employee/dashboard";
 
-        // 2. Team Lead check
-        if (
-          selRole === "team lead" ||
-          userRole === "team_leader" ||
-          userRole.includes("team leader") ||
-          userRole.includes("team_leader") ||
-          userRole.includes("team lead") ||
-          userRole.includes("team_lead") ||
-          userRole.includes("teamlead")
-        ) {
-          window.location.href = "/team-leader/dashboard";
-          return;
-        }
+      if (
+        selRole === "employee" ||
+        userRole === "staff" ||
+        userRole.includes("employee") ||
+        userRole.includes("staff")
+      ) {
+        targetUrl = "/employee/dashboard";
+      } else if (
+        selRole === "team lead" ||
+        userRole === "team_leader" ||
+        userRole.includes("team leader") ||
+        userRole.includes("team_leader") ||
+        userRole.includes("team lead") ||
+        userRole.includes("team_lead") ||
+        userRole.includes("teamlead")
+      ) {
+        targetUrl = "/team-leader/dashboard";
+      } else if (
+        selRole === "department manager" ||
+        userRole === "department_manager" ||
+        userRole.includes("department manager") ||
+        userRole.includes("department_manager") ||
+        userRole.includes("dept manager") ||
+        userRole.includes("dept_manager")
+      ) {
+        targetUrl = "/department-manager/dashboard";
+      } else if (
+        selRole === "organization admin" ||
+        userRole === "organisation_admin" ||
+        userRole.includes("organisation_admin") ||
+        userRole.includes("organization_admin") ||
+        userRole.includes("org_admin") ||
+        userRole.includes("org admin")
+      ) {
+        targetUrl = "/org-admin/dashboard";
+      } else if (
+        selRole === "super admin" ||
+        userRole === "super_admin" ||
+        userRole.includes("super admin") ||
+        userRole.includes("super_admin")
+      ) {
+        targetUrl = "/super-admin/dashboard";
+      }
 
-        // 3. Department Manager check
-        if (
-          selRole === "department manager" ||
-          userRole === "department_manager" ||
-          userRole.includes("department manager") ||
-          userRole.includes("department_manager") ||
-          userRole.includes("dept manager") ||
-          userRole.includes("dept_manager")
-        ) {
-          window.location.href = "/department-manager/dashboard";
-          return;
-        }
-
-        // 4. Organisation Admin check
-        if (
-          selRole === "organization admin" ||
-          userRole === "organisation_admin" ||
-          userRole.includes("organisation_admin") ||
-          userRole.includes("organization_admin") ||
-          userRole.includes("org_admin") ||
-          userRole.includes("org admin")
-        ) {
-          window.location.href = "/org-admin/dashboard";
-          return;
-        }
-
-        // 5. Super Admin check
-        if (
-          selRole === "super admin" ||
-          userRole === "super_admin" ||
-          userRole.includes("super admin") ||
-          userRole.includes("super_admin")
-        ) {
-          window.location.href = "/super-admin/dashboard";
-          return;
-        }
-
-        window.location.href = "/employee/dashboard";
-      }, 500);
+      window.location.href = targetUrl;
     } catch (submitError: any) {
+      clearTimeout(warmTimer);
+      setServerWarming(false);
       const apiMsg = submitError?.response?.data?.message;
       setError(
         apiMsg ||
@@ -333,9 +337,16 @@ export default function LoginPage() {
           disabled={loading}
           className="h-12 w-full rounded-2xl bg-gradient-to-r from-[#274690] via-[#244186] to-[#c96f4a] text-sm font-bold text-white shadow-lg shadow-[#274690]/25 transition-all duration-300 hover:shadow-[#c96f4a]/30 hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-70"
         >
-          {loading ? "Signing in..." : `Sign in as ${selectedRole}`}
+          {loading ? (serverWarming ? "Connecting to cloud backend..." : "Signing in...") : `Sign in as ${selectedRole}`}
         </button>
       </form>
+
+      {loading && serverWarming && (
+        <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50/90 px-4 py-3 text-xs text-blue-900 flex items-center gap-2 animate-pulse">
+          <Sparkles className="w-4 h-4 text-blue-600 shrink-0 animate-spin" />
+          <span>Connecting to cloud backend node. Logging you in...</span>
+        </div>
+      )}
 
       {message && (
         <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 flex items-center gap-2">

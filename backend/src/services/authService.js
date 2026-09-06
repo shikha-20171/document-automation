@@ -44,30 +44,43 @@ const defaultDemoAccounts = [
   },
 ];
 
+let _accountsSeeded = false;
+let _seedingPromise = null;
+
 const ensureDefaultAccountsExist = async () => {
-  try {
-    const passwordHash = await hashPassword("Admin@123");
-    for (const acc of defaultDemoAccounts) {
-      const existing = await prisma.user.findUnique({
-        where: { email: acc.email },
-      });
-      if (!existing) {
-        await prisma.user.create({
-          data: {
-            full_name: acc.full_name,
-            email: acc.email,
-            password_hash: passwordHash,
-            role: acc.role,
-            status: "active",
-            must_change_password: false,
-          },
+  if (_accountsSeeded) return;
+  if (_seedingPromise) return _seedingPromise;
+
+  _seedingPromise = (async () => {
+    try {
+      const passwordHash = await hashPassword("Admin@123");
+      for (const acc of defaultDemoAccounts) {
+        const existing = await prisma.user.findUnique({
+          where: { email: acc.email },
         });
-        console.log(`Demo account initialized: ${acc.email} (${acc.role})`);
+        if (!existing) {
+          await prisma.user.create({
+            data: {
+              full_name: acc.full_name,
+              email: acc.email,
+              password_hash: passwordHash,
+              role: acc.role,
+              status: "active",
+              must_change_password: false,
+            },
+          });
+          console.log(`Demo account initialized: ${acc.email} (${acc.role})`);
+        }
       }
+      _accountsSeeded = true;
+    } catch (error) {
+      console.warn("Notice: DB not available or error seeding accounts:", error.message);
+    } finally {
+      _seedingPromise = null;
     }
-  } catch (error) {
-    console.warn("Notice: DB not available or error seeding accounts:", error.message);
-  }
+  })();
+
+  return _seedingPromise;
 };
 
 /**
@@ -117,8 +130,6 @@ const login = async ({ email, password, role, req = null }) => {
   if (!email || !password) {
     throw new Error("Email and password are required.");
   }
-
-  await ensureDefaultAccountsExist();
 
   const cleanEmail = email.trim().toLowerCase();
   const cleanPassword = (password || "").trim();
@@ -236,9 +247,9 @@ const login = async ({ email, password, role, req = null }) => {
     }
   }
 
-  // 5. Successful login: Reset failed attempts & update last login
+  // 5. Successful login: Reset failed attempts & update last login (asynchronously)
   if (user.id && typeof user.id === "number") {
-    await prisma.user.update({
+    prisma.user.update({
       where: { id: user.id },
       data: {
         failed_attempts: 0,
@@ -258,20 +269,16 @@ const login = async ({ email, password, role, req = null }) => {
 
   const refreshToken = generateRefreshToken({ id: user.id });
 
-  // Store session in DB
-  try {
-    if (user.id && typeof user.id === "number") {
-      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-      await prisma.userSession.create({
-        data: {
-          user_id: user.id,
-          refresh_token: refreshToken,
-          expires_at: expiresAt,
-        },
-      });
-    }
-  } catch (err) {
-    // Ignore session creation failure
+  // Store session in DB asynchronously
+  if (user.id && typeof user.id === "number") {
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    prisma.userSession.create({
+      data: {
+        user_id: user.id,
+        refresh_token: refreshToken,
+        expires_at: expiresAt,
+      },
+    }).catch(() => {});
   }
 
   return {
