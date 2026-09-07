@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import React, { Suspense, useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -56,7 +56,7 @@ const PROMPT_SUGGESTIONS = [
   "Quarterly Performance Marketing & Growth Retainer for ₹1,20,000.",
 ];
 
-export default function CreateQuotationPage() {
+function CreateQuotationContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const preselectedTemplateId = searchParams.get("templateId");
@@ -1007,5 +1007,20 @@ export default function CreateQuotationPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CreateQuotationPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center text-slate-600">
+          <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="font-medium text-slate-500">Loading Quotation Studio...</p>
+        </div>
+      }
+    >
+      <CreateQuotationContent />
+    </Suspense>
   );
 }

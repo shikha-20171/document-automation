@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { Suspense, useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -97,7 +97,7 @@ const PROMPT_SUGGESTIONS = [
   "Create a custom document explaining our company's software development services, pricing model, implementation process and support.",
 ];
 
-export default function UniversalAiDocumentBuilderPage() {
+function UniversalAiDocumentBuilderContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const docIdParam = searchParams.get("id");
@@ -1384,5 +1384,20 @@ export default function UniversalAiDocumentBuilderPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function UniversalAiDocumentBuilderPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-slate-300">
+          <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="font-medium text-slate-400">Loading AI Document Studio...</p>
+        </div>
+      }
+    >
+      <UniversalAiDocumentBuilderContent />
+    </Suspense>
   );
 }
