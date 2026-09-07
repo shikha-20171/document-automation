@@ -169,12 +169,12 @@ function ContactModal({ clientId, contact, onClose, onSaved }: {
 
   const set = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (contact) {
-      clientStore.updateContact(contact.id, { ...form, clientId });
+      await clientStore.updateContact(contact.id, { ...form, clientId });
       onSaved(`${form.firstName} ${form.lastName} updated`);
     } else {
-      clientStore.addContact({ ...form, clientId });
+      await clientStore.addContact({ ...form, clientId });
       onSaved(`${form.firstName} ${form.lastName} added`);
     }
   };

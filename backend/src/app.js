@@ -101,18 +101,84 @@ app.get("/", (req, res) => {
   });
 });
 
-app.get("/health", (req, res) => {
-  res.status(200).json({
-    success: true,
-    app: "up",
-  });
+app.get("/health", async (req, res) => {
+  try {
+    const pool = require("./config/db");
+    await pool.query("SELECT 1");
+    res.status(200).json({
+      success: true,
+      server: "ok",
+      database: "connected",
+      app: "up",
+    });
+  } catch (err) {
+    res.status(503).json({
+      success: false,
+      server: "ok",
+      database: "disconnected",
+      app: "degraded",
+      message: err.message,
+    });
+  }
 });
 
-app.get("/api/health", (req, res) => {
-  res.status(200).json({
-    success: true,
-    app: "up",
-  });
+app.get("/health/db", async (req, res) => {
+  try {
+    const pool = require("./config/db");
+    await pool.query("SELECT 1");
+    res.status(200).json({
+      success: true,
+      server: "ok",
+      database: "connected",
+    });
+  } catch (err) {
+    res.status(503).json({
+      success: false,
+      server: "ok",
+      database: "disconnected",
+      message: err.message,
+    });
+  }
+});
+
+app.get("/api/health", async (req, res) => {
+  try {
+    const pool = require("./config/db");
+    await pool.query("SELECT 1");
+    res.status(200).json({
+      success: true,
+      server: "ok",
+      database: "connected",
+      app: "up",
+    });
+  } catch (err) {
+    res.status(503).json({
+      success: false,
+      server: "ok",
+      database: "disconnected",
+      app: "degraded",
+      message: err.message,
+    });
+  }
+});
+
+app.get("/api/health/db", async (req, res) => {
+  try {
+    const pool = require("./config/db");
+    await pool.query("SELECT 1");
+    res.status(200).json({
+      success: true,
+      server: "ok",
+      database: "connected",
+    });
+  } catch (err) {
+    res.status(503).json({
+      success: false,
+      server: "ok",
+      database: "disconnected",
+      message: err.message,
+    });
+  }
 });
 
 /*  API Routes & Aliases */

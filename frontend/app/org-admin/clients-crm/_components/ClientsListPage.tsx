@@ -44,7 +44,13 @@ export default function ClientsListPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [openMenu, setOpenMenu] = useState<string | null>(null);
 
-  const load = useCallback(() => setClients(clientStore.getClients()), []);
+  const load = useCallback(async () => {
+    setClients(clientStore.getClients());
+    const remote = await clientStore.fetchClients();
+    if (remote && Array.isArray(remote)) {
+      setClients(remote);
+    }
+  }, []);
   useEffect(() => { load(); }, [load]);
 
   const showToast = (msg: string) => {
@@ -84,24 +90,30 @@ export default function ClientsListPage() {
   };
   const selectAll = () => setSelected(filtered.length === selected.size ? new Set() : new Set(filtered.map(c => c.id)));
 
-  const bulkArchive = () => {
-    selected.forEach(id => clientStore.updateClient(id, { status: "Archived" }));
+  const bulkArchive = async () => {
+    const ids = Array.from(selected);
+    for (const id of ids) {
+      await clientStore.updateClient(id, { status: "Archived" });
+    }
     load(); setSelected(new Set()); showToast(`${selected.size} clients archived`);
   };
-  const bulkDelete = () => {
-    selected.forEach(id => clientStore.deleteClient(id));
+  const bulkDelete = async () => {
+    const ids = Array.from(selected);
+    for (const id of ids) {
+      await clientStore.deleteClient(id);
+    }
     load(); setSelected(new Set()); showToast(`${selected.size} clients deleted`);
   };
 
-  const handleDelete = (c: Client) => {
-    clientStore.deleteClient(c.id);
+  const handleDelete = async (c: Client) => {
+    await clientStore.deleteClient(c.id);
     load();
     showToast(`${c.name} deleted`);
     setOpenMenu(null);
   };
 
-  const handleArchive = (c: Client) => {
-    clientStore.updateClient(c.id, { status: "Archived" });
+  const handleArchive = async (c: Client) => {
+    await clientStore.updateClient(c.id, { status: "Archived" });
     load();
     showToast(`${c.name} archived`);
     setOpenMenu(null);

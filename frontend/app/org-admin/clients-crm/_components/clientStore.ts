@@ -375,6 +375,8 @@ function now(): string {
   return new Date().toISOString();
 }
 
+import crmApi, { type CrmClient } from "@/services/crmApi";
+
 // ─── Store API ────────────────────────────────────────────────────────────────
 
 export const clientStore = {
@@ -382,25 +384,90 @@ export const clientStore = {
   getClients(): Client[] {
     return load<Client>(KEYS.clients, SAMPLE_CLIENTS);
   },
+  async fetchClients(): Promise<Client[]> {
+    try {
+      const res = await crmApi.getClients();
+      if (res && res.success && Array.isArray(res.data)) {
+        const backendClients: Client[] = res.data.map((c: any) => ({
+          id: c.id,
+          name: c.name || "Unnamed Client",
+          type: (c.type as ClientType) || "Company",
+          contactPerson: c.contactPerson || "",
+          email: c.email || "",
+          phone: c.phone || "",
+          website: c.website || "",
+          address: c.address || "",
+          city: c.city || "",
+          state: c.state || "",
+          country: c.country || "India",
+          postalCode: c.postalCode || "",
+          industry: c.industry || "Other",
+          companySize: c.companySize || "2-10",
+          status: (c.status as ClientStatus) || "Active",
+          department: c.department || "General",
+          assignedTo: c.assignedTo || "Account Manager",
+          tags: Array.isArray(c.tags) ? c.tags : [],
+          notes: c.notes || "",
+          createdAt: c.createdAt || new Date().toISOString(),
+          lastActivity: c.updatedAt || c.createdAt || new Date().toISOString(),
+          documents: Array.isArray(c.documents) ? c.documents.length : (c.documentsCount || 0),
+        }));
+        if (backendClients.length > 0) {
+          save(KEYS.clients, backendClients);
+          return backendClients;
+        }
+      }
+    } catch (err) {
+      console.warn("CRM fetchClients backend sync fallback:", err);
+    }
+    return this.getClients();
+  },
   saveClients(clients: Client[]): void {
     save(KEYS.clients, clients);
   },
-  addClient(data: Omit<Client, "id" | "createdAt" | "lastActivity" | "documents">): Client {
+  async addClient(data: Omit<Client, "id" | "createdAt" | "lastActivity" | "documents">): Promise<Client> {
     const clients = this.getClients();
-    const clientId = `CL-${String(10000 + clients.length + 1).slice(-5)}`;
-    const newClient: Client = { ...data, id: clientId, createdAt: now(), lastActivity: now(), documents: 0 };
-    const updated = [newClient, ...clients];
+    let createdRecord: any = null;
+    try {
+      const res = await crmApi.createClient(data as any);
+      if (res && res.success && res.data) {
+        createdRecord = res.data;
+      }
+    } catch (err) {
+      console.warn("CRM addClient API fallback:", err);
+    }
+
+    const clientId = createdRecord?.id || `CL-${String(10000 + clients.length + 1).slice(-5)}`;
+    const newClient: Client = {
+      ...data,
+      id: clientId,
+      createdAt: createdRecord?.createdAt || now(),
+      lastActivity: createdRecord?.updatedAt || now(),
+      documents: 0,
+    };
+    const updated = [newClient, ...clients.filter(c => c.id !== clientId)];
     this.saveClients(updated);
     this.addActivity({ clientId: clientId, type: "Client created", description: `Client ${data.name} was created`, user: "You" });
     return newClient;
   },
-  updateClient(id: string, patch: Partial<Client>): void {
+  async updateClient(id: string, patch: Partial<Client>): Promise<void> {
     const clients = this.getClients().map(c => c.id === id ? { ...c, ...patch, lastActivity: now() } : c);
     this.saveClients(clients);
     this.addActivity({ clientId: id, type: "Client updated", description: "Client information updated", user: "You" });
+
+    try {
+      await crmApi.updateClient(id, patch as any);
+    } catch (err) {
+      console.warn("CRM updateClient API fallback:", err);
+    }
   },
-  deleteClient(id: string): void {
+  async deleteClient(id: string): Promise<void> {
     this.saveClients(this.getClients().filter(c => c.id !== id));
+    try {
+      await crmApi.deleteClient(id);
+    } catch (err) {
+      console.warn("CRM deleteClient API fallback:", err);
+    }
   },
 
   // CONTACTS
@@ -408,9 +475,18 @@ export const clientStore = {
     const all = load<Contact>(KEYS.contacts, SAMPLE_CONTACTS);
     return clientId ? all.filter(c => c.clientId === clientId) : all;
   },
-  addContact(data: Omit<Contact, "id">): Contact {
+  async addContact(data: Omit<Contact, "id">): Promise<Contact> {
     const all = load<Contact>(KEYS.contacts, SAMPLE_CONTACTS);
-    const newContact: Contact = { ...data, id: genId("CT") };
+    let createdId: string | null = null;
+    try {
+      const res = await crmApi.addContact(data.clientId, data);
+      if (res && res.success && (res.data as any)?.id) {
+        createdId = (res.data as any).id;
+      }
+    } catch (err) {
+      console.warn("CRM addContact API fallback:", err);
+    }
+    const newContact: Contact = { ...data, id: createdId || genId("CT") };
     save(KEYS.contacts, [newContact, ...all]);
     this.addActivity({ clientId: data.clientId, type: "Contact added", description: `${data.firstName} ${data.lastName} added as ${data.role}`, user: "You" });
     return newContact;

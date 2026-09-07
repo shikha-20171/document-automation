@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import TemplateDetailsStep, { TemplateDetailsData } from "../_components/TemplateDetailsStep";
 import TemplateDesigner from "../_components/TemplateDesigner";
+import { orgDocBuilderApi } from "@/services/templatesApi";
 
 export default function CreateTemplatePage() {
   const router = useRouter();
@@ -25,53 +26,35 @@ export default function CreateTemplatePage() {
     setStep(1);
   };
 
-  const handleSaveDraft = (content: string) => {
-    if (typeof window !== "undefined") {
-      const existing = JSON.parse(localStorage.getItem("org_custom_templates") || "[]");
-      const newTemplate = {
-        id: Date.now(),
+  const handleSaveDraft = async (content: string) => {
+    try {
+      const payload = {
         name: templateDetails.name,
         description: templateDetails.description,
         category: templateDetails.category,
-        status: "Draft",
-        usage: 0,
-        createdBy: "Org Admin",
-        owner: "Org Admin",
-        updated: "Just now",
-        department: templateDetails.department || "All",
         documentType: templateDetails.name,
-        tags: templateDetails.tags,
-        visibility: templateDetails.visibility,
-        isShared: true,
         content,
-        activities: [{ time: "Just now", event: "Template saved as draft" }],
+        status: "DRAFT",
       };
-      localStorage.setItem("org_custom_templates", JSON.stringify([newTemplate, ...existing]));
+      await orgDocBuilderApi.createTemplate(payload).catch(() => null);
+    } catch (e) {
+      console.error("Template save error:", e);
     }
   };
 
-  const handlePublish = (content: string) => {
-    if (typeof window !== "undefined") {
-      const existing = JSON.parse(localStorage.getItem("org_custom_templates") || "[]");
-      const newTemplate = {
-        id: Date.now(),
+  const handlePublish = async (content: string) => {
+    try {
+      const payload = {
         name: templateDetails.name,
         description: templateDetails.description,
         category: templateDetails.category,
-        status: "Active",
-        usage: 0,
-        createdBy: "Org Admin",
-        owner: "Org Admin",
-        updated: "Just now",
-        department: templateDetails.department || "All",
         documentType: templateDetails.name,
-        tags: templateDetails.tags,
-        visibility: templateDetails.visibility,
-        isShared: true,
         content,
-        activities: [{ time: "Just now", event: "Template published to organization" }],
+        status: "ACTIVE",
       };
-      localStorage.setItem("org_custom_templates", JSON.stringify([newTemplate, ...existing]));
+      await orgDocBuilderApi.createTemplate(payload).catch(() => null);
+    } catch (e) {
+      console.error("Template publish error:", e);
     }
     router.push("/org-admin/templates");
   };

@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import TemplateTable, {
   TemplateItem,
   ModalKind,
+  TemplateStatus,
+  Visibility,
 } from "./_components/TemplateTable";
 import TemplateModals from "./_components/TemplateModals";
 
@@ -90,29 +92,45 @@ const templateSeed: TemplateItem[] = [
   },
 ];
 
+import { orgDocBuilderApi } from "@/services/templatesApi";
+
 export default function OrgAdminTemplatesPage() {
   const router = useRouter();
   const [templates, setTemplates] = useState<TemplateItem[]>(templateSeed);
-  const nextTemplateIdRef = useRef(Math.max(...templateSeed.map((t) => t.id)) + 1);
   const [modal, setModal] = useState<ModalKind>("none");
   const [selected, setSelected] = useState<TemplateItem | null>(null);
 
-  // Load custom templates from localStorage on mount
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const stored = JSON.parse(localStorage.getItem("org_custom_templates") || "[]");
-        if (Array.isArray(stored) && stored.length > 0) {
-          setTemplates((prev) => {
-            const existingIds = new Set(prev.map((p) => p.id));
-            const newOnes = stored.filter((s: TemplateItem) => !existingIds.has(s.id));
-            return [...newOnes, ...prev];
-          });
-        }
-      } catch (err) {
-        console.error("Failed to load local templates", err);
+  const loadTemplates = async () => {
+    try {
+      const res = await orgDocBuilderApi.getTemplates();
+      if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
+        const formatted: TemplateItem[] = res.data.map((t: any, idx: number) => ({
+          id: t.id || idx + 1,
+          name: t.name,
+          description: t.description || "",
+          category: t.category || "General",
+          status: (t.status === "DRAFT" || t.status === "Draft" ? "Draft" : t.status === "ARCHIVED" || t.status === "Archived" ? "Archived" : "Active") as TemplateStatus,
+          usage: t.usage || 0,
+          createdBy: t.createdBy || "Org Admin",
+          owner: t.createdBy || "Org Admin",
+          updated: t.updatedAt ? new Date(t.updatedAt).toLocaleDateString("en-GB") : "Recently",
+          department: t.department || "All",
+          documentType: t.documentType || "Document",
+          tags: t.tags || [t.category || "General"],
+          visibility: (t.visibility || "Organisation Wide") as Visibility,
+          isShared: true,
+          content: t.content || "",
+          activities: t.activities || [{ time: "Just now", event: "Template active" }],
+        }));
+        setTemplates(formatted);
       }
+    } catch (err) {
+      console.warn("Failed to load templates from API, using fallback:", err);
     }
+  };
+
+  useEffect(() => {
+    void loadTemplates();
   }, []);
 
   const handleOpenModal = (kind: ModalKind, template?: TemplateItem) => {
@@ -128,9 +146,9 @@ export default function OrgAdminTemplatesPage() {
     setModal("none");
   };
 
-  const handleCreateTemplate = (data: Partial<TemplateItem>) => {
+  const handleCreateTemplate = async (data: Partial<TemplateItem>) => {
     const newItem: TemplateItem = {
-      id: nextTemplateIdRef.current++,
+      id: Date.now(),
       name: data.name || "Untitled Template",
       description: data.description || "",
       category: data.category || "General",
@@ -150,46 +168,56 @@ export default function OrgAdminTemplatesPage() {
     setTemplates([newItem, ...templates]);
     setSelected(newItem);
     setModal("builder");
+
+    try {
+      await orgDocBuilderApi.createTemplate({
+        name: newItem.name,
+        description: newItem.description,
+        category: newItem.category,
+        documentType: newItem.documentType,
+        content: newItem.content || "",
+        status: "DRAFT",
+      });
+      void loadTemplates();
+    } catch (e) {}
   };
 
-  const handleUpdateTemplate = (updated: TemplateItem) => {
+  const handleUpdateTemplate = async (updated: TemplateItem) => {
     setTemplates(templates.map((t) => (t.id === updated.id ? updated : t)));
-    // Sync with localStorage
-    if (typeof window !== "undefined") {
-      try {
-        const stored = JSON.parse(localStorage.getItem("org_custom_templates") || "[]");
-        const nextList = [updated, ...stored.filter((s: TemplateItem) => s.id !== updated.id)];
-        localStorage.setItem("org_custom_templates", JSON.stringify(nextList));
-      } catch (e) {
-        console.error(e);
-      }
-    }
+    try {
+      await orgDocBuilderApi.updateTemplate(updated.id, {
+        name: updated.name,
+        description: updated.description,
+        category: updated.category,
+        documentType: updated.documentType,
+        content: updated.content,
+        status: updated.status,
+      });
+      void loadTemplates();
+    } catch (e) {}
   };
 
-  const handleDuplicate = (template: TemplateItem) => {
+  const handleDuplicate = async (template: TemplateItem) => {
     const copy: TemplateItem = {
       ...template,
-      id: nextTemplateIdRef.current++,
+      id: Date.now(),
       name: `${template.name} (Copy)`,
       usage: 0,
       updated: "Just now",
     };
     setTemplates([copy, ...templates]);
+    try {
+      await orgDocBuilderApi.duplicateTemplate(template.id);
+      void loadTemplates();
+    } catch (e) {}
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number | string) => {
     setTemplates(templates.filter((t) => t.id !== id));
-    if (typeof window !== "undefined") {
-      try {
-        const stored = JSON.parse(localStorage.getItem("org_custom_templates") || "[]");
-        localStorage.setItem(
-          "org_custom_templates",
-          JSON.stringify(stored.filter((s: TemplateItem) => s.id !== id))
-        );
-      } catch (e) {
-        console.error(e);
-      }
-    }
+    try {
+      await orgDocBuilderApi.deleteTemplate(id);
+      void loadTemplates();
+    } catch (e) {}
   };
 
   return (

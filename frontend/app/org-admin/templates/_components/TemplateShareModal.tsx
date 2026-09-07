@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TemplateItem } from "./TemplateTable";
+import { templatesApi } from "@/services/templatesApi";
 
 interface TemplateShareModalProps {
   isOpen: boolean;
@@ -51,7 +52,7 @@ export default function TemplateShareModal({
     setTimeout(() => setIsCopied(false), 2500);
   };
 
-  const handleConfirmShare = () => {
+  const handleConfirmShare = async () => {
     const updated: TemplateItem = {
       ...template,
       visibility: shareScope as any,
@@ -63,7 +64,21 @@ export default function TemplateShareModal({
       ],
     };
 
-    // Save to local storage for persistence across sessions
+    // Save to backend database
+    try {
+      await templatesApi.updateTemplate(
+        template.id,
+        {
+          visibility: shareScope,
+          department: shareScope === "Department Only" ? targetDepartment : "All",
+        } as any,
+        "/org-admin/templates"
+      );
+    } catch (e) {
+      console.warn("Template share backend update fallback:", e);
+    }
+
+    // Save to local storage for instant reactivity
     if (typeof window !== "undefined") {
       try {
         const stored = JSON.parse(localStorage.getItem("org_custom_templates") || "[]");

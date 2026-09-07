@@ -690,20 +690,74 @@ const getCrmRecipients = async (req, res) => {
 };
 
 /**
- * 6. Template Management
+ * 6. Template Management (Prisma Database Persisted)
  */
 const getTemplates = async (req, res) => {
   try {
+    const orgId = Number(req.user?.organisation_id || req.user?.organization_id || req.user?.organisationId || 1);
+    let templates = await prisma.documentTemplate.findMany({
+      where: { organisationId: orgId },
+      include: {
+        createdBy: { select: { id: true, full_name: true, email: true } },
+        versions: { orderBy: { version: "desc" }, take: 1 },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (!templates || templates.length === 0) {
+      // Return default templates and seed them if none exist
+      const defaultTemplates = [
+        { name: "Standard Employment Agreement", category: "HR", documentType: "Agreement", content: "Standard Employment Agreement with salary breakdown and terms." },
+        { name: "Mutual B2B NDA", category: "Legal", documentType: "NDA", content: "Mutual Non-Disclosure Agreement for commercial discussions." },
+        { name: "Client Master Services Agreement", category: "Sales", documentType: "Contract", content: "Master Services Agreement governing consulting and technical services." },
+        { name: "Candidate Official Offer Letter", category: "HR", documentType: "Offer Letter", content: "Official offer letter with CTC, joining date, and designation." },
+        { name: "Consulting Services Agreement", category: "Operations", documentType: "Consulting", content: "Independent contractor consulting services agreement." },
+        { name: "Vendor Purchase Order SOW", category: "Finance", documentType: "Invoice", content: "Vendor purchase order scope of work and payment milestones." },
+      ];
+
+      const userId = Number(req.user?.id || req.user?.userId || 1);
+      for (const t of defaultTemplates) {
+        try {
+          await prisma.documentTemplate.create({
+            data: {
+              name: t.name,
+              category: t.category,
+              documentType: t.documentType,
+              content: t.content,
+              status: "ACTIVE",
+              organisationId: orgId,
+              createdById: userId,
+            },
+          });
+        } catch (seedErr) {}
+      }
+
+      templates = await prisma.documentTemplate.findMany({
+        where: { organisationId: orgId },
+        include: {
+          createdBy: { select: { id: true, full_name: true, email: true } },
+          versions: { orderBy: { version: "desc" }, take: 1 },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+    }
+
+    const formatted = templates.map((t) => ({
+      id: t.id,
+      name: t.name,
+      description: t.description || "",
+      category: t.category || "General",
+      documentType: t.documentType || "Document",
+      content: t.content || "",
+      status: t.status || "ACTIVE",
+      createdBy: t.createdBy?.full_name || "Org Admin",
+      updatedAt: t.updatedAt ? t.updatedAt.toISOString() : "Recently",
+      createdAt: t.createdAt ? t.createdAt.toISOString() : "Recently",
+    }));
+
     res.status(200).json({
       success: true,
-      data: [
-        { id: "tmpl-1", name: "Standard Employment Agreement", category: "HR", documentType: "Agreement", status: "ACTIVE", updatedAt: "Today" },
-        { id: "tmpl-2", name: "Mutual B2B NDA", category: "Legal", documentType: "NDA", status: "ACTIVE", updatedAt: "Yesterday" },
-        { id: "tmpl-3", name: "Client Master Services Agreement", category: "Sales", documentType: "Contract", status: "ACTIVE", updatedAt: "10 Aug 2026" },
-        { id: "tmpl-4", name: "Candidate Official Offer Letter", category: "HR", documentType: "Offer Letter", status: "ACTIVE", updatedAt: "05 Aug 2026" },
-        { id: "tmpl-5", name: "Consulting Services Agreement", category: "Operations", documentType: "Consulting", status: "ACTIVE", updatedAt: "01 Aug 2026" },
-        { id: "tmpl-6", name: "Vendor Purchase Order SOW", category: "Finance", documentType: "Invoice", status: "ACTIVE", updatedAt: "28 Jul 2026" },
-      ],
+      data: formatted,
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -712,18 +766,47 @@ const getTemplates = async (req, res) => {
 
 const createTemplate = async (req, res) => {
   try {
-    const { name, category = "HR", documentType = "Contract", content } = req.body;
+    const orgId = Number(req.user?.organisation_id || req.user?.organization_id || req.user?.organisationId || 1);
+    const userId = Number(req.user?.id || req.user?.userId || 1);
+    const { name, description = "", category = "HR", documentType = "Contract", content = "", status = "ACTIVE" } = req.body;
+
+    const template = await prisma.documentTemplate.create({
+      data: {
+        name: name || "Untitled Template",
+        description: description || null,
+        category: category || "General",
+        documentType: documentType || "Document",
+        content: content || "Template standard content",
+        status: status === "Draft" || status === "DRAFT" ? "DRAFT" : "ACTIVE",
+        organisationId: orgId,
+        createdById: userId,
+      },
+    });
+
+    // Create initial version record
+    try {
+      await prisma.documentTemplateVersion.create({
+        data: {
+          templateId: template.id,
+          version: 1,
+          content: template.content,
+          createdById: userId,
+        },
+      });
+    } catch (verErr) {}
+
     res.status(201).json({
       success: true,
-      message: `Template "${name}" created.`,
+      message: `Template "${template.name}" created successfully.`,
       data: {
-        id: `tmpl-${Date.now()}`,
-        name,
-        category,
-        documentType,
-        content: content || "",
-        status: "ACTIVE",
-        updatedAt: "Just now",
+        id: template.id,
+        name: template.name,
+        description: template.description,
+        category: template.category,
+        documentType: template.documentType,
+        content: template.content,
+        status: template.status,
+        updatedAt: template.updatedAt.toISOString(),
       },
     });
   } catch (error) {
@@ -734,7 +817,27 @@ const createTemplate = async (req, res) => {
 const updateTemplate = async (req, res) => {
   try {
     const { id } = req.params;
-    res.status(200).json({ success: true, message: `Template #${id} updated.` });
+    const userId = Number(req.user?.id || req.user?.userId || 1);
+    const { name, description, category, documentType, content, status } = req.body;
+
+    const updated = await prisma.documentTemplate.update({
+      where: { id: String(id) },
+      data: {
+        ...(name && { name }),
+        ...(description !== undefined && { description }),
+        ...(category && { category }),
+        ...(documentType && { documentType }),
+        ...(content !== undefined && { content }),
+        ...(status && { status: status === "Draft" || status === "DRAFT" ? "DRAFT" : "ACTIVE" }),
+        updatedById: userId,
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Template "${updated.name}" updated successfully.`,
+      data: updated,
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -743,10 +846,35 @@ const updateTemplate = async (req, res) => {
 const duplicateTemplate = async (req, res) => {
   try {
     const { id } = req.params;
-    res.status(200).json({
+    const orgId = Number(req.user?.organisation_id || req.user?.organization_id || req.user?.organisationId || 1);
+    const userId = Number(req.user?.id || req.user?.userId || 1);
+
+    const orig = await prisma.documentTemplate.findUnique({
+      where: { id: String(id) },
+    });
+
+    if (!orig) {
+      return res.status(404).json({ success: false, message: "Original template not found." });
+    }
+
+    const copy = await prisma.documentTemplate.create({
+      data: {
+        name: `${orig.name} (Copy)`,
+        description: orig.description,
+        category: orig.category,
+        documentType: orig.documentType,
+        content: orig.content,
+        status: orig.status,
+        organisationId: orgId,
+        createdById: userId,
+      },
+    });
+
+    res.status(201).json({
       success: true,
-      message: `Template #${id} duplicated.`,
-      newTemplateId: `tmpl-copy-${Date.now()}`,
+      message: `Template duplicated as "${copy.name}".`,
+      data: copy,
+      newTemplateId: copy.id,
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -756,7 +884,10 @@ const duplicateTemplate = async (req, res) => {
 const deleteTemplate = async (req, res) => {
   try {
     const { id } = req.params;
-    res.status(200).json({ success: true, message: `Template #${id} deleted.` });
+    await prisma.documentTemplate.delete({
+      where: { id: String(id) },
+    });
+    res.status(200).json({ success: true, message: `Template deleted successfully.` });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -766,7 +897,11 @@ const toggleTemplatePublish = async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
-    res.status(200).json({ success: true, message: `Template #${id} status: ${status}.` });
+    const updated = await prisma.documentTemplate.update({
+      where: { id: String(id) },
+      data: { status: status === "Draft" || status === "DRAFT" ? "DRAFT" : "ACTIVE" },
+    });
+    res.status(200).json({ success: true, message: `Template status updated to ${updated.status}.`, data: updated });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -774,12 +909,22 @@ const toggleTemplatePublish = async (req, res) => {
 
 const getTemplateVersions = async (req, res) => {
   try {
+    const { id } = req.params;
+    const versions = await prisma.documentTemplateVersion.findMany({
+      where: { templateId: String(id) },
+      include: { createdBy: { select: { full_name: true, email: true } } },
+      orderBy: { version: "desc" },
+    });
+
     res.status(200).json({
       success: true,
-      data: [
-        { version: 2, createdAt: "Today, 11:30 AM", createdBy: "Shikha Gour", changeSummary: "Updated statutory covenants and compensation structure" },
-        { version: 1, createdAt: "15 Aug 2026, 02:00 PM", createdBy: "Legal Dept", changeSummary: "Initial baseline publish" },
-      ],
+      data: versions.map((v) => ({
+        id: v.id,
+        version: v.version,
+        createdAt: v.createdAt ? v.createdAt.toISOString() : "Recently",
+        createdBy: v.createdBy?.full_name || "Org Admin",
+        changeSummary: `Version ${v.version} snapshot`,
+      })),
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -789,9 +934,22 @@ const getTemplateVersions = async (req, res) => {
 const restoreTemplateVersion = async (req, res) => {
   try {
     const { id, version } = req.params;
+    const ver = await prisma.documentTemplateVersion.findFirst({
+      where: { templateId: String(id), version: Number(version) },
+    });
+
+    if (!ver) {
+      return res.status(404).json({ success: false, message: "Version not found." });
+    }
+
+    await prisma.documentTemplate.update({
+      where: { id: String(id) },
+      data: { content: ver.content },
+    });
+
     res.status(200).json({
       success: true,
-      message: `Restored to Version #${version}.`,
+      message: `Restored template to Version #${version}.`,
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

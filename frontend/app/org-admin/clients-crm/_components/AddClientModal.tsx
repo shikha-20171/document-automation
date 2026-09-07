@@ -46,14 +46,17 @@ export default function AddClientModal({ onClose, onSaved }: AddClientModalProps
     }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.name.trim()) return;
     setSaving(true);
-    setTimeout(() => {
-      const client = clientStore.addClient(form);
+    try {
+      const client = await clientStore.addClient(form);
       setSaving(false);
       onSaved(client);
-    }, 500);
+    } catch (err) {
+      console.warn("Error saving client:", err);
+      setSaving(false);
+    }
   };
 
   const stepIndex = STEPS.indexOf(step);
