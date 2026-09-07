@@ -865,287 +865,136 @@ const toggleArchiveDocument = async (id) => {
 };
 
 // ==========================================
-// 3. DOCUMENT TEMPLATES (LIBRARY & CREATOR)
+// 3. DOCUMENT TEMPLATES (LIBRARY & CREATOR) — Live Prisma DB
 // ==========================================
-let availableTemplates = [
-  {
-    id: "tmpl-1",
-    name: "Employee Joining Letter",
-    category: "HR",
-    description: "Official welcome and joining letter specifying designation, compensation, reporting manager, and start date.",
-    documentType: "Letter",
-    scope: "MY_TEMPLATES",
-    version: "v1.0",
-    createdBy: "Priya Sharma",
-    createdAt: new Date(Date.now() - 3600000 * 48).toISOString(),
-    updatedAt: new Date(Date.now() - 3600000 * 24).toISOString(),
-    variables: ["employee_name", "designation", "department", "joining_date", "organization_name", "manager_name", "salary_ctc"],
-    contentTemplate: `EMPLOYEE JOINING LETTER
 
-Employee Name: {{employee_name}}
-Designation: {{designation}}
-Department: {{department}}
-Joining Date: {{joining_date}}
-Annual Compensation: {{salary_ctc}}
-
-Dear {{employee_name}},
-
-We are pleased to welcome you to {{organization_name}} as a {{designation}} in the {{department}} team.
-
-Your joining date will be {{joining_date}}. You will be reporting directly to {{manager_name}}.
-
-Please bring original identity documents, academic credentials, and previous employment clearance for formal verification.
-
-Welcome aboard!
-
-Sincerely,
-{{manager_name}}
-{{organization_name}}`,
-    usageCount: 28,
-  },
-  {
-    id: "tmpl-2",
-    name: "Leave Application Requisition",
-    category: "HR",
-    description: "Standard formal leave request submission form for planned casual, medical, or maternity leaves.",
-    documentType: "Form",
-    scope: "MY_TEMPLATES",
-    version: "v1.0",
-    createdBy: "Priya Sharma",
-    createdAt: new Date(Date.now() - 3600000 * 72).toISOString(),
-    updatedAt: new Date(Date.now() - 3600000 * 48).toISOString(),
-    variables: ["employee_name", "leave_type", "start_date", "end_date", "reason", "approver_name"],
-    contentTemplate: `LEAVE APPLICATION REQUEST
-
-Employee Name: {{employee_name}}
-Leave Type: {{leave_type}}
-Duration: From {{start_date}} to {{end_date}}
-
-Reason for Leave:
-{{reason}}
-
-I will ensure urgent tasks are handed over before departing and will be reachable via corporate email for emergencies.
-
-Submitted To: {{approver_name}}
-Signature: {{employee_name}}`,
-    usageCount: 15,
-  },
-  {
-    id: "tmpl-3",
-    name: "Master Services Agreement (MSA)",
-    category: "Legal",
-    description: "Standard corporate B2B services contract with indemnification, SLA metrics, and payment terms.",
-    documentType: "Contract",
-    scope: "SHARED",
-    version: "v2.1",
-    createdBy: "Legal Dept",
-    createdAt: new Date(Date.now() - 3600000 * 200).toISOString(),
-    updatedAt: new Date(Date.now() - 3600000 * 96).toISOString(),
-    variables: ["client_name", "effective_date", "service_scope", "total_contract_value", "payment_terms"],
-    contentTemplate: `MASTER SERVICES AGREEMENT
-
-This Master Services Agreement is entered into on {{effective_date}} by and between DocuCore AI Corp and {{client_name}}.
-
-1. SCOPE OF SERVICES
-{{service_scope}}
-
-2. FINANCIAL TERMS
-Total Contract Value: {{total_contract_value}}
-Payment Schedule: {{payment_terms}}
-
-3. GOVERNING LAW
-This agreement is governed by the laws of India.`,
-    usageCount: 142,
-  },
-  {
-    id: "tmpl-4",
-    name: "Vendor Purchase Order (PO)",
-    category: "Procurement",
-    description: "Standard equipment, logistics, or software license procurement requisition.",
-    documentType: "Purchase Order",
-    scope: "SHARED",
-    version: "v1.2",
-    createdBy: "Procurement Admin",
-    createdAt: new Date(Date.now() - 3600000 * 300).toISOString(),
-    updatedAt: new Date(Date.now() - 3600000 * 120).toISOString(),
-    variables: ["vendor_name", "po_number", "delivery_date", "line_items", "subtotal_amount"],
-    contentTemplate: `PURCHASE ORDER
-
-PO NUMBER: {{po_number}}
-VENDOR: {{vendor_name}}
-REQUIRED DELIVERY DATE: {{delivery_date}}
-
-ORDER DETAILS:
-{{line_items}}
-
-TOTAL PAYABLE: INR {{subtotal_amount}}
-AUTHORIZED BY: Operations & Logistics Team`,
-    usageCount: 98,
-  },
-  {
-    id: "tmpl-5",
-    name: "Operational Checklist SOP",
-    category: "Operations",
-    description: "Operational compliance verification checklist for routine department workflows.",
-    documentType: "Checklist",
-    scope: "SHARED",
-    version: "v1.0",
-    createdBy: "Operations Team",
-    createdAt: new Date(Date.now() - 3600000 * 150).toISOString(),
-    updatedAt: new Date(Date.now() - 3600000 * 80).toISOString(),
-    variables: ["sop_title", "department_unit", "checklist_steps"],
-    contentTemplate: `STANDARD OPERATING PROCEDURE (SOP)
-
-TITLE: {{sop_title}}
-UNIT: {{department_unit}}
-DATE: {{today_date}}
-
-CHECKLIST PROTOCOL:
-{{checklist_steps}}
-
-Sign-off: Verified by Assigned Associate`,
-    usageCount: 67,
-  },
-];
+// Helper: map Prisma DocumentTemplate → employee-facing DTO
+const _mapTemplate = (t) => ({
+  id: t.id,
+  name: t.name,
+  category: t.type || "General",
+  description: t.description || "",
+  documentType: t.type || "Template",
+  scope: t.createdById ? "MY_TEMPLATES" : "SHARED",
+  version: `v${t.currentVersion || 1}.0`,
+  createdBy: t.createdBy?.name || "System",
+  createdAt: t.createdAt?.toISOString?.() || t.createdAt,
+  updatedAt: t.updatedAt?.toISOString?.() || t.updatedAt,
+  variables: [],
+  contentTemplate: t.content || "",
+  usageCount: t.usageCount || 0,
+  status: t.status || "DRAFT",
+});
 
 const getTemplates = async (req) => {
+  const context = getContext(req);
   const { search = "", category = "", tab = "ALL" } = req.query;
 
-  let tmpls = [...availableTemplates];
-
-  if (tab === "MY_TEMPLATES") {
-    tmpls = tmpls.filter((t) => t.scope === "MY_TEMPLATES");
-  } else if (tab === "SHARED") {
-    tmpls = tmpls.filter((t) => t.scope === "SHARED");
-  }
-
+  const where = { organisationId: context.organisationId };
   if (search) {
-    const q = search.toLowerCase();
-    tmpls = tmpls.filter((t) => t.name.toLowerCase().includes(q) || t.description?.toLowerCase().includes(q));
+    where.OR = [
+      { name: { contains: search, mode: "insensitive" } },
+      { description: { contains: search, mode: "insensitive" } },
+    ];
   }
-
   if (category && category !== "ALL") {
-    tmpls = tmpls.filter((t) => t.category.toLowerCase() === category.toLowerCase());
+    where.type = { equals: category, mode: "insensitive" };
+  }
+  if (tab === "MY_TEMPLATES") {
+    where.createdById = context.userId;
   }
 
-  // Extract all unique categories
-  const categoriesSet = new Set(["HR", "Finance", "Legal", "Sales", "Operations", "General"]);
-  availableTemplates.forEach((t) => {
-    if (t.category) categoriesSet.add(t.category);
+  const templates = await prisma.documentTemplate.findMany({
+    where,
+    include: { createdBy: { select: { name: true } } },
+    orderBy: { updatedAt: "desc" },
   });
 
+  const mapped = templates.map(_mapTemplate);
+  const allCats = [...new Set(["HR", "Finance", "Legal", "Sales", "Operations", "General", ...mapped.map((t) => t.category).filter(Boolean)])];
+
   return {
-    templates: tmpls,
-    total: tmpls.length,
-    myTemplatesCount: availableTemplates.filter((t) => t.scope === "MY_TEMPLATES").length,
-    sharedTemplatesCount: availableTemplates.filter((t) => t.scope === "SHARED").length,
-    categories: Array.from(categoriesSet),
+    templates: mapped,
+    total: mapped.length,
+    myTemplatesCount: mapped.filter((t) => t.scope === "MY_TEMPLATES").length,
+    sharedTemplatesCount: mapped.filter((t) => t.scope === "SHARED").length,
+    categories: allCats,
   };
 };
 
 const getTemplateById = async (id) => {
-  const tmpl = availableTemplates.find((t) => t.id === id);
-  if (!tmpl) throw new Error("Template not found");
-  return tmpl;
+  const t = await prisma.documentTemplate.findUnique({
+    where: { id },
+    include: { createdBy: { select: { name: true } } },
+  });
+  if (!t) throw new Error("Template not found");
+  return _mapTemplate(t);
 };
 
 const createTemplate = async (templateData, req) => {
   const context = getContext(req);
   const { name, category = "General", description = "", contentTemplate = "", variables = [] } = templateData;
+  if (!name) throw new Error("Template name is required.");
 
-  if (!name || !contentTemplate) {
-    throw new Error("Template Name and Content are required.");
-  }
-
-  // Extract variables if not provided
-  const extractedVars = variables.length > 0
-    ? variables
-    : (contentTemplate.match(/{{([a-zA-Z0-9_]+)}}/g) || []).map((v) => v.replace(/[{}]/g, ""));
-
-  const newTemplate = {
-    id: `tmpl-${Date.now()}`,
-    name,
-    category: category || "General",
-    description: description || "Custom document template created by employee.",
-    documentType: "Custom Template",
-    scope: "MY_TEMPLATES",
-    version: "v1.0",
-    createdBy: context.employeeName,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    variables: Array.from(new Set(extractedVars)),
-    contentTemplate,
-    usageCount: 0,
-    history: [
-      { version: "v1.0", date: new Date().toLocaleString(), user: context.employeeName, note: "Initial version created" },
-    ],
-  };
-
-  availableTemplates.unshift(newTemplate);
-  return newTemplate;
+  const created = await prisma.documentTemplate.create({
+    data: {
+      name,
+      type: category,
+      description,
+      content: contentTemplate,
+      status: "DRAFT",
+      organisation: { connect: { id: context.organisationId } },
+      createdBy: { connect: { id: context.userId } },
+    },
+    include: { createdBy: { select: { name: true } } },
+  });
+  return _mapTemplate(created);
 };
 
 const updateTemplate = async (id, templateData, req) => {
   const context = getContext(req);
-  const tmpl = availableTemplates.find((t) => t.id === id);
-  if (!tmpl) throw new Error("Template not found");
-
   const { name, category, description, contentTemplate } = templateData;
 
-  if (name) tmpl.name = name;
-  if (category) tmpl.category = category;
-  if (description !== undefined) tmpl.description = description;
-  if (contentTemplate) {
-    tmpl.contentTemplate = contentTemplate;
-    const extractedVars = (contentTemplate.match(/{{([a-zA-Z0-9_]+)}}/g) || []).map((v) => v.replace(/[{}]/g, ""));
-    tmpl.variables = Array.from(new Set(extractedVars));
-  }
+  const updateData = {};
+  if (name) updateData.name = name;
+  if (category) updateData.type = category;
+  if (description !== undefined) updateData.description = description;
+  if (contentTemplate) updateData.content = contentTemplate;
+  updateData.updatedById = context.userId;
 
-  // Increment version
-  const curVerNum = parseFloat(tmpl.version.replace("v", "")) || 1.0;
-  tmpl.version = `v${(curVerNum + 0.1).toFixed(1)}`;
-  tmpl.updatedAt = new Date().toISOString();
-
-  tmpl.history = tmpl.history || [];
-  tmpl.history.unshift({
-    version: tmpl.version,
-    date: new Date().toLocaleString(),
-    user: context.employeeName,
-    note: "Updated template content and structure",
+  const updated = await prisma.documentTemplate.update({
+    where: { id },
+    data: updateData,
+    include: { createdBy: { select: { name: true } } },
   });
-
-  return tmpl;
+  return _mapTemplate(updated);
 };
 
 const duplicateTemplate = async (id, req) => {
   const context = getContext(req);
-  const tmpl = availableTemplates.find((t) => t.id === id);
-  if (!tmpl) throw new Error("Template not found");
+  const original = await prisma.documentTemplate.findUnique({ where: { id } });
+  if (!original) throw new Error("Template not found");
 
-  const cloned = {
-    ...tmpl,
-    id: `tmpl-${Date.now()}`,
-    name: `${tmpl.name} (Copy)`,
-    scope: "MY_TEMPLATES",
-    version: "v1.0",
-    createdBy: context.employeeName,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    usageCount: 0,
-    history: [
-      { version: "v1.0", date: new Date().toLocaleString(), user: context.employeeName, note: `Duplicated from ${tmpl.name}` },
-    ],
-  };
-
-  availableTemplates.unshift(cloned);
-  return cloned;
+  const cloned = await prisma.documentTemplate.create({
+    data: {
+      name: `${original.name} (Copy)`,
+      type: original.type,
+      description: original.description,
+      content: original.content,
+      status: "DRAFT",
+      organisation: { connect: { id: context.organisationId } },
+      createdBy: { connect: { id: context.userId } },
+    },
+    include: { createdBy: { select: { name: true } } },
+  });
+  return _mapTemplate(cloned);
 };
 
 const deleteTemplate = async (id) => {
-  const index = availableTemplates.findIndex((t) => t.id === id);
-  if (index === -1) throw new Error("Template not found");
-  const deleted = availableTemplates.splice(index, 1)[0];
-  return deleted;
+  const existing = await prisma.documentTemplate.findUnique({ where: { id } });
+  if (!existing) throw new Error("Template not found");
+  await prisma.documentTemplate.delete({ where: { id } });
+  return _mapTemplate(existing);
 };
 
 const generateAiTemplate = async (prompt, category = "HR", req) => {
@@ -1202,8 +1051,12 @@ Ensure all dynamic fields are enclosed in double curly brackets like {{employee_
 
 const generateDocumentFromTemplate = async (templateId, fieldValues, customDocName, req) => {
   const context = getContext(req);
-  const tmpl = availableTemplates.find((t) => t.id === templateId);
-  if (!tmpl) throw new Error("Template not found");
+
+  // Fetch template from DB
+  const dbTmpl = await prisma.documentTemplate.findUnique({ where: { id: templateId } });
+  if (!dbTmpl) throw new Error("Template not found");
+
+  const tmpl = _mapTemplate(dbTmpl);
 
   let filledContent = tmpl.contentTemplate;
   Object.keys(fieldValues || {}).forEach((key) => {
@@ -1212,16 +1065,25 @@ const generateDocumentFromTemplate = async (templateId, fieldValues, customDocNa
   });
   filledContent = filledContent.replace(/{{today_date}}/g, new Date().toISOString().split("T")[0]);
 
-  // If there are still empty placeholders, clean them gracefully
   const docName = customDocName || `${tmpl.name.replace(/\s+/g, "_")}_${Date.now().toString().slice(-4)}.docx`;
 
-  const newDoc = {
-    id: `doc-${Date.now()}`,
+  // Persist the generated document to the DB
+  const savedDoc = await prisma.document.create({
+    data: {
+      name: docName,
+      type: tmpl.category || "Document",
+      status: "DRAFT",
+      content: filledContent,
+      organisation: { connect: { id: context.organisationId } },
+      uploadedBy: { connect: { id: context.userId } },
+    },
+  }).catch(() => null);
+
+  return {
+    id: savedDoc?.id || `doc-${Date.now()}`,
     name: docName,
     type: tmpl.documentType || "Document",
     category: tmpl.category,
-    size: 1.6,
-    sizeFormatted: "1.6 MB",
     status: "Draft",
     version: "v1.0",
     uploadedBy: context.employeeName,
@@ -1231,16 +1093,7 @@ const generateDocumentFromTemplate = async (templateId, fieldValues, customDocNa
     templateId: tmpl.id,
     templateName: tmpl.name,
     tags: [tmpl.category, "Template Generated"],
-    isArchived: false,
-    history: [
-      { action: `Generated from template: ${tmpl.name}`, user: context.employeeName, date: new Date().toLocaleString() },
-      { action: "Saved as Draft", user: context.employeeName, date: new Date().toLocaleString() },
-    ],
   };
-
-  tmpl.usageCount = (tmpl.usageCount || 0) + 1;
-  employeeDocumentsCache.unshift(newDoc);
-  return newDoc;
 };
 
 // ==========================================
