@@ -6,10 +6,11 @@ import {
   Plus, Search, Filter, MoreHorizontal, Eye, Edit2, FileText, MessageSquare,
   StickyNote, UserCheck, Archive, Trash2, Upload, Download, Users,
   CheckSquare, Tag, ChevronDown, X, CheckCircle2, Building2, User,
-  ArrowUpDown, RefreshCw,
+  ArrowUpDown, RefreshCw, RotateCcw,
 } from "lucide-react";
 import { clientStore, type Client, formatDate, timeAgo, ALL_TAGS, INDUSTRIES, DEPARTMENTS, TEAM_MEMBERS } from "./clientStore";
 import AddClientModal from "./AddClientModal";
+import ImportClientsModal from "./ImportClientsModal";
 
 const STATUS_STYLES: Record<string, string> = {
   Active: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -29,7 +30,9 @@ export default function ClientsListPage() {
   const router = useRouter();
   const [clients, setClients] = useState<Client[]>([]);
   const [showAdd, setShowAdd] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   // Filters
   const [search, setSearch] = useState("");
@@ -45,13 +48,18 @@ export default function ClientsListPage() {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    setLoading(true);
     setClients(clientStore.getClients());
     const remote = await clientStore.fetchClients();
     if (remote && Array.isArray(remote)) {
       setClients(remote);
     }
+    setLoading(false);
   }, []);
-  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -82,7 +90,7 @@ export default function ClientsListPage() {
     active: clients.filter(c => c.status === "Active").length,
     inactive: clients.filter(c => c.status === "Inactive").length,
     prospect: clients.filter(c => c.status === "Prospect").length,
-    pending: clientStore.getRequests().filter(r => r.status === "New" || r.status === "In Progress").length,
+    archived: clients.filter(c => c.status === "Archived").length,
   }), [clients]);
 
   const toggleSelect = (id: string) => {
@@ -93,30 +101,76 @@ export default function ClientsListPage() {
   const bulkArchive = async () => {
     const ids = Array.from(selected);
     for (const id of ids) {
-      await clientStore.updateClient(id, { status: "Archived" });
+      await clientStore.archiveClient(id);
     }
-    load(); setSelected(new Set()); showToast(`${selected.size} clients archived`);
+    await load();
+    setSelected(new Set());
+    showToast(`${ids.length} clients archived`);
   };
+
   const bulkDelete = async () => {
     const ids = Array.from(selected);
     for (const id of ids) {
       await clientStore.deleteClient(id);
     }
-    load(); setSelected(new Set()); showToast(`${selected.size} clients deleted`);
+    await load();
+    setSelected(new Set());
+    showToast(`${ids.length} clients removed`);
   };
 
   const handleDelete = async (c: Client) => {
     await clientStore.deleteClient(c.id);
-    load();
-    showToast(`${c.name} deleted`);
+    await load();
+    showToast(`${c.name} removed safely`);
     setOpenMenu(null);
   };
 
   const handleArchive = async (c: Client) => {
-    await clientStore.updateClient(c.id, { status: "Archived" });
-    load();
+    await clientStore.archiveClient(c.id);
+    await load();
     showToast(`${c.name} archived`);
     setOpenMenu(null);
+  };
+
+  const handleRestore = async (c: Client) => {
+    await clientStore.restoreClient(c.id);
+    await load();
+    showToast(`${c.name} restored to Active`);
+    setOpenMenu(null);
+  };
+
+  const exportCsv = () => {
+    if (clients.length === 0) {
+      showToast("No clients to export.");
+      return;
+    }
+    const headers = ["ID", "Name", "Type", "Status", "Contact Person", "Email", "Phone", "Industry", "Department", "Assigned To", "City", "Country", "Created At"];
+    const rows = filtered.map(c => [
+      c.id,
+      `"${c.name.replace(/"/g, '""')}"`,
+      c.type,
+      c.status,
+      `"${(c.contactPerson || "").replace(/"/g, '""')}"`,
+      c.email || "",
+      c.phone || "",
+      c.industry || "",
+      c.department || "",
+      c.assignedTo || "",
+      c.city || "",
+      c.country || "",
+      c.createdAt || "",
+    ]);
+
+    const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `crm_clients_export_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast("Clients CSV exported successfully");
   };
 
   return (
@@ -132,17 +186,30 @@ export default function ClientsListPage() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="rounded-lg bg-[#274690] px-2.5 py-0.5 text-[10px] font-black text-white tracking-wide">CRM Module</span>
+            <span className="rounded-lg bg-[#274690] px-2.5 py-0.5 text-[10px] font-black text-white tracking-wide">Enterprise CRM</span>
+            <span className="rounded-lg bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-bold">PostgreSQL Connected</span>
           </div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">Clients & CRM</h1>
-          <p className="text-xs text-slate-500 mt-1">Manage clients, contacts, requests and every associated document</p>
+          <p className="text-xs text-slate-500 mt-1">Manage external clients, linked contacts, documents, and business workflows</p>
         </div>
         <div className="flex gap-2">
           <button
-            onClick={() => { setShowAdd(true); }}
+            onClick={() => setShowAdd(true)}
             className="flex items-center gap-2 rounded-xl bg-[#274690] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#1f3561] transition shadow-md"
           >
             <Plus size={15} /> Add Client
+          </button>
+          <button
+            onClick={() => setShowImport(true)}
+            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+          >
+            <Upload size={14} /> Import
+          </button>
+          <button
+            onClick={exportCsv}
+            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+          >
+            <Download size={14} /> Export CSV
           </button>
           <button
             onClick={() => router.push("/org-admin/clients-crm/requests")}
@@ -150,7 +217,6 @@ export default function ClientsListPage() {
           >
             <FileText size={14} /> All Requests
           </button>
-          <ExportMenu onToast={showToast} />
         </div>
       </div>
 
@@ -160,8 +226,8 @@ export default function ClientsListPage() {
           { label: "Total Clients", value: stats.total, sub: "All records", color: "text-[#274690]", bg: "bg-[#274690]/8" },
           { label: "Active Clients", value: stats.active, sub: `${stats.total ? Math.round((stats.active / stats.total) * 100) : 0}% active`, color: "text-emerald-700", bg: "bg-emerald-50" },
           { label: "Prospects", value: stats.prospect, sub: "In pipeline", color: "text-blue-700", bg: "bg-blue-50" },
-          { label: "Inactive", value: stats.inactive, sub: "Need attention", color: "text-slate-600", bg: "bg-slate-100" },
-          { label: "Pending Requests", value: stats.pending, sub: "Open requests", color: "text-amber-700", bg: "bg-amber-50" },
+          { label: "Inactive", value: stats.inactive, sub: "Needs follow-up", color: "text-slate-600", bg: "bg-slate-100" },
+          { label: "Archived", value: stats.archived, sub: "Historical records", color: "text-amber-700", bg: "bg-amber-50" },
         ].map(s => (
           <div key={s.label} className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
             <p className="text-[11px] font-semibold text-slate-500">{s.label}</p>
@@ -198,6 +264,13 @@ export default function ClientsListPage() {
               className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 h-9 text-xs font-semibold text-slate-600 hover:bg-slate-50"
             >
               <ArrowUpDown size={13} /> {sortAsc ? "A→Z" : "Newest"}
+            </button>
+            <button
+              onClick={load}
+              title="Refresh CRM Data"
+              className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 h-9 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+            >
+              <RefreshCw size={13} className={loading ? "animate-spin text-[#274690]" : ""} /> Refresh
             </button>
             {(search || statusFilter !== "All" || industryFilter !== "All" || assignedFilter !== "All" || deptFilter !== "All" || tagFilter !== "All") && (
               <button onClick={() => { setSearch(""); setStatusFilter("All"); setIndustryFilter("All"); setAssignedFilter("All"); setDeptFilter("All"); setTagFilter("All"); }}
@@ -247,7 +320,7 @@ export default function ClientsListPage() {
                         </div>
                         <div>
                           <p className="font-bold text-slate-900 group-hover:text-[#274690] transition truncate max-w-[180px]">{c.name}</p>
-                          <p className="text-[10px] text-slate-400 font-medium">{c.id} · {c.industry || "—"}</p>
+                          <p className="text-[10px] text-slate-400 font-medium">{c.id.slice(0, 8)}... · {c.industry || "—"}</p>
                         </div>
                       </div>
                     </button>
@@ -256,8 +329,8 @@ export default function ClientsListPage() {
                   <td className="px-4 py-3.5 text-slate-500">{c.email || "—"}</td>
                   <td className="px-4 py-3.5 text-slate-500">{c.phone || "—"}</td>
                   <td className="px-4 py-3.5">
-                    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${STATUS_STYLES[c.status]}`}>
-                      <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[c.status]}`} />
+                    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${STATUS_STYLES[c.status] || "bg-slate-100 text-slate-700"}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[c.status] || "bg-slate-400"}`} />
                       {c.status}
                     </span>
                   </td>
@@ -278,12 +351,12 @@ export default function ClientsListPage() {
                         <RowMenu
                           client={c}
                           onView={() => { router.push(`/org-admin/clients-crm/${c.id}`); setOpenMenu(null); }}
-                          onEdit={() => { setOpenMenu(null); showToast("Edit client — coming in next iteration"); }}
+                          onEdit={() => { router.push(`/org-admin/clients-crm/${c.id}/overview`); setOpenMenu(null); }}
                           onAddDoc={() => { router.push(`/org-admin/clients-crm/${c.id}/documents`); setOpenMenu(null); }}
                           onCreateRequest={() => { router.push(`/org-admin/clients-crm/${c.id}/requests`); setOpenMenu(null); }}
                           onAddNote={() => { router.push(`/org-admin/clients-crm/${c.id}/notes`); setOpenMenu(null); }}
-                          onAssign={() => { setOpenMenu(null); showToast("Assignment panel — coming in next iteration"); }}
                           onArchive={() => handleArchive(c)}
+                          onRestore={() => handleRestore(c)}
                           onDelete={() => handleDelete(c)}
                         />
                       )}
@@ -293,11 +366,11 @@ export default function ClientsListPage() {
               ))}
             </tbody>
           </table>
-          {!filtered.length && (
+          {!filtered.length && !loading && (
             <div className="py-16 text-center">
               <Users size={32} className="mx-auto text-slate-300 mb-3" />
               <p className="text-sm font-semibold text-slate-500">No clients found</p>
-              <p className="text-xs text-slate-400 mt-1">Try adjusting your filters or search query</p>
+              <p className="text-xs text-slate-400 mt-1">Try adjusting your filters or click &ldquo;Add Client&rdquo; to create your first record</p>
             </div>
           )}
         </div>
@@ -316,6 +389,19 @@ export default function ClientsListPage() {
             setShowAdd(false);
             load();
             showToast(`✓ ${client.name} added successfully`);
+          }}
+        />
+      )}
+
+      {/* Import Clients Modal */}
+      {showImport && (
+        <ImportClientsModal
+          isOpen={showImport}
+          onClose={() => setShowImport(false)}
+          onSuccess={count => {
+            setShowImport(false);
+            load();
+            showToast(`✓ ${count} clients imported successfully`);
           }}
         />
       )}
@@ -343,42 +429,16 @@ function BulkBtn({ icon: Icon, label, onClick, danger }: { icon: React.ElementTy
   );
 }
 
-function ExportMenu({ onToast }: { onToast: (m: string) => void }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="relative">
-      <button onClick={() => setOpen(o => !o)} className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition">
-        <Download size={13} /> Export <ChevronDown size={11} />
-      </button>
-      {open && (
-        <div className="absolute right-0 top-full mt-1 w-44 rounded-xl border border-slate-200 bg-white shadow-xl z-20 py-1">
-          {[["Export CSV", "CSV exported"], ["Export Excel", "Excel exported"]].map(([label, msg]) => (
-            <button key={label} onClick={() => { setOpen(false); onToast(msg); }} className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-              <Download size={12} /> {label}
-            </button>
-          ))}
-          <div className="border-t border-slate-100 mt-1 pt-1">
-            <button onClick={() => { setOpen(false); onToast("Import modal — upload CSV to import clients"); }} className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-[#274690] hover:bg-blue-50">
-              <Upload size={12} /> Import Clients
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function RowMenu({ client, onView, onEdit, onAddDoc, onCreateRequest, onAddNote, onAssign, onArchive, onDelete }: {
+function RowMenu({ client, onView, onEdit, onAddDoc, onCreateRequest, onAddNote, onArchive, onRestore, onDelete }: {
   client: Client; onView: () => void; onEdit: () => void; onAddDoc: () => void; onCreateRequest: () => void;
-  onAddNote: () => void; onAssign: () => void; onArchive: () => void; onDelete: () => void;
+  onAddNote: () => void; onArchive: () => void; onRestore: () => void; onDelete: () => void;
 }) {
   const items = [
-    { icon: Eye, label: "View", onClick: onView },
-    { icon: Edit2, label: "Edit", onClick: onEdit },
-    { icon: FileText, label: "Add Document", onClick: onAddDoc },
-    { icon: MessageSquare, label: "Create Request", onClick: onCreateRequest },
-    { icon: StickyNote, label: "Add Note", onClick: onAddNote },
-    { icon: UserCheck, label: "Assign User", onClick: onAssign },
+    { icon: Eye, label: "View Workspace", onClick: onView },
+    { icon: Edit2, label: "Overview & Info", onClick: onEdit },
+    { icon: FileText, label: "Documents", onClick: onAddDoc },
+    { icon: MessageSquare, label: "Requests & Tasks", onClick: onCreateRequest },
+    { icon: StickyNote, label: "Notes", onClick: onAddNote },
   ];
   return (
     <div className="absolute right-0 top-full z-30 mt-1 w-48 rounded-xl border border-slate-200 bg-white shadow-xl py-1">
@@ -388,13 +448,17 @@ function RowMenu({ client, onView, onEdit, onAddDoc, onCreateRequest, onAddNote,
         </button>
       ))}
       <div className="border-t border-slate-100 mt-1 pt-1">
-        {client.status !== "Archived" && (
+        {client.status !== "Archived" ? (
           <button onClick={onArchive} className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-50">
-            <Archive size={13} /> Archive
+            <Archive size={13} /> Archive Client
+          </button>
+        ) : (
+          <button onClick={onRestore} className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50">
+            <RotateCcw size={13} /> Restore Client
           </button>
         )}
         <button onClick={onDelete} className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50">
-          <Trash2 size={13} /> Delete
+          <Trash2 size={13} /> Delete Client
         </button>
       </div>
     </div>

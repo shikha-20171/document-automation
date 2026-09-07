@@ -4,16 +4,14 @@ import React, { useState } from "react";
 import { clientStore, type ClientDocument, TEAM_MEMBERS } from "./clientStore";
 import { CrmModalShell, CrmModalFooter, CrmFormField, CRM_INPUT_CLS } from "./CrmModalShell";
 
-const DOC_TYPES = [
-  "Contract",
-  "NDA",
-  "Agreement",
-  "Invoice",
-  "Legal",
-  "Finance",
-  "HR",
-  "Compliance",
-  "Other",
+const TEMPLATES = [
+  "Non-Disclosure Agreement (NDA)",
+  "Master Services Agreement (MSA)",
+  "Service Level Agreement (SLA)",
+  "Commercial Invoice",
+  "Vendor Onboarding Form",
+  "Statement of Work (SOW)",
+  "Independent Contractor Agreement",
 ] as const;
 
 interface CreateClientDocModalProps {
@@ -31,47 +29,66 @@ export function CreateClientDocModal({
     title: "",
     type: "Contract" as ClientDocument["type"],
     owner: "",
+    template: TEMPLATES[0] as string,
   });
+  const [saving, setSaving] = useState(false);
 
   const set = (key: string, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
-  const handleSave = () => {
-    clientStore.addDocument({
-      ...form,
-      clientId,
-      status: "Draft",
-      version: "v1.0",
-    });
-    onSaved(`"${form.title}" created as Draft`);
+  const handleSave = async () => {
+    if (!form.title.trim()) return;
+    setSaving(true);
+    try {
+      await clientStore.addDocument({
+        clientId,
+        title: form.title,
+        type: form.type,
+        owner: form.owner || "Organisation Admin",
+        status: "Draft",
+        version: "v1.0",
+      });
+      onSaved(`Document "${form.title}" created from template`);
+    } catch (err: any) {
+      alert(err?.message || "Failed to create document");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <CrmModalShell title="Create Document" onClose={onClose}>
+    <CrmModalShell title="Create Document for Client" onClose={onClose}>
       <div className="space-y-4">
-        <CrmFormField
-          label="Document Title *"
-          value={form.title}
-          onChange={(val) => set("title", val)}
-          placeholder="e.g. Master Services Agreement"
-        />
         <div>
           <label className="text-xs font-bold text-slate-700 mb-1.5 block">
-            Document Type
+            Select Template
           </label>
           <select
-            value={form.type}
-            onChange={(e) => set("type", e.target.value)}
+            value={form.template}
+            onChange={(e) => {
+              set("template", e.target.value);
+              if (!form.title) {
+                set("title", e.target.value);
+              }
+            }}
             className={CRM_INPUT_CLS}
           >
-            {DOC_TYPES.map((t) => (
+            {TEMPLATES.map((t) => (
               <option key={t}>{t}</option>
             ))}
           </select>
         </div>
+
+        <CrmFormField
+          label="Document Title *"
+          value={form.title}
+          onChange={(val) => set("title", val)}
+          placeholder="e.g. Mutual NDA Agreement"
+        />
+
         <div>
           <label className="text-xs font-bold text-slate-700 mb-1.5 block">
-            Owner
+            Assigned Owner
           </label>
           <select
             value={form.owner}
@@ -88,7 +105,7 @@ export function CreateClientDocModal({
       <CrmModalFooter
         onClose={onClose}
         onSave={handleSave}
-        disabled={!form.title.trim()}
+        disabled={saving || !form.title.trim()}
         label="Create Document"
       />
     </CrmModalShell>

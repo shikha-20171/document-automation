@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams } from "next/navigation";
 import {
   Building2, UserPlus, FileText, PenTool, MessageSquare, StickyNote, Activity,
-  Filter, Calendar,
+  Filter, Calendar, RefreshCw,
 } from "lucide-react";
 import { clientStore, type Activity as ActivityType, formatDate } from "./clientStore";
 
@@ -54,10 +54,20 @@ export default function ActivitiesTab() {
   const [activities, setActivities] = useState<ActivityType[]>([]);
   const [typeFilter, setTypeFilter] = useState("All");
   const [userFilter, setUserFilter] = useState("All");
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    if (!clientId) return;
+    setLoading(true);
+    setActivities(clientStore.getActivities(clientId));
+    const remote = await clientStore.fetchActivities(clientId);
+    if (remote) setActivities(remote);
+    setLoading(false);
+  }, [clientId]);
 
   useEffect(() => {
-    setActivities(clientStore.getActivities(clientId));
-  }, [clientId]);
+    load();
+  }, [load]);
 
   const users = useMemo(() => Array.from(new Set(activities.map(a => a.user))), [activities]);
 
@@ -77,10 +87,17 @@ export default function ActivitiesTab() {
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
         <div>
-          <h2 className="text-sm font-extrabold text-slate-900">Activity Timeline</h2>
-          <p className="text-xs text-slate-500 mt-0.5">{filtered.length} events</p>
+          <h2 className="text-sm font-extrabold text-slate-900">Activity Timeline & Audit Trail</h2>
+          <p className="text-xs text-slate-500 mt-0.5">{filtered.length} events recorded</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <button
+            onClick={load}
+            title="Refresh activities"
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+          >
+            <RefreshCw size={13} className={loading ? "animate-spin text-[#274690]" : ""} /> Refresh
+          </button>
           <div className="relative">
             <Filter size={12} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="h-8 appearance-none rounded-xl border border-slate-200 bg-white pl-7 pr-5 text-xs font-semibold outline-none">
@@ -90,7 +107,7 @@ export default function ActivitiesTab() {
           <div className="relative">
             <Calendar size={12} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <select value={userFilter} onChange={e => setUserFilter(e.target.value)} className="h-8 appearance-none rounded-xl border border-slate-200 bg-white pl-7 pr-5 text-xs font-semibold outline-none">
-              <option>All</option>
+              <option>All Users</option>
               {users.map(u => <option key={u}>{u}</option>)}
             </select>
           </div>
@@ -98,10 +115,10 @@ export default function ActivitiesTab() {
       </div>
 
       <div className="px-5 py-5">
-        {groupKeys.length === 0 ? (
+        {groupKeys.length === 0 && !loading ? (
           <div className="flex flex-col items-center py-16 text-slate-300">
             <Activity size={32} className="mb-3" />
-            <p className="text-sm font-semibold text-slate-500">No activities yet</p>
+            <p className="text-sm font-semibold text-slate-500">No activities recorded yet</p>
           </div>
         ) : (
           <div className="space-y-6">
@@ -119,11 +136,9 @@ export default function ActivitiesTab() {
                     const isLast = idx === grouped[dateLabel].length - 1;
                     return (
                       <div key={act.id} className="flex items-start gap-3 relative">
-                        {/* Timeline line */}
                         {!isLast && (
                           <div className="absolute left-[14px] top-7 bottom-0 w-px bg-slate-100" />
                         )}
-                        {/* Icon */}
                         <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white shadow-sm z-10 ${cfg.color}`}>
                           <Icon size={12} />
                         </div>

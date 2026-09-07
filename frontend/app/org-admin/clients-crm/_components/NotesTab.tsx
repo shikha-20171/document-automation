@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { Plus, StickyNote, Pin, Edit2, Trash2, Search, CheckCircle2, X, Lock } from "lucide-react";
+import { Plus, StickyNote, Pin, Edit2, Trash2, Search, CheckCircle2, X, Lock, RefreshCw } from "lucide-react";
 import { clientStore, type Note, formatDate } from "./clientStore";
 
 export default function NotesTab() {
@@ -14,26 +14,43 @@ export default function NotesTab() {
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Note | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const load = () => {
-    const all = clientStore.getNotes(clientId);
-    // Pinned first
-    setNotes([...all.filter(n => n.isPinned), ...all.filter(n => !n.isPinned)]);
-  };
-  useEffect(() => { load(); }, [clientId]);
+  const load = useCallback(async () => {
+    if (!clientId) return;
+    setLoading(true);
+    setNotes(clientStore.getNotes(clientId));
+    const remote = await clientStore.fetchNotes(clientId);
+    if (remote) {
+      setNotes([...remote.filter(n => n.isPinned), ...remote.filter(n => !n.isPinned)]);
+    }
+    setLoading(false);
+  }, [clientId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
-  const handleDelete = (note: Note) => {
-    clientStore.deleteNote(note.id);
-    load();
-    showToast("Note deleted");
+  const handleDelete = async (note: Note) => {
+    try {
+      await clientStore.deleteNote(note.id);
+      await load();
+      showToast("Note deleted");
+    } catch (err: any) {
+      showToast(err?.message || "Failed to delete note");
+    }
   };
 
-  const handlePin = (note: Note) => {
-    clientStore.updateNote(note.id, { isPinned: !note.isPinned });
-    load();
-    showToast(note.isPinned ? "Note unpinned" : "Note pinned");
+  const handlePin = async (note: Note) => {
+    try {
+      await clientStore.updateNote(note.id, { isPinned: !note.isPinned });
+      await load();
+      showToast(note.isPinned ? "Note unpinned" : "Note pinned");
+    } catch (err: any) {
+      showToast(err?.message || "Failed to toggle pin");
+    }
   };
 
   const filtered = notes.filter(n =>
@@ -61,6 +78,13 @@ export default function NotesTab() {
           </span>
         </div>
         <div className="flex gap-2 items-center">
+          <button
+            onClick={load}
+            title="Refresh notes"
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+          >
+            <RefreshCw size={13} className={loading ? "animate-spin text-[#274690]" : ""} /> Refresh
+          </button>
           <div className="relative">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search notes..." className="h-8 w-48 rounded-xl border border-slate-200 bg-slate-50 pl-8 pr-3 text-xs outline-none focus:border-[#274690]" />
@@ -73,7 +97,7 @@ export default function NotesTab() {
 
       {/* Notes Grid */}
       <div className="p-5">
-        {filtered.length === 0 ? (
+        {filtered.length === 0 && !loading ? (
           <div className="flex flex-col items-center py-16 text-slate-300">
             <StickyNote size={32} className="mb-3" />
             <p className="text-sm font-semibold text-slate-500">No notes yet</p>
@@ -131,17 +155,27 @@ function NoteModal({ clientId, note, onClose, onSaved }: {
     title: note?.title ?? "",
     description: note?.description ?? "",
     isPinned: note?.isPinned ?? false,
-    createdBy: note?.createdBy ?? "You",
+    createdBy: note?.createdBy ?? "Admin",
   });
+  const [saving, setSaving] = useState(false);
+
   const set = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
 
-  const handleSave = () => {
-    if (note) {
-      clientStore.updateNote(note.id, form);
-      onSaved("Note updated");
-    } else {
-      clientStore.addNote({ ...form, clientId });
-      onSaved("Note added");
+  const handleSave = async () => {
+    if (!form.title.trim()) return;
+    setSaving(true);
+    try {
+      if (note) {
+        await clientStore.updateNote(note.id, form);
+        onSaved("Note updated successfully");
+      } else {
+        await clientStore.addNote({ ...form, clientId });
+        onSaved("Note added successfully");
+      }
+    } catch (err: any) {
+      alert(err?.message || "Failed to save note");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -178,7 +212,12 @@ function NoteModal({ clientId, note, onClose, onSaved }: {
         </div>
         <div className="flex justify-end gap-2 px-6 py-4 border-t border-slate-100">
           <button onClick={onClose} className="rounded-xl px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 transition">Cancel</button>
-          <button onClick={handleSave} disabled={!form.title.trim()} className="rounded-xl bg-[#274690] px-5 py-2 text-xs font-bold text-white hover:bg-[#1f3561] transition disabled:opacity-40">
+          <button
+            onClick={handleSave}
+            disabled={saving || !form.title.trim()}
+            className="rounded-xl bg-[#274690] px-5 py-2 text-xs font-bold text-white hover:bg-[#1f3561] transition disabled:opacity-40 flex items-center gap-2"
+          >
+            {saving ? <span className="h-3 w-3 rounded-full border-2 border-white/40 border-t-white animate-spin" /> : null}
             {note ? "Save Changes" : "Add Note"}
           </button>
         </div>

@@ -33,22 +33,31 @@ export function UploadClientDocModal({
     type: "Contract" as ClientDocument["type"],
     owner: "",
   });
+  const [saving, setSaving] = useState(false);
 
   const set = (key: string, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
-  const handleSave = () => {
-    clientStore.addDocument({
-      ...form,
-      clientId,
-      status: "Draft",
-      version: "v1.0",
-    });
-    onSaved(`"${form.title}" uploaded successfully`);
+  const handleSave = async () => {
+    if (!form.title.trim()) return;
+    setSaving(true);
+    try {
+      await clientStore.addDocument({
+        ...form,
+        clientId,
+        status: "Draft",
+        version: "v1.0",
+      });
+      onSaved(`"${form.title}" uploaded and linked to client`);
+    } catch (err: any) {
+      alert(err?.message || "Failed to upload document");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <CrmModalShell title="Upload Document" onClose={onClose}>
+    <CrmModalShell title="Upload Document for Client" onClose={onClose}>
       <div className="space-y-4">
         <div className="rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center bg-slate-50/50">
           <Upload size={24} className="mx-auto text-slate-400 mb-2" />
@@ -56,7 +65,7 @@ export function UploadClientDocModal({
             Drag & drop or click to browse
           </p>
           <p className="text-[10px] text-slate-400 mt-1">
-            PDF, DOCX, XLSX up to 50MB
+            PDF, DOCX, XLSX up to 50MB (Client pre-linked)
           </p>
           <button
             type="button"
@@ -107,7 +116,7 @@ export function UploadClientDocModal({
       <CrmModalFooter
         onClose={onClose}
         onSave={handleSave}
-        disabled={!form.title.trim()}
+        disabled={saving || !form.title.trim()}
         label="Upload Document"
       />
     </CrmModalShell>

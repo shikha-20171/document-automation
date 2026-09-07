@@ -1,5 +1,16 @@
 "use client";
 
+import crmApi, {
+  type CrmClient,
+  type CrmContact,
+  type CrmDocument,
+  type CrmRequest,
+  type CrmNote,
+  type CrmActivity,
+  type CrmDashboardStats,
+  type DuplicateCheckResult,
+} from "@/services/crmApi";
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type ClientStatus = "Active" | "Inactive" | "Prospect" | "Archived";
@@ -114,16 +125,7 @@ export interface Note {
   isPinned: boolean;
 }
 
-// ─── Initial Empty Stores ──────────────────────────────────────────────────
-const SAMPLE_CLIENTS: Client[] = [];
-const SAMPLE_CONTACTS: Contact[] = [];
-const SAMPLE_DOCUMENTS: ClientDocument[] = [];
-const SAMPLE_REQUESTS: ClientRequest[] = [];
-const SAMPLE_ACTIVITIES: Activity[] = [];
-const SAMPLE_NOTES: Note[] = [];
-
-// ─── Storage Keys ─────────────────────────────────────────────────────────────
-
+// ─── Local Cache Helpers ──────────────────────────────────────────────────────
 const KEYS = {
   clients: "crm_clients",
   contacts: "crm_contacts",
@@ -133,15 +135,13 @@ const KEYS = {
   notes: "crm_notes",
 };
 
-// ─── Store Helpers ────────────────────────────────────────────────────────────
-
-function load<T>(key: string, fallback: T[]): T[] {
-  if (typeof window === "undefined") return fallback;
+function load<T>(key: string): T[] {
+  if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(key);
     if (raw) return JSON.parse(raw) as T[];
   } catch {}
-  return fallback;
+  return [];
 }
 
 function save<T>(key: string, data: T[]): void {
@@ -151,51 +151,76 @@ function save<T>(key: string, data: T[]): void {
   } catch {}
 }
 
-function genId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
-}
-
 function now(): string {
   return new Date().toISOString();
 }
 
-import crmApi, { type CrmClient } from "@/services/crmApi";
+function mapBackendClient(c: any): Client {
+  return {
+    id: String(c.id),
+    name: c.name || "Unnamed Client",
+    type: (c.type as ClientType) || "Company",
+    contactPerson: c.contactPerson || "",
+    email: c.email || "",
+    phone: c.phone || "",
+    website: c.website || "",
+    address: c.address || "",
+    city: c.city || "",
+    state: c.state || "",
+    country: c.country || "India",
+    postalCode: c.postalCode || "",
+    industry: c.industry || "Other",
+    companySize: c.companySize || "2-10",
+    status: (c.status as ClientStatus) || "Active",
+    department: c.department || "General",
+    assignedTo: c.assignedTo || "Account Manager",
+    tags: Array.isArray(c.tags) ? c.tags : [],
+    notes: c.notes || "",
+    createdAt: c.createdAt || now(),
+    lastActivity: c.updatedAt || c.createdAt || now(),
+    documents: Array.isArray(c.documents) ? c.documents.length : (c.documentsCount || 0),
+  };
+}
 
-// ─── Store API ────────────────────────────────────────────────────────────────
+// ─── Client Store Facade ──────────────────────────────────────────────────────
 
 export const clientStore = {
-  // CLIENTS
-  getClients(): Client[] {
-    return load<Client>(KEYS.clients, SAMPLE_CLIENTS);
-  },
-  async fetchClients(): Promise<Client[]> {
+  // ─── DASHBOARD STATS ────────────────────────────────────────────────────────
+  async fetchDashboardStats(): Promise<CrmDashboardStats | null> {
     try {
-      const res = await crmApi.getClients();
+      const res = await crmApi.getDashboardStats();
+      if (res && res.success && res.data) {
+        return res.data;
+      }
+    } catch (err) {
+      console.warn("CRM fetchDashboardStats error:", err);
+    }
+    return null;
+  },
+
+  // ─── DUPLICATE CHECK ────────────────────────────────────────────────────────
+  async checkDuplicate(payload: { name?: string; email?: string; phone?: string; excludeId?: string }): Promise<DuplicateCheckResult> {
+    try {
+      const res = await crmApi.checkDuplicate(payload);
+      if (res && res.success && res.data) {
+        return res.data;
+      }
+    } catch (err) {
+      console.warn("CRM checkDuplicate error:", err);
+    }
+    return { isDuplicate: false };
+  },
+
+  // ─── CLIENTS ────────────────────────────────────────────────────────────────
+  getClients(): Client[] {
+    return load<Client>(KEYS.clients);
+  },
+
+  async fetchClients(params?: Record<string, any>): Promise<Client[]> {
+    try {
+      const res = await crmApi.getClients(params);
       if (res && res.success && Array.isArray(res.data)) {
-        const backendClients: Client[] = res.data.map((c: any) => ({
-          id: c.id,
-          name: c.name || "Unnamed Client",
-          type: (c.type as ClientType) || "Company",
-          contactPerson: c.contactPerson || "",
-          email: c.email || "",
-          phone: c.phone || "",
-          website: c.website || "",
-          address: c.address || "",
-          city: c.city || "",
-          state: c.state || "",
-          country: c.country || "India",
-          postalCode: c.postalCode || "",
-          industry: c.industry || "Other",
-          companySize: c.companySize || "2-10",
-          status: (c.status as ClientStatus) || "Active",
-          department: c.department || "General",
-          assignedTo: c.assignedTo || "Account Manager",
-          tags: Array.isArray(c.tags) ? c.tags : [],
-          notes: c.notes || "",
-          createdAt: c.createdAt || new Date().toISOString(),
-          lastActivity: c.updatedAt || c.createdAt || new Date().toISOString(),
-          documents: Array.isArray(c.documents) ? c.documents.length : (c.documentsCount || 0),
-        }));
+        const backendClients = res.data.map(mapBackendClient);
         save(KEYS.clients, backendClients);
         return backendClients;
       }
@@ -204,11 +229,25 @@ export const clientStore = {
     }
     return this.getClients();
   },
-  saveClients(clients: Client[]): void {
-    save(KEYS.clients, clients);
+
+  async fetchClientById(id: string): Promise<Client | null> {
+    try {
+      const res = await crmApi.getClientById(id);
+      if (res && res.success && res.data) {
+        const client = mapBackendClient(res.data);
+        const cached = this.getClients();
+        const updated = [client, ...cached.filter(c => c.id !== client.id)];
+        save(KEYS.clients, updated);
+        return client;
+      }
+    } catch (err) {
+      console.warn("CRM fetchClientById error:", err);
+    }
+    const found = this.getClients().find(c => c.id === id);
+    return found || null;
   },
+
   async addClient(data: Omit<Client, "id" | "createdAt" | "lastActivity" | "documents">): Promise<Client> {
-    const clients = this.getClients();
     let createdRecord: any = null;
     try {
       const res = await crmApi.createClient(data as any);
@@ -220,19 +259,13 @@ export const clientStore = {
       throw err;
     }
 
-    const clientId = createdRecord?.id || `CL-${String(10000 + clients.length + 1).slice(-5)}`;
-    const newClient: Client = {
-      ...data,
-      id: clientId,
-      createdAt: createdRecord?.createdAt || now(),
-      lastActivity: createdRecord?.updatedAt || now(),
-      documents: 0,
-    };
-    const updated = [newClient, ...clients.filter(c => c.id !== clientId)];
-    this.saveClients(updated);
-    this.addActivity({ clientId: clientId, type: "Client created", description: `Client ${data.name} was created`, user: "You" });
+    const newClient = mapBackendClient(createdRecord);
+    const clients = this.getClients();
+    const updated = [newClient, ...clients.filter(c => c.id !== newClient.id)];
+    save(KEYS.clients, updated);
     return newClient;
   },
+
   async updateClient(id: string, patch: Partial<Client>): Promise<void> {
     try {
       await crmApi.updateClient(id, patch as any);
@@ -241,9 +274,31 @@ export const clientStore = {
       throw err;
     }
     const clients = this.getClients().map(c => c.id === id ? { ...c, ...patch, lastActivity: now() } : c);
-    this.saveClients(clients);
-    this.addActivity({ clientId: id, type: "Client updated", description: "Client information updated", user: "You" });
+    save(KEYS.clients, clients);
   },
+
+  async archiveClient(id: string): Promise<void> {
+    try {
+      await crmApi.archiveClient(id);
+    } catch (err) {
+      console.error("CRM archiveClient API error:", err);
+      throw err;
+    }
+    const clients = this.getClients().map(c => c.id === id ? { ...c, status: "Archived" as ClientStatus, lastActivity: now() } : c);
+    save(KEYS.clients, clients);
+  },
+
+  async restoreClient(id: string): Promise<void> {
+    try {
+      await crmApi.restoreClient(id);
+    } catch (err) {
+      console.error("CRM restoreClient API error:", err);
+      throw err;
+    }
+    const clients = this.getClients().map(c => c.id === id ? { ...c, status: "Active" as ClientStatus, lastActivity: now() } : c);
+    save(KEYS.clients, clients);
+  },
+
   async deleteClient(id: string): Promise<void> {
     try {
       await crmApi.deleteClient(id);
@@ -251,125 +306,423 @@ export const clientStore = {
       console.error("CRM deleteClient API error:", err);
       throw err;
     }
-    this.saveClients(this.getClients().filter(c => c.id !== id));
+    save(KEYS.clients, this.getClients().filter(c => c.id !== id));
   },
 
-  // CONTACTS
+  // ─── CONTACTS ───────────────────────────────────────────────────────────────
   getContacts(clientId?: string): Contact[] {
-    const all = load<Contact>(KEYS.contacts, SAMPLE_CONTACTS);
+    const all = load<Contact>(KEYS.contacts);
     return clientId ? all.filter(c => c.clientId === clientId) : all;
   },
-  async addContact(data: Omit<Contact, "id">): Promise<Contact> {
-    const all = load<Contact>(KEYS.contacts, SAMPLE_CONTACTS);
-    let createdId: string | null = null;
+
+  async fetchContacts(clientId?: string): Promise<Contact[]> {
     try {
-      const res = await crmApi.addContact(data.clientId, data);
-      if (res && res.success && (res.data as any)?.id) {
-        createdId = (res.data as any).id;
+      const res = await crmApi.getContacts(clientId);
+      if (res && res.success && Array.isArray(res.data)) {
+        const backendContacts: Contact[] = res.data.map((c: any) => ({
+          id: String(c.id),
+          clientId: String(c.clientId),
+          firstName: c.firstName || "",
+          lastName: c.lastName || "",
+          designation: c.designation || "",
+          email: c.email || "",
+          phone: c.phone || "",
+          department: c.department || "",
+          role: c.role || "Contact",
+          isPrimary: Boolean(c.isPrimary),
+          notes: c.notes || "",
+          status: (c.status as "Active" | "Inactive") || "Active",
+        }));
+        if (clientId) {
+          const cachedOther = load<Contact>(KEYS.contacts).filter(c => c.clientId !== clientId);
+          save(KEYS.contacts, [...backendContacts, ...cachedOther]);
+        } else {
+          save(KEYS.contacts, backendContacts);
+        }
+        return backendContacts;
       }
     } catch (err) {
-      console.warn("CRM addContact API fallback:", err);
+      console.warn("CRM fetchContacts error:", err);
     }
-    const newContact: Contact = { ...data, id: createdId || genId("CT") };
-    save(KEYS.contacts, [newContact, ...all]);
-    this.addActivity({ clientId: data.clientId, type: "Contact added", description: `${data.firstName} ${data.lastName} added as ${data.role}`, user: "You" });
-    return newContact;
-  },
-  updateContact(id: string, patch: Partial<Contact>): void {
-    const all = load<Contact>(KEYS.contacts, SAMPLE_CONTACTS).map(c => c.id === id ? { ...c, ...patch } : c);
-    save(KEYS.contacts, all);
-  },
-  deleteContact(id: string): void {
-    save(KEYS.contacts, load<Contact>(KEYS.contacts, SAMPLE_CONTACTS).filter(c => c.id !== id));
+    return this.getContacts(clientId);
   },
 
-  // DOCUMENTS
+  async addContact(data: Omit<Contact, "id">): Promise<Contact> {
+    let created: any = null;
+    try {
+      const res = await crmApi.addContact(data.clientId, data);
+      if (res && res.success && res.data) {
+        created = res.data;
+      }
+    } catch (err) {
+      console.error("CRM addContact error:", err);
+      throw err;
+    }
+    const newContact: Contact = {
+      ...data,
+      id: String(created?.id || Date.now()),
+    };
+    const all = load<Contact>(KEYS.contacts);
+    save(KEYS.contacts, [newContact, ...all]);
+    return newContact;
+  },
+
+  async updateContact(id: string, patch: Partial<Contact>): Promise<void> {
+    try {
+      await crmApi.updateContact(id, patch);
+    } catch (err) {
+      console.error("CRM updateContact error:", err);
+      throw err;
+    }
+    const all = load<Contact>(KEYS.contacts).map(c => c.id === id ? { ...c, ...patch } : c);
+    save(KEYS.contacts, all);
+  },
+
+  async deleteContact(id: string): Promise<void> {
+    try {
+      await crmApi.deleteContact(id);
+    } catch (err) {
+      console.error("CRM deleteContact error:", err);
+      throw err;
+    }
+    save(KEYS.contacts, load<Contact>(KEYS.contacts).filter(c => c.id !== id));
+  },
+
+  // ─── DOCUMENTS ─────────────────────────────────────────────────────────────
   getDocuments(clientId?: string): ClientDocument[] {
-    const all = load<ClientDocument>(KEYS.documents, SAMPLE_DOCUMENTS);
+    const all = load<ClientDocument>(KEYS.documents);
     return clientId ? all.filter(d => d.clientId === clientId) : all;
   },
-  addDocument(data: Omit<ClientDocument, "id" | "createdAt" | "updatedAt">): ClientDocument {
-    const all = load<ClientDocument>(KEYS.documents, SAMPLE_DOCUMENTS);
-    const newDoc: ClientDocument = { ...data, id: genId("DOC"), createdAt: now(), updatedAt: now() };
+
+  async fetchDocuments(clientId?: string): Promise<ClientDocument[]> {
+    try {
+      const res = await crmApi.getClientDocuments(clientId);
+      if (res && res.success && Array.isArray(res.data)) {
+        const backendDocs: ClientDocument[] = res.data.map((d: any) => ({
+          id: String(d.id),
+          clientId: String(d.clientId),
+          title: d.title,
+          type: (d.type as DocumentType) || "Contract",
+          status: (d.status as DocumentStatus) || "Draft",
+          owner: d.owner || "Organisation Admin",
+          version: d.version || "1.0",
+          createdAt: d.createdAt || now(),
+          updatedAt: d.updatedAt || now(),
+        }));
+        if (clientId) {
+          const cachedOther = load<ClientDocument>(KEYS.documents).filter(d => d.clientId !== clientId);
+          save(KEYS.documents, [...backendDocs, ...cachedOther]);
+        } else {
+          save(KEYS.documents, backendDocs);
+        }
+        return backendDocs;
+      }
+    } catch (err) {
+      console.warn("CRM fetchDocuments error:", err);
+    }
+    return this.getDocuments(clientId);
+  },
+
+  async addDocument(data: Omit<ClientDocument, "id" | "createdAt" | "updatedAt">): Promise<ClientDocument> {
+    let created: any = null;
+    try {
+      const res = await crmApi.addClientDocument(data.clientId, data);
+      if (res && res.success && res.data) {
+        created = res.data;
+      }
+    } catch (err) {
+      console.error("CRM addDocument error:", err);
+      throw err;
+    }
+    const newDoc: ClientDocument = {
+      ...data,
+      id: String(created?.id || Date.now()),
+      createdAt: created?.createdAt || now(),
+      updatedAt: created?.updatedAt || now(),
+    };
+    const all = load<ClientDocument>(KEYS.documents);
     save(KEYS.documents, [newDoc, ...all]);
-    this.addActivity({ clientId: data.clientId, type: "Document created", description: `Document "${data.title}" created`, user: "You" });
     return newDoc;
   },
-  updateDocument(id: string, patch: Partial<ClientDocument>): void {
-    const all = load<ClientDocument>(KEYS.documents, SAMPLE_DOCUMENTS).map(d => d.id === id ? { ...d, ...patch, updatedAt: now() } : d);
+
+  async updateDocument(id: string, patch: Partial<ClientDocument>): Promise<void> {
+    try {
+      await crmApi.updateClientDocument(id, patch);
+    } catch (err) {
+      console.error("CRM updateDocument error:", err);
+      throw err;
+    }
+    const all = load<ClientDocument>(KEYS.documents).map(d => d.id === id ? { ...d, ...patch, updatedAt: now() } : d);
     save(KEYS.documents, all);
   },
 
-  // REQUESTS
+  async deleteDocument(id: string): Promise<void> {
+    try {
+      await crmApi.deleteClientDocument(id);
+    } catch (err) {
+      console.error("CRM deleteDocument error:", err);
+      throw err;
+    }
+    save(KEYS.documents, load<ClientDocument>(KEYS.documents).filter(d => d.id !== id));
+  },
+
+  // ─── REQUESTS ──────────────────────────────────────────────────────────────
   getRequests(clientId?: string): ClientRequest[] {
-    const all = load<ClientRequest>(KEYS.requests, SAMPLE_REQUESTS);
+    const all = load<ClientRequest>(KEYS.requests);
     return clientId ? all.filter(r => r.clientId === clientId) : all;
   },
-  addRequest(data: Omit<ClientRequest, "id" | "createdAt" | "comments">): ClientRequest {
-    const all = load<ClientRequest>(KEYS.requests, SAMPLE_REQUESTS);
-    const newReq: ClientRequest = { ...data, id: genId("REQ"), createdAt: now(), comments: [] };
+
+  async fetchRequests(clientId?: string): Promise<ClientRequest[]> {
+    try {
+      const res = await crmApi.getRequests(clientId);
+      if (res && res.success && Array.isArray(res.data)) {
+        const backendReqs: ClientRequest[] = res.data.map((r: any) => ({
+          id: String(r.id),
+          clientId: String(r.clientId),
+          clientName: r.clientName || r.client?.name || "Client",
+          title: r.title,
+          type: (r.type as RequestType) || "New Document",
+          description: r.description || "",
+          priority: (r.priority as RequestPriority) || "Medium",
+          status: (r.status as RequestStatus) || "New",
+          assignedTo: r.assignedTo || "Unassigned",
+          dueDate: r.dueDate || "",
+          createdAt: r.createdAt || now(),
+          requestedBy: r.requestedBy || "Admin",
+          attachments: Array.isArray(r.attachments) ? r.attachments : [],
+          comments: [],
+        }));
+        if (clientId) {
+          const cachedOther = load<ClientRequest>(KEYS.requests).filter(r => r.clientId !== clientId);
+          save(KEYS.requests, [...backendReqs, ...cachedOther]);
+        } else {
+          save(KEYS.requests, backendReqs);
+        }
+        return backendReqs;
+      }
+    } catch (err) {
+      console.warn("CRM fetchRequests error:", err);
+    }
+    return this.getRequests(clientId);
+  },
+
+  async addRequest(data: Omit<ClientRequest, "id" | "createdAt" | "comments">): Promise<ClientRequest> {
+    let created: any = null;
+    try {
+      const res = await crmApi.createRequest(data.clientId, data);
+      if (res && res.success && res.data) {
+        created = res.data;
+      }
+    } catch (err) {
+      console.error("CRM addRequest error:", err);
+      throw err;
+    }
+    const newReq: ClientRequest = {
+      ...data,
+      id: String(created?.id || Date.now()),
+      createdAt: created?.createdAt || now(),
+      comments: [],
+    };
+    const all = load<ClientRequest>(KEYS.requests);
     save(KEYS.requests, [newReq, ...all]);
-    this.addActivity({ clientId: data.clientId, type: "Request created", description: `Request "${data.title}" created with ${data.priority} priority`, user: "You" });
     return newReq;
   },
-  updateRequest(id: string, patch: Partial<ClientRequest>): void {
-    const all = load<ClientRequest>(KEYS.requests, SAMPLE_REQUESTS).map(r => r.id === id ? { ...r, ...patch } : r);
+
+  async updateRequest(id: string, patch: Partial<ClientRequest>): Promise<void> {
+    try {
+      await crmApi.updateRequest(id, patch);
+    } catch (err) {
+      console.error("CRM updateRequest error:", err);
+      throw err;
+    }
+    const all = load<ClientRequest>(KEYS.requests).map(r => r.id === id ? { ...r, ...patch } : r);
     save(KEYS.requests, all);
   },
-  addComment(requestId: string, text: string, author: string = "You"): void {
-    const all = load<ClientRequest>(KEYS.requests, SAMPLE_REQUESTS).map(r => {
+
+  addComment(requestId: string, text: string, author: string = "Admin"): void {
+    const all = load<ClientRequest>(KEYS.requests).map(r => {
       if (r.id !== requestId) return r;
-      const comment: RequestComment = { id: genId("C"), author, text, createdAt: now() };
-      return { ...r, comments: [...r.comments, comment] };
+      const comment: RequestComment = { id: `C-${Date.now()}`, author, text, createdAt: now() };
+      return { ...r, comments: [...(r.comments || []), comment] };
     });
     save(KEYS.requests, all);
   },
 
-  // ACTIVITIES
+  async deleteRequest(id: string): Promise<void> {
+    try {
+      await crmApi.deleteRequest(id);
+    } catch (err) {
+      console.error("CRM deleteRequest error:", err);
+      throw err;
+    }
+    save(KEYS.requests, load<ClientRequest>(KEYS.requests).filter(r => r.id !== id));
+  },
+
+  // ─── ACTIVITIES ────────────────────────────────────────────────────────────
   getActivities(clientId?: string): Activity[] {
-    const all = load<Activity>(KEYS.activities, SAMPLE_ACTIVITIES);
+    const all = load<Activity>(KEYS.activities);
     return clientId ? all.filter(a => a.clientId === clientId) : all;
   },
-  addActivity(data: Omit<Activity, "id" | "createdAt">): Activity {
-    const all = load<Activity>(KEYS.activities, SAMPLE_ACTIVITIES);
-    const newAct: Activity = { ...data, id: genId("ACT"), createdAt: now() };
+
+  async fetchActivities(clientId?: string): Promise<Activity[]> {
+    try {
+      const res = await crmApi.getActivities(clientId);
+      if (res && res.success && Array.isArray(res.data)) {
+        const backendActs: Activity[] = res.data.map((a: any) => ({
+          id: String(a.id),
+          clientId: String(a.clientId),
+          type: (a.type as ActivityType) || "Client updated",
+          description: a.description,
+          user: a.user || "Admin",
+          createdAt: a.createdAt || now(),
+        }));
+        if (clientId) {
+          const cachedOther = load<Activity>(KEYS.activities).filter(a => a.clientId !== clientId);
+          save(KEYS.activities, [...backendActs, ...cachedOther]);
+        } else {
+          save(KEYS.activities, backendActs);
+        }
+        return backendActs;
+      }
+    } catch (err) {
+      console.warn("CRM fetchActivities error:", err);
+    }
+    return this.getActivities(clientId);
+  },
+
+  async addActivity(data: Omit<Activity, "id" | "createdAt">): Promise<Activity> {
+    let created: any = null;
+    try {
+      const res = await crmApi.addActivity(data.clientId, data);
+      if (res && res.success && res.data) {
+        created = res.data;
+      }
+    } catch (err) {
+      console.warn("CRM addActivity error:", err);
+    }
+    const newAct: Activity = {
+      ...data,
+      id: String(created?.id || Date.now()),
+      createdAt: created?.createdAt || now(),
+    };
+    const all = load<Activity>(KEYS.activities);
     save(KEYS.activities, [newAct, ...all]);
     return newAct;
   },
 
-  // NOTES
+  // ─── NOTES ─────────────────────────────────────────────────────────────────
   getNotes(clientId?: string): Note[] {
-    const all = load<Note>(KEYS.notes, SAMPLE_NOTES);
+    const all = load<Note>(KEYS.notes);
     return clientId ? all.filter(n => n.clientId === clientId) : all;
   },
-  addNote(data: Omit<Note, "id" | "createdAt">): Note {
-    const all = load<Note>(KEYS.notes, SAMPLE_NOTES);
-    const newNote: Note = { ...data, id: genId("NOTE"), createdAt: now() };
-    save(KEYS.notes, [newNote, ...all]);
-    this.addActivity({ clientId: data.clientId, type: "Note added", description: `Note "${data.title}" added`, user: "You" });
-    return newNote;
-  },
-  updateNote(id: string, patch: Partial<Note>): void {
-    const all = load<Note>(KEYS.notes, SAMPLE_NOTES).map(n => n.id === id ? { ...n, ...patch } : n);
-    save(KEYS.notes, all);
-  },
-  deleteNote(id: string): void {
-    save(KEYS.notes, load<Note>(KEYS.notes, SAMPLE_NOTES).filter(n => n.id !== id));
+
+  async fetchNotes(clientId?: string): Promise<Note[]> {
+    try {
+      const res = await crmApi.getNotes(clientId);
+      if (res && res.success && Array.isArray(res.data)) {
+        const backendNotes: Note[] = res.data.map((n: any) => ({
+          id: String(n.id),
+          clientId: String(n.clientId),
+          title: n.title,
+          description: n.description || "",
+          createdBy: n.createdBy || "Admin",
+          createdAt: n.createdAt || now(),
+          isPinned: Boolean(n.isPinned),
+        }));
+        if (clientId) {
+          const cachedOther = load<Note>(KEYS.notes).filter(n => n.clientId !== clientId);
+          save(KEYS.notes, [...backendNotes, ...cachedOther]);
+        } else {
+          save(KEYS.notes, backendNotes);
+        }
+        return backendNotes;
+      }
+    } catch (err) {
+      console.warn("CRM fetchNotes error:", err);
+    }
+    return this.getNotes(clientId);
   },
 
-  // RESET (for development)
+  async addNote(data: Omit<Note, "id" | "createdAt">): Promise<Note> {
+    let created: any = null;
+    try {
+      const res = await crmApi.createNote(data.clientId, data);
+      if (res && res.success && res.data) {
+        created = res.data;
+      }
+    } catch (err) {
+      console.error("CRM addNote error:", err);
+      throw err;
+    }
+    const newNote: Note = {
+      ...data,
+      id: String(created?.id || Date.now()),
+      createdAt: created?.createdAt || now(),
+    };
+    const all = load<Note>(KEYS.notes);
+    save(KEYS.notes, [newNote, ...all]);
+    return newNote;
+  },
+
+  async updateNote(id: string, patch: Partial<Note>): Promise<void> {
+    try {
+      await crmApi.updateNote(id, patch);
+    } catch (err) {
+      console.error("CRM updateNote error:", err);
+      throw err;
+    }
+    const all = load<Note>(KEYS.notes).map(n => n.id === id ? { ...n, ...patch } : n);
+    save(KEYS.notes, all);
+  },
+
+  async deleteNote(id: string): Promise<void> {
+    try {
+      await crmApi.deleteNote(id);
+    } catch (err) {
+      console.error("CRM deleteNote error:", err);
+      throw err;
+    }
+    save(KEYS.notes, load<Note>(KEYS.notes).filter(n => n.id !== id));
+  },
+
+  // ─── IMPORT ────────────────────────────────────────────────────────────────
+  async importClients(records: Array<Record<string, any>>): Promise<any> {
+    const res = await crmApi.importClients(records);
+    if (res && res.success && res.data) {
+      await this.fetchClients();
+      return res.data;
+    }
+    throw new Error(res?.message || "Import failed");
+  },
+
+  // RESET
   reset(): void {
-    Object.values(KEYS).forEach(k => localStorage.removeItem(k));
+    Object.values(KEYS).forEach(k => {
+      if (typeof window !== "undefined") localStorage.removeItem(k);
+    });
   },
 };
 
 // ─── Utility ──────────────────────────────────────────────────────────────────
 
-export const INDUSTRIES = ["IT / Software", "Retail", "Consulting", "Construction", "Healthcare", "Finance", "Legal", "Education", "Manufacturing", "Real Estate", "Other"];
-export const DEPARTMENTS = ["Sales", "Legal", "Finance", "HR", "Operations", "Marketing", "Management", "Support"];
-export const TEAM_MEMBERS = ["Aman Verma", "Neha Jain", "Riya Sharma", "Priya Nair", "Vikram Singh", "Anjali Mehta"];
+export const INDUSTRIES = [
+  "IT / Software", "Retail", "Consulting", "Construction",
+  "Healthcare", "Finance", "Legal", "Education",
+  "Manufacturing", "Real Estate", "Other",
+];
+export const DEPARTMENTS = [
+  "Sales", "Legal", "Finance", "HR", "Operations",
+  "Marketing", "Management", "Support",
+];
+export const TEAM_MEMBERS = [
+  "Aman Verma", "Neha Jain", "Riya Sharma",
+  "Priya Nair", "Vikram Singh", "Anjali Mehta",
+];
 export const COMPANY_SIZES = ["1", "2-10", "11-50", "51-200", "201-500", "501-1000", "1000+"];
-export const ALL_TAGS = ["Enterprise", "VIP", "New", "High Value", "Renewal", "Legal", "Finance", "Compliance", "Priority"];
+export const ALL_TAGS = [
+  "Enterprise", "VIP", "New", "High Value", "Renewal",
+  "Legal", "Finance", "Compliance", "Priority",
+];
 
 export function formatDate(iso: string, opts?: Intl.DateTimeFormatOptions): string {
   if (!iso) return "—";

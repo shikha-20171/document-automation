@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import {
   Plus,
@@ -16,6 +16,7 @@ import {
   Archive,
   CheckCircle2,
   X,
+  RefreshCw,
 } from "lucide-react";
 import { clientStore, type ClientDocument, formatDate } from "./clientStore";
 import { CreateClientDocModal } from "./CreateClientDocModal";
@@ -39,21 +40,45 @@ export default function ClientDocumentsTab() {
   const [showCreate, setShowCreate] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const load = () => setDocs(clientStore.getDocuments(clientId));
+  const load = useCallback(async () => {
+    if (!clientId) return;
+    setLoading(true);
+    setDocs(clientStore.getDocuments(clientId));
+    const remote = await clientStore.fetchDocuments(clientId);
+    if (remote) setDocs(remote);
+    setLoading(false);
+  }, [clientId]);
+
   useEffect(() => {
     load();
-  }, [clientId]);
+  }, [load]);
 
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
   };
 
-  const updateStatus = (doc: ClientDocument, status: ClientDocument["status"]) => {
-    clientStore.updateDocument(doc.id, { status });
-    load();
-    showToast(`Document "${doc.title}" marked as ${status}`);
+  const updateStatus = async (doc: ClientDocument, status: ClientDocument["status"]) => {
+    try {
+      await clientStore.updateDocument(doc.id, { status });
+      await load();
+      showToast(`Document "${doc.title}" marked as ${status}`);
+    } catch (err: any) {
+      showToast(err?.message || "Failed to update status");
+    }
+    setOpenMenu(null);
+  };
+
+  const deleteDoc = async (doc: ClientDocument) => {
+    try {
+      await clientStore.deleteDocument(doc.id);
+      await load();
+      showToast(`Document "${doc.title}" deleted`);
+    } catch (err: any) {
+      showToast(err?.message || "Failed to delete document");
+    }
     setOpenMenu(null);
   };
 
@@ -77,6 +102,13 @@ export default function ClientDocumentsTab() {
           </p>
         </div>
         <div className="flex gap-2">
+          <button
+            onClick={load}
+            title="Refresh documents"
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+          >
+            <RefreshCw size={13} className={loading ? "animate-spin text-[#274690]" : ""} /> Refresh
+          </button>
           <button
             onClick={() => setShowUpload(true)}
             className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
@@ -137,7 +169,7 @@ export default function ClientDocumentsTab() {
                 <td className="px-5 py-4">
                   <span
                     className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${
-                      STATUS_STYLES[doc.status]
+                      STATUS_STYLES[doc.status] || "bg-slate-100 text-slate-700"
                     }`}
                   >
                     {doc.status}
@@ -214,8 +246,8 @@ export default function ClientDocumentsTab() {
                         <div className="border-t border-slate-100 mt-1 pt-1">
                           <DocMenuItem
                             icon={Archive}
-                            label="Archive"
-                            onClick={() => updateStatus(doc, "Archived")}
+                            label="Delete Document"
+                            onClick={() => deleteDoc(doc)}
                             danger
                           />
                         </div>
@@ -227,14 +259,14 @@ export default function ClientDocumentsTab() {
             ))}
           </tbody>
         </table>
-        {docs.length === 0 && (
+        {docs.length === 0 && !loading && (
           <div className="flex flex-col items-center py-16 text-slate-300">
             <FileText size={32} className="mb-3" />
             <p className="text-sm font-semibold text-slate-500">
               No documents yet
             </p>
             <p className="text-xs text-slate-400 mt-1">
-              Create or upload your first document
+              Create or upload your first document for this client
             </p>
           </div>
         )}

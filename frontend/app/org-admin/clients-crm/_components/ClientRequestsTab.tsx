@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Plus, MessageSquare, MoreHorizontal, Calendar, User, Flag, CheckCircle2, X, ChevronRight } from "lucide-react";
+import { Plus, MessageSquare, MoreHorizontal, Calendar, User, Flag, CheckCircle2, X, ChevronRight, RefreshCw } from "lucide-react";
 import { clientStore, type ClientRequest, type Client, TEAM_MEMBERS, formatDate } from "./clientStore";
 
 const STATUS_STYLES: Record<string, string> = {
@@ -35,19 +35,34 @@ export default function ClientRequestsTab({ allClients }: { allClients?: boolean
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("All");
+  const [loading, setLoading] = useState(true);
 
-  const load = () => {
+  const load = useCallback(async () => {
+    setLoading(true);
     setRequests(clientStore.getRequests(clientId));
-    setClients(clientStore.getClients());
-  };
-  useEffect(() => { load(); }, [clientId]);
+    const [remoteReqs, remoteClients] = await Promise.all([
+      clientStore.fetchRequests(clientId),
+      clientStore.fetchClients(),
+    ]);
+    if (remoteReqs) setRequests(remoteReqs);
+    if (remoteClients) setClients(remoteClients);
+    setLoading(false);
+  }, [clientId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
-  const updateStatus = (req: ClientRequest, status: ClientRequest["status"]) => {
-    clientStore.updateRequest(req.id, { status });
-    load();
-    showToast(`Request "${req.title}" → ${status}`);
+  const updateStatus = async (req: ClientRequest, status: ClientRequest["status"]) => {
+    try {
+      await clientStore.updateRequest(req.id, { status });
+      await load();
+      showToast(`Request "${req.title}" → ${status}`);
+    } catch (err: any) {
+      showToast(err?.message || "Failed to update request");
+    }
     setOpenMenu(null);
   };
 
@@ -65,10 +80,17 @@ export default function ClientRequestsTab({ allClients }: { allClients?: boolean
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
         <div>
-          <h2 className="text-sm font-extrabold text-slate-900">{allClients ? "All Requests" : "Requests"}</h2>
+          <h2 className="text-sm font-extrabold text-slate-900">{allClients ? "All Client Requests & Tasks" : "Requests & Tasks"}</h2>
           <p className="text-xs text-slate-500 mt-0.5">{filtered.length} request{filtered.length !== 1 ? "s" : ""}</p>
         </div>
         <div className="flex gap-2 items-center">
+          <button
+            onClick={load}
+            title="Refresh requests"
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+          >
+            <RefreshCw size={13} className={loading ? "animate-spin text-[#274690]" : ""} /> Refresh
+          </button>
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="h-8 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-semibold outline-none">
             {["All", "New", "In Progress", "Waiting for Client", "Pending Approval", "Completed", "Rejected", "Cancelled"].map(s => (
               <option key={s}>{s}</option>
@@ -96,7 +118,7 @@ export default function ClientRequestsTab({ allClients }: { allClients?: boolean
                 <td className="px-5 py-4">
                   <button onClick={() => router.push(`/org-admin/clients-crm/requests/${req.id}`)} className="text-left group">
                     <p className="font-bold text-slate-800 group-hover:text-[#274690] transition">{req.title}</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">{req.type} · {req.id}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{req.type} · {req.id.slice(0, 8)}...</p>
                   </button>
                 </td>
                 {allClients && (
@@ -109,24 +131,24 @@ export default function ClientRequestsTab({ allClients }: { allClients?: boolean
                 <td className="px-5 py-4">
                   <div className="flex items-center gap-1.5">
                     <div className="h-5 w-5 rounded-full bg-[#274690]/15 flex items-center justify-center text-[9px] font-black text-[#274690]">
-                      {req.assignedTo.charAt(0)}
+                      {req.assignedTo ? req.assignedTo.charAt(0) : "U"}
                     </div>
-                    <span className="text-slate-600 font-medium">{req.assignedTo}</span>
+                    <span className="text-slate-600 font-medium">{req.assignedTo || "Unassigned"}</span>
                   </div>
                 </td>
                 <td className="px-5 py-4">
-                  <span className={`flex items-center gap-1 font-bold ${PRIORITY_STYLES[req.priority]}`}>
+                  <span className={`flex items-center gap-1 font-bold ${PRIORITY_STYLES[req.priority] || "text-slate-600"}`}>
                     <Flag size={11} /> {req.priority}
                   </span>
                 </td>
                 <td className="px-5 py-4">
-                  <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${STATUS_STYLES[req.status]}`}>
+                  <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${STATUS_STYLES[req.status] || "bg-slate-100 text-slate-700"}`}>
                     {req.status}
                   </span>
                 </td>
                 <td className="px-5 py-4 whitespace-nowrap">
-                  <span className={`flex items-center gap-1 ${new Date(req.dueDate) < new Date() ? "text-red-600 font-bold" : "text-slate-500"}`}>
-                    <Calendar size={11} /> {req.dueDate}
+                  <span className={`flex items-center gap-1 ${req.dueDate && new Date(req.dueDate) < new Date() ? "text-red-600 font-bold" : "text-slate-500"}`}>
+                    <Calendar size={11} /> {req.dueDate || "No due date"}
                   </span>
                 </td>
                 <td className="px-5 py-4 text-slate-500 whitespace-nowrap">{formatDate(req.createdAt)}</td>
@@ -158,10 +180,11 @@ export default function ClientRequestsTab({ allClients }: { allClients?: boolean
             ))}
           </tbody>
         </table>
-        {filtered.length === 0 && (
+        {filtered.length === 0 && !loading && (
           <div className="flex flex-col items-center py-16 text-slate-300">
             <MessageSquare size={32} className="mb-3" />
-            <p className="text-sm font-semibold text-slate-500">No requests found</p>
+            <p className="text-sm font-semibold text-slate-500">No requests or tasks found</p>
+            <p className="text-xs text-slate-400 mt-1">Create a request to assign client tasks to your team</p>
           </div>
         )}
       </div>
@@ -192,10 +215,11 @@ function CreateRequestModal({ clientId, clientName, clients, allClients, onClose
     priority: "Medium" as ClientRequest["priority"],
     assignedTo: "",
     dueDate: "",
-    requestedBy: "You",
+    requestedBy: "Admin",
     attachments: [] as string[],
     status: "New" as ClientRequest["status"],
   });
+  const [saving, setSaving] = useState(false);
 
   const set = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
 
@@ -204,23 +228,31 @@ function CreateRequestModal({ clientId, clientName, clients, allClients, onClose
     setForm(f => ({ ...f, clientId: id, clientName: c?.name ?? "" }));
   };
 
-  const handleSave = () => {
-    clientStore.addRequest(form);
-    onSaved(`Request "${form.title}" created`);
+  const handleSave = async () => {
+    if (!form.title.trim() || !form.clientId) return;
+    setSaving(true);
+    try {
+      await clientStore.addRequest(form);
+      onSaved(`Request "${form.title}" created successfully`);
+    } catch (err: any) {
+      alert(err?.message || "Failed to create request");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
       <div className="w-full max-w-lg rounded-3xl bg-white shadow-2xl flex flex-col max-h-[88vh]">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
-          <h2 className="text-base font-black text-slate-900">Create Request</h2>
+          <h2 className="text-base font-black text-slate-900">Create Request / Task</h2>
           <button onClick={onClose} className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 transition"><X size={18} /></button>
         </div>
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-          <Field label="Request Title *" value={form.title} onChange={v => set("title", v)} />
+          <Field label="Request / Task Title *" value={form.title} onChange={v => set("title", v)} />
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-bold text-slate-700 mb-1.5 block">Request Type</label>
+              <label className="text-xs font-bold text-slate-700 mb-1.5 block">Type</label>
               <select value={form.type} onChange={e => set("type", e.target.value)} className={INPUT_CLS}>
                 {REQUEST_TYPES.map(t => <option key={t}>{t}</option>)}
               </select>
@@ -254,13 +286,18 @@ function CreateRequestModal({ clientId, clientName, clients, allClients, onClose
             <Field label="Requested By" value={form.requestedBy} onChange={v => set("requestedBy", v)} />
           </div>
           <div>
-            <label className="text-xs font-bold text-slate-700 mb-1.5 block">Description</label>
-            <textarea value={form.description} onChange={e => set("description", e.target.value)} rows={3} className={`${INPUT_CLS} h-auto py-2 resize-none`} placeholder="Describe the request..." />
+            <label className="text-xs font-bold text-slate-700 mb-1.5 block">Description & Instructions</label>
+            <textarea value={form.description} onChange={e => set("description", e.target.value)} rows={3} className={`${INPUT_CLS} h-auto py-2 resize-none`} placeholder="Describe work required..." />
           </div>
         </div>
         <div className="flex justify-end gap-2 px-6 py-4 border-t border-slate-100">
           <button onClick={onClose} className="rounded-xl px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 transition">Cancel</button>
-          <button onClick={handleSave} disabled={!form.title.trim() || !form.clientId} className="rounded-xl bg-[#274690] px-5 py-2 text-xs font-bold text-white hover:bg-[#1f3561] transition disabled:opacity-40">
+          <button
+            onClick={handleSave}
+            disabled={saving || !form.title.trim() || !form.clientId}
+            className="rounded-xl bg-[#274690] px-5 py-2 text-xs font-bold text-white hover:bg-[#1f3561] transition disabled:opacity-40 flex items-center gap-2"
+          >
+            {saving ? <span className="h-3 w-3 rounded-full border-2 border-white/40 border-t-white animate-spin" /> : null}
             Create Request
           </button>
         </div>

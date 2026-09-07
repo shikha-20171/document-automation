@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, Building2, User, ChevronRight, Check, Tag } from "lucide-react";
+import { X, Building2, User, ChevronRight, Check, Tag, AlertTriangle } from "lucide-react";
 import { clientStore, INDUSTRIES, DEPARTMENTS, TEAM_MEMBERS, COMPANY_SIZES, ALL_TAGS, type Client } from "./clientStore";
 
 interface AddClientModalProps {
@@ -15,6 +15,7 @@ type Step = (typeof STEPS)[number];
 export default function AddClientModal({ onClose, onSaved }: AddClientModalProps) {
   const [step, setStep] = useState<Step>("Basic Info");
   const [saving, setSaving] = useState(false);
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     type: "Company" as "Company" | "Individual",
@@ -37,13 +38,41 @@ export default function AddClientModal({ onClose, onSaved }: AddClientModalProps
     notes: "",
   });
 
-  const set = (field: string, value: unknown) => setForm(f => ({ ...f, [field]: value }));
+  const set = (field: string, value: unknown) => {
+    setForm(f => ({ ...f, [field]: value }));
+    if (duplicateWarning) setDuplicateWarning(null);
+  };
 
   const toggleTag = (tag: string) => {
     setForm(f => ({
       ...f,
       tags: f.tags.includes(tag) ? f.tags.filter(t => t !== tag) : [...f.tags, tag],
     }));
+  };
+
+  const runDuplicateCheck = async () => {
+    if (!form.name.trim() && !form.email.trim() && !form.phone.trim()) return;
+    try {
+      const result = await clientStore.checkDuplicate({
+        name: form.name,
+        email: form.email,
+        phone: form.phone,
+      });
+      if (result.isDuplicate) {
+        setDuplicateWarning(result.message || "Possible duplicate client found.");
+      } else {
+        setDuplicateWarning(null);
+      }
+    } catch {
+      // non-blocking
+    }
+  };
+
+  const handleNext = async () => {
+    if (step === "Basic Info") {
+      await runDuplicateCheck();
+    }
+    setStep(STEPS[stepIndex + 1]);
   };
 
   const handleSave = async () => {
@@ -53,8 +82,9 @@ export default function AddClientModal({ onClose, onSaved }: AddClientModalProps
       const client = await clientStore.addClient(form);
       setSaving(false);
       onSaved(client);
-    } catch (err) {
+    } catch (err: any) {
       console.warn("Error saving client:", err);
+      setDuplicateWarning(err?.response?.data?.message || err.message || "Failed to create client.");
       setSaving(false);
     }
   };
@@ -68,12 +98,26 @@ export default function AddClientModal({ onClose, onSaved }: AddClientModalProps
         <div className="flex items-center justify-between px-7 py-5 border-b border-slate-100">
           <div>
             <h2 className="text-lg font-black text-slate-900">Add New Client</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Fill in client details to create a new record</p>
+            <p className="text-xs text-slate-500 mt-0.5">Fill in client details to create a new record in PostgreSQL</p>
           </div>
           <button onClick={onClose} className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition">
             <X size={20} />
           </button>
         </div>
+
+        {/* Duplicate Warning */}
+        {duplicateWarning && (
+          <div className="mx-7 mt-4 flex items-start gap-2.5 rounded-2xl bg-amber-50 border border-amber-200 p-3.5 text-xs text-amber-800">
+            <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <strong className="font-bold">Duplicate Warning:</strong>
+              <p className="mt-0.5">{duplicateWarning}</p>
+            </div>
+            <button onClick={() => setDuplicateWarning(null)} className="text-amber-500 hover:text-amber-700">
+              <X size={14} />
+            </button>
+          </div>
+        )}
 
         {/* Step Indicator */}
         <div className="flex items-center gap-0 px-7 py-4 border-b border-slate-100 bg-slate-50/60">
@@ -118,11 +162,17 @@ export default function AddClientModal({ onClose, onSaved }: AddClientModalProps
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
-                  <Field label={form.type === "Company" ? "Company Name *" : "Client Name *"} value={form.name} onChange={v => set("name", v)} placeholder={form.type === "Company" ? "e.g. ABC Technologies Pvt. Ltd." : "e.g. Meera Kapoor"} />
+                  <Field
+                    label={form.type === "Company" ? "Company Name *" : "Client Name *"}
+                    value={form.name}
+                    onChange={v => set("name", v)}
+                    onBlur={runDuplicateCheck}
+                    placeholder={form.type === "Company" ? "e.g. ABC Technologies Pvt. Ltd." : "e.g. Meera Kapoor"}
+                  />
                 </div>
                 <Field label="Contact Person" value={form.contactPerson} onChange={v => set("contactPerson", v)} placeholder="Primary contact name" />
-                <Field label="Email" value={form.email} onChange={v => set("email", v)} placeholder="contact@company.com" type="email" />
-                <Field label="Phone" value={form.phone} onChange={v => set("phone", v)} placeholder="+91 XXXXX XXXXX" />
+                <Field label="Email" value={form.email} onChange={v => set("email", v)} onBlur={runDuplicateCheck} placeholder="contact@company.com" type="email" />
+                <Field label="Phone" value={form.phone} onChange={v => set("phone", v)} onBlur={runDuplicateCheck} placeholder="+91 XXXXX XXXXX" />
                 <Field label="Website" value={form.website} onChange={v => set("website", v)} placeholder="https://example.com" />
               </div>
 
@@ -234,7 +284,7 @@ export default function AddClientModal({ onClose, onSaved }: AddClientModalProps
             )}
             {stepIndex < STEPS.length - 1 ? (
               <button
-                onClick={() => setStep(STEPS[stepIndex + 1])}
+                onClick={handleNext}
                 disabled={step === "Basic Info" && !form.name.trim()}
                 className="rounded-xl bg-[#274690] px-5 py-2 text-xs font-bold text-white hover:bg-[#1f3561] transition disabled:opacity-40"
               >
@@ -259,11 +309,11 @@ export default function AddClientModal({ onClose, onSaved }: AddClientModalProps
 
 const INPUT_CLS = "h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs text-slate-800 outline-none focus:border-[#274690] focus:bg-white transition";
 
-function Field({ label, value, onChange, placeholder, type = "text" }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) {
+function Field({ label, value, onChange, onBlur, placeholder, type = "text" }: { label: string; value: string; onChange: (v: string) => void; onBlur?: () => void; placeholder?: string; type?: string }) {
   return (
     <div>
       <label className="text-xs font-bold text-slate-700 mb-1.5 block">{label}</label>
-      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className={INPUT_CLS} />
+      <input type={type} value={value} onChange={e => onChange(e.target.value)} onBlur={onBlur} placeholder={placeholder} className={INPUT_CLS} />
     </div>
   );
 }

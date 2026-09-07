@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Upload,
   FileText,
@@ -14,9 +14,11 @@ import {
   FileType,
   Image as ImageIcon,
   Loader2,
+  Building2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import crmApi, { type CrmClient } from "@/services/crmApi";
 
 interface UploadDocumentModalProps {
   isOpen: boolean;
@@ -36,10 +38,22 @@ export default function UploadDocumentModal({ isOpen, onClose, onSuccess }: Uplo
   const [enableOcr, setEnableOcr] = useState(true);
   const [tags, setTags] = useState("Urgent, Tax2026");
   const [accessPermission, setAccessPermission] = useState("Organisation Admin Only");
+  const [selectedClientId, setSelectedClientId] = useState<string>("");
+  const [availableClients, setAvailableClients] = useState<CrmClient[]>([]);
 
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+
+  useEffect(() => {
+    if (isOpen) {
+      crmApi.getClients().then(res => {
+        if (res && res.success && Array.isArray(res.data)) {
+          setAvailableClients(res.data);
+        }
+      }).catch(err => console.warn("Failed to load clients for upload modal", err));
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -104,13 +118,25 @@ export default function UploadDocumentModal({ isOpen, onClose, onSuccess }: Uplo
         .filter(Boolean),
       ocrStatus: enableOcr ? "Completed" : "Skipped",
       size: selectedFile ? formatFileSize(selectedFile.size) : "1.4 MB",
+      clientId: selectedClientId || undefined,
     };
+
+    if (selectedClientId) {
+      crmApi.addClientDocument(selectedClientId, {
+        title: finalName,
+        type: category || "Contract",
+        owner: "Organisation Admin",
+        status: "Active",
+        version: "1.0",
+      }).catch(err => console.warn("Failed to link uploaded document to CRM client", err));
+    }
 
     onSuccess(finalName, newDoc);
     setIsUploading(false);
     setUploadProgress(0);
     setSelectedFile(null);
     setFileName("");
+    setSelectedClientId("");
     onClose();
   };
 
@@ -259,8 +285,8 @@ export default function UploadDocumentModal({ isOpen, onClose, onSuccess }: Uplo
             </div>
           )}
 
-          {/* 2. Category & Department/Branch */}
-          <div className="grid grid-cols-3 gap-3">
+          {/* 2. Category, Department/Branch & CRM Client Link */}
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block font-bold text-slate-700 mb-1">Category</label>
               <select
@@ -268,16 +294,32 @@ export default function UploadDocumentModal({ isOpen, onClose, onSuccess }: Uplo
                 onChange={(e) => setCategory(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold focus:outline-none bg-white"
               >
-                <option value="HR">HR</option>
+                <option value="Invoices">Invoices</option>
+                <option value="Contracts">Contracts</option>
                 <option value="Finance">Finance</option>
                 <option value="Legal">Legal</option>
+                <option value="HR">HR</option>
                 <option value="Sales">Sales</option>
                 <option value="Compliance">Compliance</option>
-                <option value="Contracts">Contracts</option>
-                <option value="Invoices">Invoices</option>
-                <option value="Policies">Policies</option>
-                <option value="Reports">Reports</option>
                 <option value="General">General</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
+                <Building2 size={12} className="text-[#274690]" /> Link CRM Client (Optional)
+              </label>
+              <select
+                value={selectedClientId}
+                onChange={(e) => setSelectedClientId(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold focus:outline-none bg-white text-slate-800"
+              >
+                <option value="">None (Internal Document)</option>
+                {availableClients.map((cl) => (
+                  <option key={cl.id} value={cl.id}>
+                    {cl.name} {cl.industry ? `(${cl.industry})` : ""}
+                  </option>
+                ))}
               </select>
             </div>
 

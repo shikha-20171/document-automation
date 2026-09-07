@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   FileText, MessageSquare, Upload, Plus, UserPlus, StickyNote, PenTool,
   Globe, Mail, Phone, MapPin, Building2, User, Calendar, Hash, Briefcase,
-  Activity, Clock,
+  Activity, Clock, RefreshCw,
 } from "lucide-react";
 import { clientStore, type Client, type ClientDocument, type Activity as ActivityType, formatDate, timeAgo } from "../_components/clientStore";
 
@@ -41,24 +41,44 @@ export default function OverviewTab() {
   const [client, setClient] = useState<Client | null>(null);
   const [recentDocs, setRecentDocs] = useState<ClientDocument[]>([]);
   const [recentActivity, setRecentActivity] = useState<ActivityType[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    if (!clientId) return;
+    setLoading(true);
+    const c = await clientStore.fetchClientById(clientId);
+    setClient(c);
+
+    const docs = await clientStore.fetchDocuments(clientId);
+    setRecentDocs(docs.slice(0, 5));
+
+    const acts = await clientStore.fetchActivities(clientId);
+    setRecentActivity(acts.slice(0, 8));
+    setLoading(false);
+  }, [clientId]);
 
   useEffect(() => {
-    const clients = clientStore.getClients();
-    const found = clients.find(c => c.id === clientId);
-    setClient(found ?? null);
-    setRecentDocs(clientStore.getDocuments(clientId).slice(0, 5));
-    setRecentActivity(clientStore.getActivities(clientId).slice(0, 8));
-  }, [clientId]);
+    load();
+  }, [load]);
+
+  if (!client && loading) {
+    return (
+      <div className="py-16 text-center text-slate-400">
+        <RefreshCw className="animate-spin mx-auto mb-2" size={24} />
+        <p className="text-xs font-semibold">Loading client workspace...</p>
+      </div>
+    );
+  }
 
   if (!client) return null;
 
   const quickActions = [
-    { icon: FileText, label: "Create Document", path: `documents` },
+    { icon: FileText, label: "View Documents", path: `documents` },
     { icon: Upload, label: "Upload Document", path: `documents` },
     { icon: MessageSquare, label: "Create Request", path: `requests` },
     { icon: UserPlus, label: "Add Contact", path: `contacts` },
     { icon: StickyNote, label: "Add Note", path: `notes` },
-    { icon: PenTool, label: "Send for Signature", path: null },
+    { icon: Activity, label: "Activity Log", path: `activities` },
   ];
 
   return (

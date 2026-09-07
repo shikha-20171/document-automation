@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { Plus, Edit2, Trash2, Star, User, Mail, Phone, MoreHorizontal, CheckCircle2, X } from "lucide-react";
+import { Plus, Edit2, Trash2, Star, User, Mail, Phone, MoreHorizontal, CheckCircle2, X, RefreshCw } from "lucide-react";
 import { clientStore, type Contact, DEPARTMENTS } from "./clientStore";
 
 export default function ContactsTab() {
@@ -14,23 +14,42 @@ export default function ContactsTab() {
   const [editing, setEditing] = useState<Contact | null>(null);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const load = () => setContacts(clientStore.getContacts(clientId));
-  useEffect(() => { load(); }, [clientId]);
+  const load = useCallback(async () => {
+    if (!clientId) return;
+    setLoading(true);
+    setContacts(clientStore.getContacts(clientId));
+    const remote = await clientStore.fetchContacts(clientId);
+    if (remote) setContacts(remote);
+    setLoading(false);
+  }, [clientId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
-  const handleDelete = (c: Contact) => {
-    clientStore.deleteContact(c.id);
-    load();
-    showToast(`${c.firstName} ${c.lastName} deleted`);
+  const handleDelete = async (c: Contact) => {
+    try {
+      await clientStore.deleteContact(c.id);
+      await load();
+      showToast(`${c.firstName} ${c.lastName} deleted`);
+    } catch (err: any) {
+      showToast(err?.message || "Failed to delete contact");
+    }
     setOpenMenu(null);
   };
 
-  const handleSetPrimary = (c: Contact) => {
-    contacts.forEach(ct => clientStore.updateContact(ct.id, { isPrimary: ct.id === c.id }));
-    load();
-    showToast(`${c.firstName} ${c.lastName} set as primary contact`);
+  const handleSetPrimary = async (c: Contact) => {
+    try {
+      await clientStore.updateContact(c.id, { isPrimary: true });
+      await load();
+      showToast(`${c.firstName} ${c.lastName} set as primary contact`);
+    } catch (err: any) {
+      showToast(err?.message || "Failed to set primary");
+    }
     setOpenMenu(null);
   };
 
@@ -49,12 +68,21 @@ export default function ContactsTab() {
           <h2 className="text-sm font-extrabold text-slate-900">Contacts</h2>
           <p className="text-xs text-slate-500 mt-0.5">{contacts.length} contact{contacts.length !== 1 ? "s" : ""}</p>
         </div>
-        <button
-          onClick={() => { setEditing(null); setShowModal(true); }}
-          className="flex items-center gap-1.5 rounded-xl bg-[#274690] px-3 py-2 text-xs font-bold text-white hover:bg-[#1f3561] transition"
-        >
-          <Plus size={13} /> Add Contact
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={load}
+            title="Refresh Contacts"
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+          >
+            <RefreshCw size={13} className={loading ? "animate-spin text-[#274690]" : ""} /> Refresh
+          </button>
+          <button
+            onClick={() => { setEditing(null); setShowModal(true); }}
+            className="flex items-center gap-1.5 rounded-xl bg-[#274690] px-3 py-2 text-xs font-bold text-white hover:bg-[#1f3561] transition"
+          >
+            <Plus size={13} /> Add Contact
+          </button>
+        </div>
       </div>
 
       {/* Table */}
@@ -73,19 +101,19 @@ export default function ContactsTab() {
                 <td className="px-5 py-4">
                   <div className="flex items-center gap-2.5">
                     <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#274690]/10 text-[#274690] text-xs font-black">
-                      {c.firstName.charAt(0)}{c.lastName.charAt(0)}
+                      {c.firstName.charAt(0)}{c.lastName ? c.lastName.charAt(0) : ""}
                     </div>
                     <div>
                       <p className="font-bold text-slate-800">{c.firstName} {c.lastName}</p>
-                      <p className="text-[10px] text-slate-400">{c.department}</p>
+                      <p className="text-[10px] text-slate-400">{c.department || "—"}</p>
                     </div>
                   </div>
                 </td>
-                <td className="px-5 py-4 text-slate-600">{c.designation}</td>
+                <td className="px-5 py-4 text-slate-600">{c.designation || "—"}</td>
                 <td className="px-5 py-4 text-slate-500">
                   <a href={`mailto:${c.email}`} className="hover:text-[#274690] transition">{c.email}</a>
                 </td>
-                <td className="px-5 py-4 text-slate-500">{c.phone}</td>
+                <td className="px-5 py-4 text-slate-500">{c.phone || "—"}</td>
                 <td className="px-5 py-4">
                   <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-semibold text-slate-600">{c.role}</span>
                 </td>
@@ -122,7 +150,7 @@ export default function ContactsTab() {
             ))}
           </tbody>
         </table>
-        {contacts.length === 0 && (
+        {contacts.length === 0 && !loading && (
           <div className="flex flex-col items-center py-16 text-slate-300">
             <User size={32} className="mb-3" />
             <p className="text-sm font-semibold text-slate-500">No contacts yet</p>
@@ -166,16 +194,24 @@ function ContactModal({ clientId, contact, onClose, onSaved }: {
     notes: contact?.notes ?? "",
     status: (contact?.status ?? "Active") as Contact["status"],
   });
+  const [saving, setSaving] = useState(false);
 
   const set = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
 
   const handleSave = async () => {
-    if (contact) {
-      await clientStore.updateContact(contact.id, { ...form, clientId });
-      onSaved(`${form.firstName} ${form.lastName} updated`);
-    } else {
-      await clientStore.addContact({ ...form, clientId });
-      onSaved(`${form.firstName} ${form.lastName} added`);
+    setSaving(true);
+    try {
+      if (contact) {
+        await clientStore.updateContact(contact.id, { ...form, clientId });
+        onSaved(`${form.firstName} ${form.lastName} updated`);
+      } else {
+        await clientStore.addContact({ ...form, clientId });
+        onSaved(`${form.firstName} ${form.lastName} added`);
+      }
+    } catch (err: any) {
+      alert(err?.message || "Failed to save contact");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -189,9 +225,9 @@ function ContactModal({ clientId, contact, onClose, onSaved }: {
         <div className="px-6 py-5 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <Field label="First Name *" value={form.firstName} onChange={v => set("firstName", v)} />
-            <Field label="Last Name *" value={form.lastName} onChange={v => set("lastName", v)} />
+            <Field label="Last Name" value={form.lastName} onChange={v => set("lastName", v)} />
             <Field label="Designation" value={form.designation} onChange={v => set("designation", v)} />
-            <Field label="Email" value={form.email} onChange={v => set("email", v)} type="email" />
+            <Field label="Email *" value={form.email} onChange={v => set("email", v)} type="email" />
             <Field label="Phone" value={form.phone} onChange={v => set("phone", v)} />
             <div>
               <label className="text-xs font-bold text-slate-700 mb-1.5 block">Department</label>
@@ -220,7 +256,12 @@ function ContactModal({ clientId, contact, onClose, onSaved }: {
         </div>
         <div className="flex justify-end gap-2 px-6 py-4 border-t border-slate-100">
           <button onClick={onClose} className="rounded-xl px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 transition">Cancel</button>
-          <button onClick={handleSave} disabled={!form.firstName.trim() || !form.lastName.trim()} className="rounded-xl bg-[#274690] px-5 py-2 text-xs font-bold text-white hover:bg-[#1f3561] transition disabled:opacity-40">
+          <button
+            onClick={handleSave}
+            disabled={saving || !form.firstName.trim() || !form.email.trim()}
+            className="rounded-xl bg-[#274690] px-5 py-2 text-xs font-bold text-white hover:bg-[#1f3561] transition disabled:opacity-40 flex items-center gap-2"
+          >
+            {saving ? <span className="h-3 w-3 rounded-full border-2 border-white/40 border-t-white animate-spin" /> : null}
             {contact ? "Save Changes" : "Add Contact"}
           </button>
         </div>
