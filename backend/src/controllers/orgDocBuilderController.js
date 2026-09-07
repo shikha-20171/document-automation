@@ -725,8 +725,8 @@ const getTemplates = async (req, res) => {
               documentType: t.documentType,
               content: t.content,
               status: "ACTIVE",
-              organisationId: orgId,
-              createdById: userId,
+              organisation: { connect: { id: orgId } },
+              createdBy: { connect: { id: userId } },
             },
           });
         } catch (seedErr) {}
@@ -778,8 +778,8 @@ const createTemplate = async (req, res) => {
         documentType: documentType || "Document",
         content: content || "Template standard content",
         status: status === "Draft" || status === "DRAFT" ? "DRAFT" : "ACTIVE",
-        organisationId: orgId,
-        createdById: userId,
+        organisation: { connect: { id: orgId } },
+        createdBy: { connect: { id: userId } },
       },
     });
 
@@ -787,10 +787,10 @@ const createTemplate = async (req, res) => {
     try {
       await prisma.documentTemplateVersion.create({
         data: {
-          templateId: template.id,
+          template: { connect: { id: template.id } },
           version: 1,
           content: template.content,
-          createdById: userId,
+          createdBy: { connect: { id: userId } },
         },
       });
     } catch (verErr) {}
