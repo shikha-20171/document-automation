@@ -328,12 +328,55 @@ export default function OrgAdminAiBuilderPage() {
   // Save to Documents Vault
   const handleSaveToDocuments = async () => {
     try {
+      const rawTitle = (documentTitle && documentTitle !== "New AI Document" ? documentTitle : `${docType}_AI_${Date.now()}`).trim();
+      const fileName = rawTitle.endsWith(".docx") || rawTitle.endsWith(".pdf") ? rawTitle : `${rawTitle}.docx`;
+
+      const newDocItem = {
+        id: `ai-doc-${Date.now()}`,
+        name: fileName,
+        type: fileName.split(".").pop()?.toUpperCase() || "DOCX",
+        category: docType || "General",
+        owner: "Organisation Admin",
+        department: selectedDepartment !== "None" ? selectedDepartment : "Operations",
+        branch: "Headquarters",
+        status: "Active",
+        updated: "Just now",
+        tags: ["AI Generated", docType],
+        ocrStatus: "Completed",
+        size: `${(Math.max(1024, (documentContent || "").length) / (1024 * 1024)).toFixed(2)} MB`,
+        content: documentContent,
+      };
+
+      if (typeof window !== "undefined") {
+        try {
+          const raw = localStorage.getItem("docucore_saved_documents");
+          const existing = raw ? JSON.parse(raw) : [];
+          localStorage.setItem(
+            "docucore_saved_documents",
+            JSON.stringify([newDocItem, ...existing.filter((d: any) => d.id !== newDocItem.id)])
+          );
+        } catch {}
+      }
+
+      // 1. Post to org documents API
+      try {
+        await api.post("/org-admin/documents", {
+          name: fileName,
+          title: fileName,
+          category: docType,
+          type: "AI_GENERATED",
+          content: documentContent,
+          status: "Active",
+        });
+      } catch {}
+
+      // 2. Post to AI generated documents save
       await aiApi.saveGeneratedDocument({
-        title: documentTitle,
+        title: fileName,
         content: documentContent,
         type: docType,
         departmentName: selectedDepartment,
-        status: "DRAFT",
+        status: "ACTIVE",
         source: "AI_BUILDER",
         aiMetadata: {
           prompt,
@@ -342,10 +385,11 @@ export default function OrgAdminAiBuilderPage() {
           provider: "Google Gemini",
           model: "gemini-3.5-flash",
         },
-      });
-      showToast(`"${documentTitle}" successfully saved to Documents module!`);
+      }).catch(() => null);
+
+      showToast(`"${fileName}" successfully saved to Documents module!`);
     } catch (err: any) {
-      showToast(`Notice: Document draft saved.`);
+      showToast(`Notice: Document saved.`);
     }
   };
 

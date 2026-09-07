@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { FileText, User, Upload, Edit3, Eye, Download, Tag } from "lucide-react";
+import Link from "next/link";
+import { FileText, User, Upload, Edit3, Eye, Download, Tag, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,28 +17,80 @@ export default function MyDocumentsTab({ onOpenCreate, onOpenUpload }: MyDocumen
   const [subTab, setSubTab] = useState<"created" | "uploaded" | "edited">("created");
 
   const [myCreatedDocs, setMyCreatedDocs] = useState<any[]>([
-    { name: "Company_Security_Policy_v4.pdf", cat: "Policies", date: "08 Aug 2026", status: "Approved", desc: "In-app authored security & data compliance policy." },
-    { name: "Annual_Leave_Guidelines_2026.docx", cat: "HR", date: "04 Aug 2026", status: "Active", desc: "HR policy document generated from HR template." },
+    { id: "1", name: "Company_Security_Policy_v4.pdf", cat: "Policies", date: "08 Aug 2026", status: "Approved", desc: "In-app authored security & data compliance policy." },
+    { id: "2", name: "Annual_Leave_Guidelines_2026.docx", cat: "HR", date: "04 Aug 2026", status: "Active", desc: "HR policy document generated from HR template." },
   ]);
 
-  useEffect(() => {
-    const loadDocs = async () => {
+  const loadDocs = async () => {
+    let localItems: any[] = [];
+    if (typeof window !== "undefined") {
       try {
-        const res = await api.get("/org-admin/documents");
-        if (res.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
-          const formatted = res.data.data.map((d: any) => ({
-            name: d.name,
-            cat: d.category || "General",
-            date: d.updated || "Recent",
-            status: d.status || "Active",
-            desc: `${d.category || "Document"} authored in workspace.`,
-          }));
-          setMyCreatedDocs(formatted);
+        const raw = localStorage.getItem("docucore_saved_documents");
+        if (raw) {
+          const list = JSON.parse(raw);
+          if (Array.isArray(list)) {
+            localItems = list.map((d: any) => ({
+              id: d.id,
+              name: d.name,
+              cat: d.category || "General",
+              date: d.updated || "Just now",
+              status: d.status || "Active",
+              desc: `${d.category || "Document"} authored in workspace.`,
+              content: d.content,
+            }));
+          }
         }
       } catch {}
-    };
+    }
+
+    try {
+      const res = await api.get("/org-admin/documents");
+      if (res.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
+        const formatted = res.data.data.map((d: any) => ({
+          id: d.id,
+          name: d.name,
+          cat: d.category || "General",
+          date: d.updated || "Recent",
+          status: d.status || "Active",
+          desc: `${d.category || "Document"} authored in workspace.`,
+          content: d.content,
+        }));
+        const map = new Map<string, any>();
+        formatted.forEach((d: any) => map.set(d.name, d));
+        localItems.forEach((d: any) => map.set(d.name, d));
+        setMyCreatedDocs(Array.from(map.values()));
+        return;
+      }
+    } catch {}
+
+    if (localItems.length > 0) {
+      setMyCreatedDocs(localItems);
+    }
+  };
+
+  useEffect(() => {
     loadDocs();
   }, []);
+
+  const handleDelete = async (doc: any) => {
+    if (!confirm(`Are you sure you want to delete "${doc.name}"?`)) return;
+    try {
+      await api.delete(`/org-admin/documents/${doc.id}`);
+    } catch {}
+    setMyCreatedDocs((prev) => prev.filter((d) => d.id !== doc.id && d.name !== doc.name));
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("docucore_saved_documents");
+        if (raw) {
+          const list = JSON.parse(raw);
+          localStorage.setItem(
+            "docucore_saved_documents",
+            JSON.stringify(list.filter((d: any) => String(d.id) !== String(doc.id) && d.name !== doc.name))
+          );
+        }
+      } catch {}
+    }
+  };
 
   const myUploadedDocs = [
     { name: "Employment_Agreement_Rajesh.pdf", cat: "HR", date: "10 Aug 2026", size: "2.4 MB", status: "Approved" },
@@ -127,13 +180,26 @@ export default function MyDocumentsTab({ onOpenCreate, onOpenUpload }: MyDocumen
               </p>
               <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
                 <span className="text-slate-400 text-[11px]">Date: {doc.date}</span>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="ghost" className="text-[#274690] font-bold text-xs h-7 px-2">
-                    <Edit3 size={13} className="mr-1" /> Edit
-                  </Button>
-                  <Button size="sm" variant="ghost" className="text-slate-700 font-bold text-xs h-7 px-2">
-                    <Eye size={13} className="mr-1" /> View
-                  </Button>
+                <div className="flex items-center gap-1.5">
+                  <Link
+                    href={`/documents/view?id=${doc.id || doc.name}&name=${encodeURIComponent(doc.name)}&edit=true`}
+                    className="inline-flex items-center gap-1 text-[#274690] hover:text-[#1f3561] font-bold text-xs px-2 py-1 rounded-lg hover:bg-blue-50 transition"
+                  >
+                    <Edit3 size={13} /> Edit
+                  </Link>
+                  <Link
+                    href={`/documents/view?id=${doc.id || doc.name}&name=${encodeURIComponent(doc.name)}`}
+                    className="inline-flex items-center gap-1 text-slate-700 hover:text-slate-900 font-bold text-xs px-2 py-1 rounded-lg hover:bg-slate-100 transition"
+                  >
+                    <Eye size={13} /> View
+                  </Link>
+                  <button
+                    onClick={() => handleDelete(doc)}
+                    className="inline-flex items-center gap-1 text-rose-500 hover:text-rose-700 font-bold text-xs px-1.5 py-1 rounded-lg hover:bg-rose-50 transition"
+                    title="Delete document"
+                  >
+                    <Trash2 size={13} />
+                  </button>
                 </div>
               </div>
             </Card>

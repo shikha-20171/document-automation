@@ -271,14 +271,46 @@ This document outlines the agreed terms, deliverables, and operational parameter
 
     try {
       const docName = title.endsWith(".docx") || title.endsWith(".pdf") ? title : `${title}.docx`;
+      const finalContent = content || `# ${docName}\n\nDocument initialized on ${new Date().toLocaleDateString("en-IN")}.`;
+      const docTypeTag = docType === "automated" ? "AI Generated" : docType === "template" ? "Template Blueprint" : "Blank Document";
+
       const payload = {
         name: docName,
+        title: docName,
         category,
         department,
-        content: content || `# ${docName}\n\nDocument initialized on ${new Date().toLocaleDateString("en-IN")}.`,
+        content: finalContent,
         type: docType === "automated" ? "AI_GENERATED" : docType === "template" ? "TEMPLATE" : "BLANK",
         status: "Active",
       };
+
+      const newDocItem = {
+        id: `doc-${Date.now()}`,
+        name: docName,
+        type: docName.split(".").pop()?.toUpperCase() || "DOCX",
+        category,
+        department,
+        owner: "Organisation Admin",
+        branch: "Headquarters",
+        status: "Active",
+        updated: "Just now",
+        tags: [category, docTypeTag],
+        ocrStatus: "Completed",
+        size: `${(Math.max(1024, finalContent.length) / 1024).toFixed(1)} KB`,
+        content: finalContent,
+      };
+
+      // Save to localStorage
+      if (typeof window !== "undefined") {
+        try {
+          const raw = localStorage.getItem("docucore_saved_documents");
+          const existing = raw ? JSON.parse(raw) : [];
+          localStorage.setItem(
+            "docucore_saved_documents",
+            JSON.stringify([newDocItem, ...existing.filter((d: any) => d.id !== newDocItem.id)])
+          );
+        } catch {}
+      }
 
       try {
         await documentsApi.createDocument(payload);
@@ -286,20 +318,7 @@ This document outlines the agreed terms, deliverables, and operational parameter
         console.warn("Backend save notice:", err);
       }
 
-      onSuccess(docName, {
-        id: `doc-${Date.now()}`,
-        name: docName,
-        type: "DOCX",
-        category,
-        department,
-        owner: "Organisation Admin",
-        branch: "Headquarters",
-        status: "Active",
-        updated: "Just now",
-        tags: [category, docType.toUpperCase()],
-        ocrStatus: "Completed",
-        size: "12 KB",
-      });
+      onSuccess(docName, newDocItem);
       onClose();
     } catch (err: any) {
       setErrorMsg(err?.message || "Failed to create document.");

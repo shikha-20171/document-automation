@@ -22,7 +22,8 @@ import {
   Calendar,
   User,
   Shield,
-  Clock
+  Clock,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -168,15 +169,35 @@ function DocumentViewContent() {
   const [reuseContent, setReuseContent] = useState("");
   const [isReusing, setIsReusing] = useState(false);
 
-  // Load Document from Backend Database API
+  // Load Document from Backend Database API & Local Storage
   useEffect(() => {
     const fetchDoc = async () => {
       setLoading(true);
+
+      // Check localStorage first for instant rendering
+      let localFound: any = null;
+      if (typeof window !== "undefined") {
+        try {
+          const raw = localStorage.getItem("docucore_saved_documents");
+          if (raw) {
+            const list = JSON.parse(raw);
+            localFound = list.find(
+              (item: any) =>
+                String(item.id) === String(docId) ||
+                (docNameParam && item.name?.toLowerCase() === docNameParam.toLowerCase())
+            );
+          }
+        } catch {}
+      }
+
       try {
         const res = await api.get(`/org-admin/documents/${docId}`);
         if (res.data?.success && res.data?.data) {
           const d = res.data.data;
-          const loadedContent = d.content || getDefaultContent(d.name, d.category || d.type, String(d.id));
+          const loadedContent =
+            d.content ||
+            localFound?.content ||
+            getDefaultContent(d.name, d.category || d.type, String(d.id));
           const fullDoc: DocData = {
             id: String(d.id),
             name: d.name || docNameParam || "Document",
@@ -197,6 +218,27 @@ function DocumentViewContent() {
           return;
         }
       } catch {}
+
+      if (localFound) {
+        const fullDoc: DocData = {
+          id: String(localFound.id),
+          name: localFound.name || docNameParam || "Document",
+          type: localFound.type || "DOCX",
+          category: localFound.category || "General",
+          owner: localFound.owner || "Organisation Admin",
+          status: localFound.status || "Active",
+          size: localFound.size || "1.2 MB",
+          updated: localFound.updated || "Recently",
+          content: localFound.content || getDefaultContent(localFound.name, localFound.category, String(localFound.id)),
+        };
+        setDoc(fullDoc);
+        setEditName(fullDoc.name);
+        setEditCategory(fullDoc.category);
+        setEditStatus(fullDoc.status);
+        setEditContent(fullDoc.content);
+        setLoading(false);
+        return;
+      }
 
       // Fallback if not in database yet
       const fallbackName = docNameParam || "Quotation & Commercial Estimate.pdf";
@@ -224,9 +266,29 @@ function DocumentViewContent() {
     fetchDoc();
   }, [docId, docNameParam]);
 
-  // Save Edits to Database
+  // Save Edits to Database & LocalStorage
   const handleSaveDoc = async () => {
     setIsSaving(true);
+    const updatedDoc: DocData = {
+      ...doc,
+      name: editName.trim(),
+      category: editCategory,
+      status: editStatus,
+      content: editContent,
+      updated: "Just now",
+    };
+
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("docucore_saved_documents");
+        const list = raw ? JSON.parse(raw) : [];
+        localStorage.setItem(
+          "docucore_saved_documents",
+          JSON.stringify([updatedDoc, ...list.filter((d: any) => String(d.id) !== String(updatedDoc.id))])
+        );
+      } catch {}
+    }
+
     try {
       await api.put(`/org-admin/documents/${doc.id}`, {
         name: editName.trim(),
@@ -235,32 +297,42 @@ function DocumentViewContent() {
         status: editStatus,
         content: editContent,
       });
-      const updatedDoc: DocData = {
-        ...doc,
-        name: editName.trim(),
-        category: editCategory,
-        status: editStatus,
-        content: editContent,
-        updated: "Just now",
-      };
       setDoc(updatedDoc);
       setMode("view");
       showToast(`Document "${editName}" changes saved to database successfully!`);
     } catch {
-      const updatedDoc: DocData = {
-        ...doc,
-        name: editName.trim(),
-        category: editCategory,
-        status: editStatus,
-        content: editContent,
-        updated: "Just now",
-      };
       setDoc(updatedDoc);
       setMode("view");
-      showToast(`Document "${editName}" saved!`);
+      showToast(`Document "${editName}" saved successfully!`);
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // Delete Document
+  const handleDeleteDoc = async () => {
+    if (!confirm(`Are you sure you want to permanently delete "${doc.name}"?`)) return;
+    try {
+      await api.delete(`/org-admin/documents/${doc.id}`);
+    } catch {}
+
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("docucore_saved_documents");
+        if (raw) {
+          const list = JSON.parse(raw);
+          localStorage.setItem(
+            "docucore_saved_documents",
+            JSON.stringify(list.filter((d: any) => String(d.id) !== String(doc.id)))
+          );
+        }
+      } catch {}
+    }
+
+    showToast(`Document "${doc.name}" deleted successfully.`);
+    setTimeout(() => {
+      router.push("/org-admin/documents?tab=all-documents");
+    }, 600);
   };
 
   // Download PDF / Print
@@ -498,6 +570,14 @@ function DocumentViewContent() {
             >
               <Sparkles size={14} className="text-amber-600" /> Use for Next Client
             </Button>
+
+            <Button
+              onClick={handleDeleteDoc}
+              variant="outline"
+              className="rounded-xl text-xs font-bold flex items-center gap-1.5 h-9 border-rose-200 text-rose-600 hover:bg-rose-50"
+            >
+              <Trash2 size={14} /> Delete
+            </Button>
           </div>
         </div>
 
@@ -511,6 +591,14 @@ function DocumentViewContent() {
                 <h2 className="text-xl font-black text-slate-900 mt-0.5">{doc.name}</h2>
               </div>
               <div className="flex items-center gap-2">
+                <Button
+                  onClick={handleDeleteDoc}
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl text-xs font-bold text-rose-600 border-rose-200 hover:bg-rose-50 gap-1.5"
+                >
+                  <Trash2 size={13} /> Delete
+                </Button>
                 <Button
                   onClick={() => setMode("edit")}
                   variant="outline"
@@ -663,14 +751,24 @@ function DocumentViewContent() {
 
             {/* Save & Send Bar */}
             <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-              <Button
-                type="button"
-                onClick={handleDownloadPDF}
-                variant="outline"
-                className="rounded-xl text-xs font-bold border-slate-300"
-              >
-                <Printer size={14} className="mr-1" /> Preview PDF Layout
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  onClick={handleDeleteDoc}
+                  variant="outline"
+                  className="rounded-xl text-xs font-bold border-rose-200 text-rose-600 hover:bg-rose-50"
+                >
+                  <Trash2 size={14} className="mr-1" /> Delete
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleDownloadPDF}
+                  variant="outline"
+                  className="rounded-xl text-xs font-bold border-slate-300"
+                >
+                  <Printer size={14} className="mr-1" /> Preview PDF Layout
+                </Button>
+              </div>
 
               <div className="flex items-center gap-2">
                 <Button

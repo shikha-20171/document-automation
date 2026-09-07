@@ -188,7 +188,7 @@ function DocumentsPageContent() {
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
         onSuccess={handleUploadSuccess}
-      />npnm
+      />
     </div>
   );
 }

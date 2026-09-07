@@ -206,6 +206,34 @@ export default function TemplateUseModal({
         setCreatedDocId(String(docRes?.data?.id || docRes?.id));
       }
 
+      // Save into local storage so it immediately displays on Documents page
+      const newDocItem = {
+        id: String(docRes?.data?.id || docRes?.id || `doc-${Date.now()}`),
+        name: finalDocFileName,
+        type: finalDocFileName.split(".").pop()?.toUpperCase() || "PDF",
+        category: template.category || "General",
+        owner: "Organisation Admin",
+        department: template.department || "Operations",
+        branch: "Headquarters",
+        status: "Active",
+        updated: "Just now",
+        tags: [template.category || "General", "Template Blueprint"],
+        ocrStatus: "Completed",
+        size: `${(Math.max(1024, finalDocText.length) / (1024 * 1024)).toFixed(1)} MB`,
+        content: finalDocText,
+      };
+
+      if (typeof window !== "undefined") {
+        try {
+          const raw = localStorage.getItem("docucore_saved_documents");
+          const existing = raw ? JSON.parse(raw) : [];
+          localStorage.setItem(
+            "docucore_saved_documents",
+            JSON.stringify([newDocItem, ...existing.filter((d: any) => d.id !== newDocItem.id)])
+          );
+        } catch {}
+      }
+
       // Also call aiApi.saveGeneratedDocument
       await aiApi
         .saveGeneratedDocument({

@@ -198,14 +198,37 @@ export default function AllDocumentsTab({ onOpenCreate, onOpenUpload, extraDocum
         } catch {}
       }
 
-      setDocuments((prev) => {
+      // 2. Fetch locally saved documents (from AI builder, templates, or blank docs)
+      let localSavedDocs: DocumentItem[] = [];
+      if (typeof window !== "undefined") {
+        try {
+          const raw = localStorage.getItem("docucore_saved_documents");
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              localSavedDocs = parsed;
+            }
+          }
+        } catch {}
+      }
+
+      setDocuments(() => {
         const map = new Map<string, DocumentItem>();
+        // Base documents
+        initialDocuments.forEach((d) => map.set(d.id, d));
+        // Database documents
         dbDocs.forEach((d) => map.set(d.id, d));
+        // In-memory extra documents
         (extraDocuments || []).forEach((d) => map.set(d.id, d));
-        if (map.size === 0) {
-          initialDocuments.forEach((d) => map.set(d.id, d));
-        }
-        return Array.from(map.values());
+        // Local saved documents (highest priority)
+        localSavedDocs.forEach((d) => map.set(d.id, d));
+
+        const all = Array.from(map.values());
+        const priorityIds = new Set([...localSavedDocs.map((d) => d.id), ...(extraDocuments || []).map((d) => d.id)]);
+        const priorityDocs = all.filter((d) => priorityIds.has(d.id));
+        const restDocs = all.filter((d) => !priorityIds.has(d.id));
+
+        return [...priorityDocs, ...restDocs];
       });
       setIsLoadingDocs(false);
     };
@@ -362,9 +385,29 @@ export default function AllDocumentsTab({ onOpenCreate, onOpenUpload, extraDocum
     if (!previewDoc) return;
     setIsSavingEdit(true);
 
+    const updatedItem: DocumentItem = {
+      ...previewDoc,
+      name: editName.trim(),
+      category: editCategory,
+      type: editName.split(".").pop()?.toUpperCase() || previewDoc.type,
+      status: editStatus,
+      content: editContent,
+      updated: "Just now",
+    };
+
+    // Save to localStorage immediately
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("docucore_saved_documents");
+        const list = raw ? JSON.parse(raw) : [];
+        const updatedList = [updatedItem, ...list.filter((d: any) => String(d.id) !== String(updatedItem.id))];
+        localStorage.setItem("docucore_saved_documents", JSON.stringify(updatedList));
+      } catch {}
+    }
+
     try {
-      // 1. Send update to Backend Database API
-      const res = await api.put(`/org-admin/documents/${previewDoc.id}`, {
+      // Send update to Backend Database API
+      await api.put(`/org-admin/documents/${previewDoc.id}`, {
         name: editName.trim(),
         type: editCategory,
         category: editCategory,
@@ -372,35 +415,15 @@ export default function AllDocumentsTab({ onOpenCreate, onOpenUpload, extraDocum
         content: editContent,
       });
 
-      // 2. Update local state
-      const updatedItem: DocumentItem = {
-        ...previewDoc,
-        name: editName.trim(),
-        category: editCategory,
-        type: editName.split(".").pop()?.toUpperCase() || previewDoc.type,
-        status: editStatus,
-        content: editContent,
-        updated: "Just now",
-      };
-
       setDocuments((prev) => prev.map((d) => (d.id === previewDoc.id ? updatedItem : d)));
       setPreviewDoc(updatedItem);
       setModalMode("view");
       showToast(`Document "${editName}" changes saved to database successfully!`);
     } catch (err: any) {
-      // Fallback local update
-      const updatedItem: DocumentItem = {
-        ...previewDoc,
-        name: editName.trim(),
-        category: editCategory,
-        status: editStatus,
-        content: editContent,
-        updated: "Just now",
-      };
       setDocuments((prev) => prev.map((d) => (d.id === previewDoc.id ? updatedItem : d)));
       setPreviewDoc(updatedItem);
       setModalMode("view");
-      showToast(`Saved locally: "${editName}" updated successfully!`);
+      showToast(`Saved: "${editName}" updated successfully!`);
     } finally {
       setIsSavingEdit(false);
     }
@@ -485,6 +508,18 @@ export default function AllDocumentsTab({ onOpenCreate, onOpenUpload, extraDocum
         content: reuseContent,
       };
 
+      // Save newly reused document to localStorage
+      if (typeof window !== "undefined") {
+        try {
+          const raw = localStorage.getItem("docucore_saved_documents");
+          const existing = raw ? JSON.parse(raw) : [];
+          localStorage.setItem(
+            "docucore_saved_documents",
+            JSON.stringify([newDocItem, ...existing.filter((d: any) => String(d.id) !== String(newDocItem.id))])
+          );
+        } catch {}
+      }
+
       setDocuments((prev) => [newDocItem, ...prev]);
       showToast(`New document "${newDocTitle}" created for ${clientName}!`);
       setReuseModalDoc(null);
@@ -506,6 +541,18 @@ export default function AllDocumentsTab({ onOpenCreate, onOpenUpload, extraDocum
         size: "1.2 MB",
         content: reuseContent,
       };
+
+      if (typeof window !== "undefined") {
+        try {
+          const raw = localStorage.getItem("docucore_saved_documents");
+          const existing = raw ? JSON.parse(raw) : [];
+          localStorage.setItem(
+            "docucore_saved_documents",
+            JSON.stringify([fallbackItem, ...existing.filter((d: any) => String(d.id) !== String(fallbackItem.id))])
+          );
+        } catch {}
+      }
+
       setDocuments((prev) => [fallbackItem, ...prev]);
       showToast(`New document "${newDocTitle}" generated successfully!`);
       setReuseModalDoc(null);
@@ -535,7 +582,22 @@ export default function AllDocumentsTab({ onOpenCreate, onOpenUpload, extraDocum
     try {
       await api.delete(`/org-admin/documents/${id}`);
     } catch {}
-    setDocuments(prev => prev.filter(d => d.id !== id));
+    setDocuments((prev) => prev.filter((d) => String(d.id) !== String(id)));
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("docucore_saved_documents");
+        if (raw) {
+          const list = JSON.parse(raw);
+          localStorage.setItem(
+            "docucore_saved_documents",
+            JSON.stringify(list.filter((d: any) => String(d.id) !== String(id)))
+          );
+        }
+      } catch {}
+    }
+    if (previewDoc && String(previewDoc.id) === String(id)) {
+      setPreviewDoc(null);
+    }
     showToast(`Deleted document "${name}" successfully.`);
     setActiveActionMenuId(null);
   };
@@ -813,6 +875,14 @@ export default function AllDocumentsTab({ onOpenCreate, onOpenUpload, extraDocum
                         </button>
 
                         <button
+                          onClick={() => handleOpenDocModal(doc, "edit")}
+                          title="Quick Edit Document"
+                          className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600 hover:text-blue-600 transition"
+                        >
+                          <Edit3 size={16} />
+                        </button>
+
+                        <button
                           onClick={() => handleDownloadDoc(doc, "pdf")}
                           title="Download PDF"
                           className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600 hover:text-emerald-600 transition"
@@ -834,6 +904,18 @@ export default function AllDocumentsTab({ onOpenCreate, onOpenUpload, extraDocum
                           className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600 hover:text-amber-600 transition"
                         >
                           <Sparkles size={16} />
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            if (confirm(`Are you sure you want to delete "${doc.name}"?`)) {
+                              handleDelete(doc.id, doc.name);
+                            }
+                          }}
+                          title="Delete Document"
+                          className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition"
+                        >
+                          <Trash2 size={16} />
                         </button>
 
                         <div className="relative">
@@ -1028,6 +1110,18 @@ export default function AllDocumentsTab({ onOpenCreate, onOpenUpload, extraDocum
 
                   <div className="flex items-center gap-2">
                     <Button 
+                      onClick={() => {
+                        if (confirm(`Are you sure you want to delete "${previewDoc.name}"?`)) {
+                          handleDelete(previewDoc.id, previewDoc.name);
+                        }
+                      }} 
+                      variant="outline" 
+                      className="rounded-xl text-xs font-bold border-rose-200 text-rose-600 hover:bg-rose-50 flex items-center gap-1.5"
+                    >
+                      <Trash2 size={14} /> Delete
+                    </Button>
+
+                    <Button 
                       onClick={() => handleOpenReuseModal(previewDoc)} 
                       variant="outline"
                       className="rounded-xl text-xs font-bold border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100 flex items-center gap-1.5"
@@ -1109,14 +1203,28 @@ export default function AllDocumentsTab({ onOpenCreate, onOpenUpload, extraDocum
                 </div>
 
                 <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                  <Button 
-                    type="button" 
-                    onClick={() => setModalMode("view")} 
-                    variant="outline" 
-                    className="rounded-xl text-xs font-bold"
-                  >
-                    Cancel
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      type="button" 
+                      onClick={() => setModalMode("view")} 
+                      variant="outline" 
+                      className="rounded-xl text-xs font-bold"
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      type="button" 
+                      onClick={() => {
+                        if (confirm(`Are you sure you want to delete "${previewDoc.name}"?`)) {
+                          handleDelete(previewDoc.id, previewDoc.name);
+                        }
+                      }} 
+                      variant="outline" 
+                      className="rounded-xl text-xs font-bold border-rose-200 text-rose-600 hover:bg-rose-50 flex items-center gap-1.5"
+                    >
+                      <Trash2 size={14} /> Delete
+                    </Button>
+                  </div>
 
                   <div className="flex items-center gap-2">
                     <Button 
