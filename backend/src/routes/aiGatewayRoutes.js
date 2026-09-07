@@ -17,6 +17,37 @@ const getAuthContext = (req) => {
   };
 };
 
+const jwt = require("jsonwebtoken");
+
+// Soft token verification middleware to populate req.user if token is present
+router.use((req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    let token = null;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      token = authHeader.split(" ")[1];
+    } else if (authHeader) {
+      token = authHeader;
+    }
+    if (!token && req.cookies) {
+      token = req.cookies.token || req.cookies.access_token;
+    }
+    if (token) {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || "document-automation-dev-secret");
+      req.user = {
+        id: decoded.id || decoded.userId,
+        userId: decoded.id || decoded.userId,
+        email: decoded.email,
+        role: decoded.role,
+        name: decoded.full_name || decoded.name || decoded.email,
+        organisation_id: decoded.organisationId || decoded.organisation_id || null,
+        organisationId: decoded.organisationId || decoded.organisation_id || null,
+      };
+    }
+  } catch (err) {}
+  next();
+});
+
 /**
  * GET /api/ai/available-models
  */

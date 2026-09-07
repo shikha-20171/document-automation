@@ -159,6 +159,15 @@ export default function TemplateDesigner({
     return () => clearInterval(timer);
   }, []);
 
+  // Synchronize canvas when editing an existing template or changing initial content
+  useEffect(() => {
+    if (initialContent) {
+      setContent(initialContent);
+      setHistory([initialContent]);
+      setHistoryIndex(0);
+    }
+  }, [initialContent]);
+
   const updateContentWithHistory = (newContent: string) => {
     setContent(newContent);
     const newHistory = history.slice(0, historyIndex + 1);

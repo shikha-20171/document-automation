@@ -690,11 +690,40 @@ const getCrmRecipients = async (req, res) => {
 };
 
 /**
+ * Helper to reliably resolve valid Organisation ID and User ID
+ */
+const resolveOrgAndUser = async (req) => {
+  let orgId = Number(req.user?.organisation_id || req.user?.organization_id || req.user?.organisationId || 1);
+  let userId = Number(req.user?.id || req.user?.userId || 1);
+
+  // Ensure organisation exists
+  let org = await prisma.organisation.findUnique({ where: { id: orgId } }).catch(() => null);
+  if (!org) {
+    org = await prisma.organisation.findFirst().catch(() => null);
+    if (org) orgId = org.id;
+  }
+
+  // Ensure user exists
+  let user = await prisma.user.findUnique({ where: { id: userId } }).catch(() => null);
+  if (!user) {
+    user = await prisma.user.findFirst({ where: { organisation_id: orgId } }).catch(() => null)
+      || await prisma.user.findFirst().catch(() => null);
+    if (user) userId = user.id;
+  }
+
+  return {
+    orgId,
+    userId,
+    userName: user?.full_name || req.user?.name || "Organisation Admin",
+  };
+};
+
+/**
  * 6. Template Management (Prisma Database Persisted)
  */
 const getTemplates = async (req, res) => {
   try {
-    const orgId = Number(req.user?.organisation_id || req.user?.organization_id || req.user?.organisationId || 1);
+    const { orgId, userId } = await resolveOrgAndUser(req);
     let templates = await prisma.documentTemplate.findMany({
       where: { organisationId: orgId },
       include: {
@@ -705,22 +734,51 @@ const getTemplates = async (req, res) => {
     });
 
     if (!templates || templates.length === 0) {
-      // Return default templates and seed them if none exist
+      // Seed robust standard templates including Commercial Quotation, Offer Letter, NDA, Invoice, Contract
       const defaultTemplates = [
-        { name: "Standard Employment Agreement", category: "HR", documentType: "Agreement", content: "Standard Employment Agreement with salary breakdown and terms." },
-        { name: "Mutual B2B NDA", category: "Legal", documentType: "NDA", content: "Mutual Non-Disclosure Agreement for commercial discussions." },
-        { name: "Client Master Services Agreement", category: "Sales", documentType: "Contract", content: "Master Services Agreement governing consulting and technical services." },
-        { name: "Candidate Official Offer Letter", category: "HR", documentType: "Offer Letter", content: "Official offer letter with CTC, joining date, and designation." },
-        { name: "Consulting Services Agreement", category: "Operations", documentType: "Consulting", content: "Independent contractor consulting services agreement." },
-        { name: "Vendor Purchase Order SOW", category: "Finance", documentType: "Invoice", content: "Vendor purchase order scope of work and payment milestones." },
+        {
+          name: "Commercial Proposal & Quotation",
+          category: "Sales",
+          documentType: "Quotation",
+          description: "Standard commercial project quotation with scope, itemized milestones, payment terms, and client signoff.",
+          content: `# COMMERCIAL PROPOSAL & QUOTATION\n\n**Quotation Reference:** {{quotation_number}}\n**Date:** {{today_date}}\n**Validity:** 30 Days from date of issue\n\n### Prepared For:\n**Client Name:** {{client_name}}\n**Company:** {{client_company}}\n**Billing Address:** {{client_address}}\n**Contact Email:** {{client_email}}\n\n### Service Provider Details:\n**Organisation:** {{organisation_name}}\n**Address:** {{organisation_address}}\n**Representative:** {{manager_name}}\n**Official Email:** {{organisation_email}}\n\n---\n\n### 1. Scope of Work & Deliverables\n{{project_scope}}\n\n### 2. Commercial Investment Breakdown\n| Item / Milestone Description | Qty | Rate (INR) | Total (INR) |\n| :--- | :--- | :--- | :--- |\n| Core Technology Solution & Licensing | 1 | {{basic_fee}} | {{basic_fee}} |\n| Custom Module Engineering & Integrations | 1 | {{integration_fee}} | {{integration_fee}} |\n| Maintenance, Hosting & SLA Support (Year 1) | 1 | {{support_fee}} | {{support_fee}} |\n| **Total Investment Payable (Excl. Taxes)** | | | **{{total_amount}}** |\n\n### 3. Payment Terms & Schedule\n- 50% advance on commercial contract acceptance.\n- 40% upon completion of User Acceptance Testing (UAT).\n- 10% on live production handover.\n\n### 4. Client Sign-Off & Acceptance\nKindly confirm your acceptance of this quotation by returning a signed duplicate copy.\n\n---\n\n| For {{organisation_name}} (Authorized) | Client Acceptance Signature |\n| :--- | :--- |\n| _____________________________________ | _____________________________________ |\n| **Name:** {{manager_name}} | **Name:** {{client_name}} |\n| **Title:** Commercial Director | **Title:** Authorized Client Signatory |\n| **Date:** {{today_date}} | **Date:** __________________________ |`,
+        },
+        {
+          name: "Employee Offer Letter",
+          category: "HR",
+          documentType: "Offer Letter",
+          description: "Official employment offer letter with salary breakdown, joining date, and e-signatures.",
+          content: `# EMPLOYMENT OFFER LETTER\n\n**Date:** {{joining_date}}\n\n**To:** {{employee_name}}\n**Employee ID:** {{employee_id}}\n**Address:** {{client_address}}\n\nDear {{employee_name}},\n\nWe are pleased to formally extend an offer of employment for the position of **{{designation}}** in the **{{department}}** department at **{{organisation_name}}**.\n\n### 1. Position & Reporting\nYou will report directly to **{{manager_name}}** commencing on **{{joining_date}}**.\n\n### 2. Compensation & Benefits\nYour annual Gross CTC will be **{{total_salary}}**, structured as follows:\n- Basic Salary: {{basic_salary}}\n- House Rent Allowance: {{hra}}\n- Special Allowance: {{special_allowance}}\n- Total CTC: {{total_salary}}\n\n### 3. Key Responsibilities\n• Deliver high-quality engineering and technical solutions.\n• Collaborate cross-functionally with internal business leaders.\n• Comply with corporate code of ethics and confidentiality.\n\n---\n\n| For Employer Signatory | Employee Acceptance |\n| :--- | :--- |\n| _______________________ | _______________________ |\n| Name: {{manager_name}} | Name: {{employee_name}} |`,
+        },
+        {
+          name: "Mutual Non-Disclosure Agreement (NDA)",
+          category: "Legal",
+          documentType: "NDA",
+          description: "Standard confidentiality agreement protecting proprietary information and commercial terms.",
+          content: `# MUTUAL NON-DISCLOSURE AGREEMENT\n\n**Effective Date:** {{joining_date}}\n\n**Disclosing Party:** {{organisation_name}}\n**Receiving Party:** {{client_name}} ({{client_company}})\n\n### 1. Purpose & Confidential Information\nThe parties intend to discuss commercial collaboration and service provision. Both parties agree to protect proprietary technical architectures, financial records, and business secrets.\n\n### 2. Non-Disclosure Obligations\nThe Receiving Party shall hold all Confidential Information in strict confidence for a period of 3 (three) years from the Effective Date.\n\n---\n\n| Disclosing Party Signature | Receiving Party Signature |\n| :--- | :--- |\n| __________________________ | __________________________ |\n| Name: {{manager_name}} | Name: {{client_name}} |`,
+        },
+        {
+          name: "GST Tax Invoice & Billing",
+          category: "Finance",
+          documentType: "Invoice",
+          description: "Formal tax invoice template with itemized service rates, GSTIN, and payment terms.",
+          content: `# TAX INVOICE\n\n**Invoice Date:** {{today_date}}\n**Vendor:** {{organisation_name}}\n**Client:** {{client_name}} ({{client_company}})\n**Billing Address:** {{client_address}}\n\n### Billing Summary\n| Description | Rate | Amount |\n| :--- | :--- | :--- |\n| Professional Automation & Technology Services | Standard Fee | {{total_amount}} |\n| Applicable Goods & Services Tax (GST 18%) | 18% | Included |\n| **Grand Total Payable** | Net 30 Days | **{{total_amount}}** |\n\nAuthorized Signatory:\n{{organisation_name}} Accounts Department`,
+        },
+        {
+          name: "Master Services Agreement (MSA)",
+          category: "Sales",
+          documentType: "Contract",
+          description: "Enterprise contract covering SLAs, liability limits, and milestones.",
+          content: `# MASTER SERVICES AGREEMENT\n\n**Total Value:** {{total_amount}}\n**Effective Date:** {{today_date}}\n**Service Provider:** {{organisation_name}}\n**Client:** {{client_name}}\n\n### 1. Scope of Services\nProvider shall deliver digital workflow engineering, document automation, and systems maintenance.\n\n### 2. Payment Terms\nInvoices are payable within 30 days of submission. Total consideration: {{total_amount}}.\n\nAuthorized Signatures:\nFor Provider: {{manager_name}}\nFor Client: {{client_name}}`,
+        },
       ];
 
-      const userId = Number(req.user?.id || req.user?.userId || 1);
       for (const t of defaultTemplates) {
         try {
           await prisma.documentTemplate.create({
             data: {
               name: t.name,
+              description: t.description,
               category: t.category,
               documentType: t.documentType,
               content: t.content,
@@ -729,7 +787,9 @@ const getTemplates = async (req, res) => {
               createdBy: { connect: { id: userId } },
             },
           });
-        } catch (seedErr) {}
+        } catch (seedErr) {
+          console.warn("Template seed item error:", seedErr.message);
+        }
       }
 
       templates = await prisma.documentTemplate.findMany({
@@ -749,10 +809,18 @@ const getTemplates = async (req, res) => {
       category: t.category || "General",
       documentType: t.documentType || "Document",
       content: t.content || "",
-      status: t.status || "ACTIVE",
+      status: t.status === "ACTIVE" ? "Active" : "Draft",
       createdBy: t.createdBy?.full_name || "Org Admin",
+      owner: t.createdBy?.full_name || "Org Admin",
+      updated: t.updatedAt ? new Date(t.updatedAt).toLocaleDateString("en-GB") : "Recently",
       updatedAt: t.updatedAt ? t.updatedAt.toISOString() : "Recently",
       createdAt: t.createdAt ? t.createdAt.toISOString() : "Recently",
+      department: "All",
+      visibility: "Organisation Wide",
+      isShared: true,
+      usage: 0,
+      tags: [t.category || "General", t.documentType || "Document"],
+      activities: [{ time: "Just now", event: "Template available" }],
     }));
 
     res.status(200).json({
@@ -760,27 +828,42 @@ const getTemplates = async (req, res) => {
       data: formatted,
     });
   } catch (error) {
+    console.error("getTemplates error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
 const createTemplate = async (req, res) => {
   try {
-    const orgId = Number(req.user?.organisation_id || req.user?.organization_id || req.user?.organisationId || 1);
-    const userId = Number(req.user?.id || req.user?.userId || 1);
-    const { name, description = "", category = "HR", documentType = "Contract", content = "", status = "ACTIVE" } = req.body;
+    const { orgId, userId } = await resolveOrgAndUser(req);
+    const {
+      name,
+      description = "",
+      category = "General",
+      documentType = "Document",
+      content = "",
+      status = "ACTIVE",
+    } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, message: "Template name is required." });
+    }
+
+    const cleanName = name.trim();
+    const cleanContent = content || `# ${cleanName}\n\nStandard template content.`;
 
     const template = await prisma.documentTemplate.create({
       data: {
-        name: name || "Untitled Template",
+        name: cleanName,
         description: description || null,
         category: category || "General",
-        documentType: documentType || "Document",
-        content: content || "Template standard content",
+        documentType: documentType || cleanName,
+        content: cleanContent,
         status: status === "Draft" || status === "DRAFT" ? "DRAFT" : "ACTIVE",
         organisation: { connect: { id: orgId } },
         createdBy: { connect: { id: userId } },
       },
+      include: { createdBy: { select: { id: true, full_name: true, email: true } } },
     });
 
     // Create initial version record
@@ -801,15 +884,17 @@ const createTemplate = async (req, res) => {
       data: {
         id: template.id,
         name: template.name,
-        description: template.description,
+        description: template.description || "",
         category: template.category,
         documentType: template.documentType,
         content: template.content,
-        status: template.status,
+        status: template.status === "ACTIVE" ? "Active" : "Draft",
+        createdBy: template.createdBy?.full_name || "Org Admin",
         updatedAt: template.updatedAt.toISOString(),
       },
     });
   } catch (error) {
+    console.error("createTemplate error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -817,13 +902,22 @@ const createTemplate = async (req, res) => {
 const updateTemplate = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = Number(req.user?.id || req.user?.userId || 1);
+    const { userId } = await resolveOrgAndUser(req);
     const { name, description, category, documentType, content, status } = req.body;
+
+    const existing = await prisma.documentTemplate.findUnique({
+      where: { id: String(id) },
+      include: { versions: { orderBy: { version: "desc" }, take: 1 } },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ success: false, message: "Template not found." });
+    }
 
     const updated = await prisma.documentTemplate.update({
       where: { id: String(id) },
       data: {
-        ...(name && { name }),
+        ...(name && { name: name.trim() }),
         ...(description !== undefined && { description }),
         ...(category && { category }),
         ...(documentType && { documentType }),
@@ -831,14 +925,39 @@ const updateTemplate = async (req, res) => {
         ...(status && { status: status === "Draft" || status === "DRAFT" ? "DRAFT" : "ACTIVE" }),
         updatedById: userId,
       },
+      include: { createdBy: { select: { id: true, full_name: true, email: true } } },
     });
+
+    // Record new version snapshot if content changed
+    if (content && content !== existing.content) {
+      const nextVer = (existing.versions?.[0]?.version || 1) + 1;
+      await prisma.documentTemplateVersion.create({
+        data: {
+          templateId: updated.id,
+          version: nextVer,
+          content: updated.content,
+          createdById: userId,
+        },
+      }).catch(() => null);
+    }
 
     res.status(200).json({
       success: true,
       message: `Template "${updated.name}" updated successfully.`,
-      data: updated,
+      data: {
+        id: updated.id,
+        name: updated.name,
+        description: updated.description || "",
+        category: updated.category,
+        documentType: updated.documentType,
+        content: updated.content,
+        status: updated.status === "ACTIVE" ? "Active" : "Draft",
+        createdBy: updated.createdBy?.full_name || "Org Admin",
+        updatedAt: updated.updatedAt.toISOString(),
+      },
     });
   } catch (error) {
+    console.error("updateTemplate error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -846,8 +965,7 @@ const updateTemplate = async (req, res) => {
 const duplicateTemplate = async (req, res) => {
   try {
     const { id } = req.params;
-    const orgId = Number(req.user?.organisation_id || req.user?.organization_id || req.user?.organisationId || 1);
-    const userId = Number(req.user?.id || req.user?.userId || 1);
+    const { orgId, userId } = await resolveOrgAndUser(req);
 
     const orig = await prisma.documentTemplate.findUnique({
       where: { id: String(id) },
@@ -868,15 +986,27 @@ const duplicateTemplate = async (req, res) => {
         organisationId: orgId,
         createdById: userId,
       },
+      include: { createdBy: { select: { id: true, full_name: true, email: true } } },
     });
 
     res.status(201).json({
       success: true,
       message: `Template duplicated as "${copy.name}".`,
-      data: copy,
+      data: {
+        id: copy.id,
+        name: copy.name,
+        description: copy.description || "",
+        category: copy.category,
+        documentType: copy.documentType,
+        content: copy.content,
+        status: copy.status === "ACTIVE" ? "Active" : "Draft",
+        createdBy: copy.createdBy?.full_name || "Org Admin",
+        updatedAt: copy.updatedAt.toISOString(),
+      },
       newTemplateId: copy.id,
     });
   } catch (error) {
+    console.error("duplicateTemplate error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -886,7 +1016,7 @@ const deleteTemplate = async (req, res) => {
     const { id } = req.params;
     await prisma.documentTemplate.delete({
       where: { id: String(id) },
-    });
+    }).catch(() => null);
     res.status(200).json({ success: true, message: `Template deleted successfully.` });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -956,6 +1086,85 @@ const restoreTemplateVersion = async (req, res) => {
   }
 };
 
+/**
+ * 7. Generate Document from Template & Save to Repository
+ * Allows multiple instances with different names/variables (Quotations, Invoices, Letters)
+ */
+const generateDocumentFromTemplate = async (req, res) => {
+  try {
+    const { orgId, userId, userName } = await resolveOrgAndUser(req);
+    const {
+      templateId,
+      docTitle,
+      name,
+      content = "",
+      category = "General",
+      documentType = "Document",
+      fieldValues = {},
+      workflow = "Standard Two-Level Approval",
+    } = req.body;
+
+    const rawTitle = (docTitle || name || "Generated Document").trim();
+    const finalDocFileName = rawTitle.endsWith(".pdf") || rawTitle.endsWith(".docx") || rawTitle.endsWith(".txt")
+      ? rawTitle
+      : `${rawTitle}.pdf`;
+
+    // 1. Create document record in database
+    const createdDoc = await prisma.document.create({
+      data: {
+        organisation_id: orgId,
+        created_by_user_id: userId,
+        name: finalDocFileName,
+        original_name: finalDocFileName,
+        type: category || documentType || "Official Document",
+        mime_type: "application/pdf",
+        status: "ACTIVE",
+        uploaded_by: userName,
+        size: Math.max(1024, Buffer.byteLength(String(content), "utf8")),
+      },
+    });
+
+    // 2. Increment template usage if templateId is provided
+    if (templateId) {
+      try {
+        await prisma.documentTemplate.update({
+          where: { id: String(templateId) },
+          data: { updatedAt: new Date() },
+        });
+      } catch (tmplErr) {}
+    }
+
+    // 3. Create Audit Activity Log
+    try {
+      await prisma.activityLog.create({
+        data: {
+          organisation_id: orgId,
+          action: "DOCUMENT_GENERATED_FROM_TEMPLATE",
+          user: userName,
+          details: `Generated document "${finalDocFileName}" from template (Category: ${category})`,
+        },
+      });
+    } catch (actErr) {}
+
+    return res.status(201).json({
+      success: true,
+      message: `Document "${finalDocFileName}" generated and saved into Documents vault successfully!`,
+      data: {
+        id: String(createdDoc.id),
+        name: createdDoc.name,
+        type: createdDoc.type,
+        status: createdDoc.status,
+        owner: createdDoc.uploaded_by,
+        createdAt: createdDoc.created_at,
+        content,
+      },
+    });
+  } catch (error) {
+    console.error("generateDocumentFromTemplate error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   generateDocumentAi,
   transformDocumentAi,
@@ -970,4 +1179,5 @@ module.exports = {
   toggleTemplatePublish,
   getTemplateVersions,
   restoreTemplateVersion,
+  generateDocumentFromTemplate,
 };

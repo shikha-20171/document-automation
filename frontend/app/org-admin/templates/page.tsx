@@ -147,43 +147,43 @@ export default function OrgAdminTemplatesPage() {
   };
 
   const handleCreateTemplate = async (data: Partial<TemplateItem>) => {
-    const newItem: TemplateItem = {
-      id: Date.now(),
-      name: data.name || "Untitled Template",
-      description: data.description || "",
-      category: data.category || "General",
-      status: "Draft",
-      usage: 0,
-      createdBy: "Org Admin",
-      owner: "Org Admin",
-      updated: "Just now",
-      department: data.department || "All",
-      documentType: "Document",
-      tags: data.tags || [],
-      visibility: data.visibility || "Organisation Wide",
-      isShared: true,
-      activities: [{ time: "Just now", event: "Template created" }],
-    };
-
-    setTemplates([newItem, ...templates]);
-    setSelected(newItem);
-    setModal("builder");
-
     try {
-      await orgDocBuilderApi.createTemplate({
-        name: newItem.name,
-        description: newItem.description,
-        category: newItem.category,
-        documentType: newItem.documentType,
-        content: newItem.content || "",
-        status: "DRAFT",
+      const res = await orgDocBuilderApi.createTemplate({
+        name: data.name || "Untitled Template",
+        description: data.description || "",
+        category: data.category || "General",
+        documentType: data.documentType || "Document",
+        content: (data as any).content || `# ${data.name || "Template"}\n\nStandard template content.`,
+        status: data.status === "Active" ? "ACTIVE" : "DRAFT",
       });
-      void loadTemplates();
-    } catch (e) {}
+      await loadTemplates();
+      if (res?.data) {
+        setSelected({
+          id: res.data.id,
+          name: res.data.name,
+          description: res.data.description || "",
+          category: res.data.category || "General",
+          status: res.data.status === "Active" || res.data.status === "ACTIVE" ? "Active" : "Draft",
+          usage: 0,
+          createdBy: res.data.createdBy || "Org Admin",
+          owner: res.data.createdBy || "Org Admin",
+          updated: "Just now",
+          department: data.department || "All",
+          documentType: res.data.documentType || "Document",
+          tags: data.tags || [data.category || "General"],
+          visibility: (data.visibility || "Organisation Wide") as Visibility,
+          isShared: true,
+          content: res.data.content,
+        });
+        setModal("builder");
+      }
+    } catch (e) {
+      console.error("Template creation error:", e);
+    }
   };
 
   const handleUpdateTemplate = async (updated: TemplateItem) => {
-    setTemplates(templates.map((t) => (t.id === updated.id ? updated : t)));
+    setTemplates((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
     try {
       await orgDocBuilderApi.updateTemplate(updated.id, {
         name: updated.name,
@@ -193,31 +193,29 @@ export default function OrgAdminTemplatesPage() {
         content: updated.content,
         status: updated.status,
       });
-      void loadTemplates();
-    } catch (e) {}
+      await loadTemplates();
+    } catch (e) {
+      console.error("Template update error:", e);
+    }
   };
 
   const handleDuplicate = async (template: TemplateItem) => {
-    const copy: TemplateItem = {
-      ...template,
-      id: Date.now(),
-      name: `${template.name} (Copy)`,
-      usage: 0,
-      updated: "Just now",
-    };
-    setTemplates([copy, ...templates]);
     try {
       await orgDocBuilderApi.duplicateTemplate(template.id);
-      void loadTemplates();
-    } catch (e) {}
+      await loadTemplates();
+    } catch (e) {
+      console.error("Template duplicate error:", e);
+    }
   };
 
   const handleDelete = async (id: number | string) => {
-    setTemplates(templates.filter((t) => t.id !== id));
+    setTemplates((prev) => prev.filter((t) => t.id !== id));
     try {
       await orgDocBuilderApi.deleteTemplate(id);
-      void loadTemplates();
-    } catch (e) {}
+      await loadTemplates();
+    } catch (e) {
+      console.error("Template delete error:", e);
+    }
   };
 
   return (

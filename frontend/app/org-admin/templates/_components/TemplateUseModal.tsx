@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { aiApi } from "@/services/aiApi";
+import { orgDocBuilderApi } from "@/services/templatesApi";
 import { TemplateItem } from "./TemplateTable";
 
 interface TemplateUseModalProps {
@@ -30,13 +31,28 @@ interface TemplateUseModalProps {
 }
 
 const DEFAULT_SAMPLE_VALUES: Record<string, string> = {
+  // Quotation & Commercial Fields
+  quotation_number: `QT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+  today_date: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }),
+  validity_date: "30 Days from issue",
+  client_name: "Apex Global Solutions Inc.",
+  client_company: "Apex Global Group",
+  client_address: "100 Marine Lines, Nariman Point, Mumbai, India",
+  client_email: "procurement@apexsolutions.com",
+  project_scope: "Enterprise Document Automation Platform with AI Extraction, Custom Approval Workflows, and Multi-Level Signatures.",
+  basic_fee: "₹4,50,000",
+  integration_fee: "₹1,50,000",
+  support_fee: "₹80,000",
+  total_amount: "₹6,80,000",
+
+  // Employment & General HR Fields
   employee_name: "Rahul Sharma",
   employee_id: "EMP-2026-894",
   designation: "Senior Software Engineer",
   department: "Engineering",
   organisation_name: "DocuCore Enterprise Pvt Ltd",
   organisation_address: "Cyber City, Tower B, Gurugram, India",
-  organisation_email: "hr@docucore.ai",
+  organisation_email: "contact@docucore.ai",
   manager_name: "Anita Desai (VP of Engineering)",
   joining_date: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }),
   basic_salary: "₹12,00,000",
@@ -45,8 +61,6 @@ const DEFAULT_SAMPLE_VALUES: Record<string, string> = {
   total_salary: "₹18,00,000 per annum",
   contract_value: "₹18,00,000",
   probation_period: "3",
-  client_name: "Apex Global Solutions Inc.",
-  client_address: "Nariman Point, Mumbai, India",
   vendor_name: "Apex Cloud Services",
   expiry_date: "31 December 2026",
 };
@@ -63,11 +77,11 @@ export default function TemplateUseModal({
   const templateRawContent = useMemo(() => {
     return (
       (template as any).content ||
-      `# ${template.name.toUpperCase()}\n\n**Date:** {{joining_date}}\n\n**To:** {{employee_name}}\n**Employee ID:** {{employee_id}}\n\nDear {{employee_name}},\n\nWe are pleased to extend an offer for the position of **{{designation}}** in the **{{department}}** department at **{{organisation_name}}**.\n\n### Compensation Breakdown\n- **Basic Salary:** {{basic_salary}}\n- **HRA:** {{hra}}\n- **Special Allowance:** {{special_allowance}}\n- **Total Annual CTC:** {{total_salary}}\n\n### Reporting & Joining\nYou will report to **{{manager_name}}** commencing on **{{joining_date}}**.\n\n---\n\n| Employer Signatory | Employee Signatory |\n| :--- | :--- |\n| ____________________ | ____________________ |\n| Name: {{manager_name}} | Name: {{employee_name}} |`
+      `# ${template.name.toUpperCase()}\n\n**Date:** {{today_date}}\n\n**To:** {{client_name}}\n**Company:** {{client_company}}\n\nDear {{client_name}},\n\nWe are pleased to submit this proposal for your review.\n\n### Commercial Summary\n- Total Consideration: {{total_amount}}\n- Scope: {{project_scope}}\n\n---\n\n| Authorized Signatory | Client Acceptance |\n| :--- | :--- |\n| ____________________ | ____________________ |\n| Name: {{manager_name}} | Name: {{client_name}} |`
     );
   }, [template]);
 
-  // Extract variable keys like {{employee_name}}
+  // Extract variable keys like {{employee_name}} or {{client_name}}
   const detectedVariables = useMemo(() => {
     const regex = /\{\{([a-zA-Z0-9_]+)\}\}/g;
     const matches = new Set<string>();
@@ -81,9 +95,13 @@ export default function TemplateUseModal({
   }, [templateRawContent]);
 
   // Form State
-  const [docTitle, setDocTitle] = useState<string>(
-    `${template.name} - ${DEFAULT_SAMPLE_VALUES.employee_name || "New Document"}`
-  );
+  const [docTitle, setDocTitle] = useState<string>(() => {
+    const isQuote = template.name.toLowerCase().includes("quotation") || template.category === "Sales";
+    return isQuote
+      ? `${template.name} - ${DEFAULT_SAMPLE_VALUES.client_company || "Apex Global"}`
+      : `${template.name} - ${DEFAULT_SAMPLE_VALUES.employee_name || "New Document"}`;
+  });
+
   const [formValues, setFormValues] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
     detectedVariables.forEach((v) => {
@@ -112,7 +130,7 @@ export default function TemplateUseModal({
       text = text.replace(regex, val || `[${key.replace(/_/g, " ").toUpperCase()}]`);
     });
     // Clean remaining AI tags if any
-    text = text.replace(/\{\{AI_[A-Z_]+\}\}/g, "• Adhere to company coding standards and deliver robust architectures.\n• Collaborate with cross-functional teams to build scalable software.\n• Participate in agile sprints, peer code reviews, and product releases.");
+    text = text.replace(/\{\{AI_[A-Z_]+\}\}/g, "• Deliver compliant, high-availability architecture and services.\n• Adhere strictly to industry standards and security benchmarks.\n• Provide continuous technical oversight and review.");
     return text;
   }, [templateRawContent, formValues]);
 
@@ -123,7 +141,9 @@ export default function TemplateUseModal({
       filled[v] = DEFAULT_SAMPLE_VALUES[v] || `Sample ${v.replace(/_/g, " ")}`;
     });
     setFormValues(filled);
-    if (filled.employee_name) {
+    if (filled.client_company) {
+      setDocTitle(`${template.name} - ${filled.client_company}`);
+    } else if (filled.employee_name) {
       setDocTitle(`${template.name} - ${filled.employee_name}`);
     }
     showToast("Auto-filled all template variables with sample data!");
@@ -135,31 +155,31 @@ export default function TemplateUseModal({
     try {
       const finalDocText = resolvedContent;
       const finalDocTitle = docTitle || `${template.name} - Instance`;
-      const finalDocFileName = finalDocTitle.endsWith(".pdf") || finalDocTitle.endsWith(".docx") ? finalDocTitle : `${finalDocTitle}.pdf`;
+      const finalDocFileName = finalDocTitle.endsWith(".pdf") || finalDocTitle.endsWith(".docx") || finalDocTitle.endsWith(".txt")
+        ? finalDocTitle
+        : `${finalDocTitle}.pdf`;
 
-      const newDocItem = {
-        id: `doc-${Date.now()}`,
+      setGeneratedContent(finalDocText);
+
+      // Save into system documents repository database via orgDocBuilderApi
+      await orgDocBuilderApi.generateDocumentFromTemplate({
+        templateId: template.id,
+        docTitle: finalDocFileName,
         name: finalDocFileName,
-        type: "PDF",
-        category: template.category || "HR",
-        owner: "Organisation Admin",
-        department: template.department || "General",
-        branch: "Headquarters",
-        status: "Active",
-        updated: "Just now",
-        tags: ["Template Generated", template.category || "General"],
-        ocrStatus: "Completed",
-        size: "1.2 MB",
         content: finalDocText,
-        createdAt: new Date().toISOString(),
-      };
+        category: template.category || "Official Document",
+        fieldValues: formValues,
+        workflow,
+      }).catch((err) => {
+        console.warn("generateDocumentFromTemplate fallback:", err);
+      });
 
-      // Save into system documents repository database via API
+      // Also call aiApi.saveGeneratedDocument
       await aiApi.saveGeneratedDocument({
         title: finalDocFileName,
         content: finalDocText,
         type: template.category || "Official Document",
-        status: "DRAFT",
+        status: "ACTIVE",
         source: "TEMPLATE",
         templateId: template.id,
         workflow,
@@ -184,6 +204,89 @@ export default function TemplateUseModal({
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  // Download Formatted Document as PDF / Print
+  const handleDownloadPDF = () => {
+    const textToPrint = generatedContent || resolvedContent;
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      showToast("Pop-up blocked. Please allow popups to print/download PDF.");
+      return;
+    }
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${docTitle || "Document"}</title>
+          <style>
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+              padding: 40px;
+              color: #1e293b;
+              line-height: 1.6;
+              max-width: 800px;
+              margin: 0 auto;
+            }
+            h1 { font-size: 22px; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; margin-top: 0; }
+            h2 { font-size: 18px; color: #1e293b; margin-top: 24px; }
+            h3 { font-size: 15px; color: #334155; margin-top: 18px; }
+            p { margin: 8px 0; font-size: 13px; }
+            table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 12px; }
+            th, td { border: 1px solid #cbd5e1; padding: 8px 12px; text-align: left; }
+            th { background-color: #f8fafc; font-weight: bold; }
+            pre { font-family: inherit; white-space: pre-wrap; word-break: break-word; font-size: 13px; }
+            @media print {
+              body { padding: 0; }
+              @page { margin: 1.5cm; }
+            }
+          </style>
+        </head>
+        <body>
+          <pre>${textToPrint}</pre>
+          <script>
+            window.onload = function() {
+              window.print();
+            }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    showToast("Opened print preview to download PDF!");
+  };
+
+  // Download File directly as .txt or .doc
+  const handleDownloadFile = (format: "txt" | "doc" = "txt") => {
+    const content = generatedContent || resolvedContent;
+    const blob = new Blob([content], {
+      type: format === "doc" ? "application/msword;charset=utf-8" : "text/plain;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    const safeName = (docTitle || template.name).replace(/\.[^/.]+$/, "");
+    link.download = `${safeName}.${format}`;
+    link.click();
+    URL.revokeObjectURL(url);
+    showToast(`Downloaded '${link.download}' successfully!`);
+  };
+
+  // Reset form to generate another document with new name/values
+  const handleCreateAnother = () => {
+    setIsSuccess(false);
+    setActiveTab("fill");
+    // Generate new quotation or reference number
+    const newQuotationNum = `QT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    setFormValues((prev) => ({
+      ...prev,
+      quotation_number: newQuotationNum,
+      client_name: "",
+      client_company: "",
+      client_email: "",
+    }));
+    setDocTitle(`${template.name} - Next Instance`);
+    showToast("Ready to generate another document with new details!");
   };
 
   if (!isOpen) return null;
@@ -252,20 +355,28 @@ export default function TemplateUseModal({
               </div>
             </div>
 
-            {/* Action Buttons */}
+            {/* Action Buttons: Download PDF, Download Doc, Copy, Create Another */}
             <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
               <Button
-                onClick={() => router.push("/org-admin/documents")}
-                className="h-10 px-5 rounded-xl bg-[#274690] hover:bg-[#1f3561] text-white text-xs font-bold gap-2 shadow-md"
+                onClick={handleDownloadPDF}
+                className="h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold gap-1.5 shadow-md"
               >
-                <FileText size={15} /> Open in Documents Vault
+                <Download size={15} /> Download PDF / Print
+              </Button>
+
+              <Button
+                variant="outline"
+                onClick={() => handleDownloadFile("txt")}
+                className="h-10 px-4 rounded-xl border-slate-200 text-xs font-bold text-slate-700 gap-1.5 hover:bg-slate-50"
+              >
+                <Download size={14} /> Download (.txt)
               </Button>
 
               <Button
                 variant="outline"
                 onClick={() => {
-                  navigator.clipboard.writeText(generatedContent);
-                  showToast("Document text copied to clipboard!");
+                  navigator.clipboard.writeText(generatedContent || resolvedContent);
+                  showToast("Document content copied to clipboard!");
                 }}
                 className="h-10 px-4 rounded-xl text-xs font-bold border-slate-200 gap-1.5"
               >
@@ -273,14 +384,18 @@ export default function TemplateUseModal({
               </Button>
 
               <Button
-                variant="ghost"
-                onClick={() => {
-                  setIsSuccess(false);
-                  handleAutoFill();
-                }}
-                className="h-10 px-4 rounded-xl text-xs font-bold text-slate-600 gap-1.5"
+                onClick={handleCreateAnother}
+                className="h-10 px-4 rounded-xl bg-[#274690] hover:bg-[#1f3561] text-white text-xs font-bold gap-1.5 shadow-md"
               >
-                <RefreshCw size={14} /> Create Another
+                <RefreshCw size={14} /> Create Another with Same Template
+              </Button>
+
+              <Button
+                variant="ghost"
+                onClick={() => router.push("/org-admin/documents")}
+                className="h-10 px-4 rounded-xl text-xs font-bold text-slate-600 gap-1.5 hover:bg-slate-100"
+              >
+                <FileText size={15} /> Open in Documents Vault
               </Button>
             </div>
           </div>

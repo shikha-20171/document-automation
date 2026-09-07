@@ -127,4 +127,16 @@ export const orgDocBuilderApi = {
     const { data } = await api.post<ApiResponse>(`/org-admin/ai-builder/templates/${id}/versions/${version}/restore`);
     return data;
   },
+  generateDocumentFromTemplate: async (payload: {
+    templateId?: string | number;
+    docTitle?: string;
+    name?: string;
+    content: string;
+    category?: string;
+    fieldValues?: Record<string, any>;
+    workflow?: string;
+  }): Promise<ApiResponse> => {
+    const { data } = await api.post<ApiResponse>("/org-admin/templates/generate-document", payload);
+    return data;
+  },
 };

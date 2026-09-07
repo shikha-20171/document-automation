@@ -235,6 +235,7 @@ app.use("/api/org-admin/analytics", require("./routes/orgAnalyticsRoutes"));
 app.use("/api/org-admin/team", require("./routes/orgTeamRoutes"));
 app.use("/api/org-admin/workflows", require("./routes/orgWorkflowRoutes"));
 app.use("/api/org-admin/ai-builder", require("./routes/orgDocBuilderRoutes"));
+app.use("/api/org-admin/templates", require("./routes/orgDocBuilderRoutes"));
 app.use("/api/integrations", require("./routes/orgIntegrationsRoutes"));
 app.use("/api/org-admin/integrations", require("./routes/orgIntegrationsRoutes"));
 app.use("/api/org-admin/settings", require("./routes/orgSettingsRoutes"));
