@@ -1,4 +1,4 @@
-import api, { type ApiResponse } from "./api";
+import api, { type ApiResponse, getApiBaseUrl } from "./api";
 
 export interface IntegrationProviderMeta {
   id: string;
@@ -84,7 +84,7 @@ export const DEFAULT_PLATFORM_INTEGRATIONS: PlatformProviderMeta[] = [
     connectedTenantsCount: 42,
     clientIdMasked: "123456789-xyz••••.apps.googleusercontent.com",
     hasClientSecret: true,
-    redirectUri: "https://document-automation-backend-1jte.onrender.com/api/integrations/google/callback",
+    redirectUri: `${getApiBaseUrl()}/integrations/google/callback`,
     requiredEnv: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI"],
     setupGuide: "Platform Google OAuth application configured once by Super Admin. Organisation Admins connect with 1-click.",
   },
@@ -103,7 +103,7 @@ export const DEFAULT_PLATFORM_INTEGRATIONS: PlatformProviderMeta[] = [
     connectedTenantsCount: 38,
     clientIdMasked: "azure-app-••••-••••-••••",
     hasClientSecret: true,
-    redirectUri: "https://document-automation-backend-1jte.onrender.com/api/integrations/microsoft/callback",
+    redirectUri: `${getApiBaseUrl()}/integrations/microsoft/callback`,
     requiredEnv: ["MICROSOFT_CLIENT_ID", "MICROSOFT_CLIENT_SECRET", "MICROSOFT_REDIRECT_URI", "MICROSOFT_TENANT_ID"],
     setupGuide: "Platform Microsoft Graph application configured once by Super Admin.",
   },
@@ -140,7 +140,7 @@ export const DEFAULT_PLATFORM_INTEGRATIONS: PlatformProviderMeta[] = [
     connectedTenantsCount: 29,
     clientIdMasked: "slack-app-••••",
     hasClientSecret: true,
-    redirectUri: "https://document-automation-backend-1jte.onrender.com/api/integrations/slack/callback",
+    redirectUri: `${getApiBaseUrl()}/integrations/slack/callback`,
     requiredEnv: ["SLACK_CLIENT_ID", "SLACK_CLIENT_SECRET", "SLACK_REDIRECT_URI"],
     setupGuide: "Slack workspace OAuth application configured for platform webhooks.",
   },

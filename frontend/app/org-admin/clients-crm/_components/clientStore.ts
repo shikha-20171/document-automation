@@ -114,229 +114,13 @@ export interface Note {
   isPinned: boolean;
 }
 
-// ─── Sample Data ──────────────────────────────────────────────────────────────
-
-const SAMPLE_CLIENTS: Client[] = [
-  {
-    id: "CL-00021",
-    name: "ABC Technologies Pvt. Ltd.",
-    type: "Company",
-    contactPerson: "Rahul Sharma",
-    email: "rahul@abctech.in",
-    phone: "+91 98765 43210",
-    website: "https://abctech.in",
-    address: "Tower 3, Cyber Hub",
-    city: "Gurugram",
-    state: "Haryana",
-    country: "India",
-    postalCode: "122002",
-    industry: "IT / Software",
-    companySize: "201-500",
-    status: "Active",
-    department: "Sales",
-    assignedTo: "Aman Verma",
-    tags: ["VIP", "Enterprise", "High Value"],
-    notes: "Client prefers all contracts to be reviewed by legal before sending.",
-    createdAt: "2026-01-15T09:30:00Z",
-    lastActivity: "2026-08-12T08:30:00Z",
-    documents: 36,
-  },
-  {
-    id: "CL-00022",
-    name: "GreenField Retail",
-    type: "Company",
-    contactPerson: "Karan Mehta",
-    email: "karan@greenfield.in",
-    phone: "+91 87654 32109",
-    website: "https://greenfield.in",
-    address: "23 MG Road",
-    city: "Pune",
-    state: "Maharashtra",
-    country: "India",
-    postalCode: "411001",
-    industry: "Retail",
-    companySize: "51-200",
-    status: "Active",
-    department: "Legal",
-    assignedTo: "Neha Jain",
-    tags: ["New", "Renewal"],
-    notes: "",
-    createdAt: "2026-03-20T11:00:00Z",
-    lastActivity: "2026-08-11T14:00:00Z",
-    documents: 18,
-  },
-  {
-    id: "CL-00023",
-    name: "BluePeak Advisors",
-    type: "Company",
-    contactPerson: "Aditi Shah",
-    email: "aditi@bluepeak.in",
-    phone: "+91 76543 21098",
-    website: "https://bluepeak.in",
-    address: "Wing B, Ahmedabad One",
-    city: "Ahmedabad",
-    state: "Gujarat",
-    country: "India",
-    postalCode: "380059",
-    industry: "Consulting",
-    companySize: "11-50",
-    status: "Prospect",
-    department: "Sales",
-    assignedTo: "Riya Sharma",
-    tags: ["Finance"],
-    notes: "",
-    createdAt: "2026-05-10T09:00:00Z",
-    lastActivity: "2026-08-09T10:00:00Z",
-    documents: 12,
-  },
-  {
-    id: "CL-00024",
-    name: "Vantage Buildworks",
-    type: "Company",
-    contactPerson: "Rahul Sethi",
-    email: "rahul@vantage.in",
-    phone: "+91 65432 10987",
-    website: "https://vantage.in",
-    address: "Plot 17, MIDC",
-    city: "Nagpur",
-    state: "Maharashtra",
-    country: "India",
-    postalCode: "440001",
-    industry: "Construction",
-    companySize: "51-200",
-    status: "Archived",
-    department: "Finance",
-    assignedTo: "Aman Verma",
-    tags: ["Legal"],
-    notes: "",
-    createdAt: "2025-07-01T10:00:00Z",
-    lastActivity: "2026-07-24T12:00:00Z",
-    documents: 8,
-  },
-  {
-    id: "CL-00025",
-    name: "Prism Healthcare",
-    type: "Company",
-    contactPerson: "Sunita Rao",
-    email: "sunita@prismhealth.in",
-    phone: "+91 54321 09876",
-    website: "https://prismhealth.in",
-    address: "112 Necklace Road",
-    city: "Hyderabad",
-    state: "Telangana",
-    country: "India",
-    postalCode: "500001",
-    industry: "Healthcare",
-    companySize: "201-500",
-    status: "Active",
-    department: "Legal",
-    assignedTo: "Priya Nair",
-    tags: ["VIP", "High Value"],
-    notes: "Requires HIPAA-compliant document handling.",
-    createdAt: "2026-02-08T08:00:00Z",
-    lastActivity: "2026-08-10T09:30:00Z",
-    documents: 24,
-  },
-  {
-    id: "CL-00026",
-    name: "Meera Kapoor",
-    type: "Individual",
-    contactPerson: "Meera Kapoor",
-    email: "meera@meerakapoor.in",
-    phone: "+91 43210 98765",
-    website: "",
-    address: "45 Pali Hill",
-    city: "Mumbai",
-    state: "Maharashtra",
-    country: "India",
-    postalCode: "400050",
-    industry: "Legal",
-    companySize: "1",
-    status: "Inactive",
-    department: "Sales",
-    assignedTo: "Riya Sharma",
-    tags: ["Legal"],
-    notes: "",
-    createdAt: "2025-11-14T14:00:00Z",
-    lastActivity: "2026-06-01T11:00:00Z",
-    documents: 5,
-  },
-];
-
-const SAMPLE_CONTACTS: Contact[] = [
-  { id: "CT-001", clientId: "CL-00021", firstName: "Rahul", lastName: "Sharma", designation: "HR Manager", email: "rahul@abctech.in", phone: "+91 98765 43210", department: "HR", role: "Primary", isPrimary: true, notes: "", status: "Active" },
-  { id: "CT-002", clientId: "CL-00021", firstName: "Priya", lastName: "Singh", designation: "Legal Manager", email: "priya@abctech.in", phone: "+91 98765 43211", department: "Legal", role: "Legal Contact", isPrimary: false, notes: "", status: "Active" },
-  { id: "CT-003", clientId: "CL-00021", firstName: "Amit", lastName: "Kumar", designation: "Finance Manager", email: "amit@abctech.in", phone: "+91 98765 43212", department: "Finance", role: "Finance Contact", isPrimary: false, notes: "", status: "Active" },
-  { id: "CT-004", clientId: "CL-00022", firstName: "Karan", lastName: "Mehta", designation: "CEO", email: "karan@greenfield.in", phone: "+91 87654 32109", department: "Executive", role: "Primary", isPrimary: true, notes: "", status: "Active" },
-  { id: "CT-005", clientId: "CL-00023", firstName: "Aditi", lastName: "Shah", designation: "Managing Director", email: "aditi@bluepeak.in", phone: "+91 76543 21098", department: "Executive", role: "Primary", isPrimary: true, notes: "", status: "Active" },
-  { id: "CT-006", clientId: "CL-00025", firstName: "Sunita", lastName: "Rao", designation: "Director", email: "sunita@prismhealth.in", phone: "+91 54321 09876", department: "Management", role: "Primary", isPrimary: true, notes: "", status: "Active" },
-];
-
-const SAMPLE_DOCUMENTS: ClientDocument[] = [
-  { id: "DOC-001", clientId: "CL-00021", title: "NDA Agreement 2026", type: "NDA", status: "Signed", owner: "Rahul Sharma", version: "v2.1", createdAt: "2026-01-20T10:00:00Z", updatedAt: "2026-02-10T14:00:00Z" },
-  { id: "DOC-002", clientId: "CL-00021", title: "Service Agreement Q1", type: "Contract", status: "Approved", owner: "Aman Verma", version: "v1.0", createdAt: "2026-02-01T09:00:00Z", updatedAt: "2026-02-15T11:00:00Z" },
-  { id: "DOC-003", clientId: "CL-00021", title: "Invoice Agreement Jul 2026", type: "Invoice", status: "Pending Approval", owner: "Amit Kumar", version: "v1.0", createdAt: "2026-07-01T08:30:00Z", updatedAt: "2026-08-01T08:30:00Z" },
-  { id: "DOC-004", clientId: "CL-00021", title: "Employment Contract Draft", type: "Contract", status: "Draft", owner: "Priya Singh", version: "v0.1", createdAt: "2026-08-01T10:00:00Z", updatedAt: "2026-08-10T10:00:00Z" },
-  { id: "DOC-005", clientId: "CL-00022", title: "Retail Partnership NDA", type: "NDA", status: "Approved", owner: "Neha Jain", version: "v1.0", createdAt: "2026-04-01T09:00:00Z", updatedAt: "2026-04-20T11:00:00Z" },
-  { id: "DOC-006", clientId: "CL-00025", title: "Healthcare Compliance Doc", type: "Compliance", status: "Pending Approval", owner: "Priya Nair", version: "v1.2", createdAt: "2026-07-15T10:00:00Z", updatedAt: "2026-08-08T09:00:00Z" },
-];
-
-const SAMPLE_REQUESTS: ClientRequest[] = [
-  {
-    id: "REQ-001", clientId: "CL-00021", clientName: "ABC Technologies Pvt. Ltd.",
-    title: "NDA Agreement Request", type: "NDA", description: "Client requires a non-disclosure agreement before sharing sensitive project data.",
-    priority: "High", status: "In Progress", assignedTo: "Priya Singh", dueDate: "2026-08-15",
-    createdAt: "2026-08-01T09:00:00Z", requestedBy: "Rahul Sharma", attachments: [],
-    comments: [
-      { id: "C-001", author: "Aman Verma", text: "Template selected, drafting in progress.", createdAt: "2026-08-02T10:00:00Z" },
-    ],
-  },
-  {
-    id: "REQ-002", clientId: "CL-00021", clientName: "ABC Technologies Pvt. Ltd.",
-    title: "Q3 Service Agreement Renewal", type: "Contract", description: "Renew the service agreement for Q3 2026.",
-    priority: "Medium", status: "Pending Approval", assignedTo: "Aman Verma", dueDate: "2026-08-20",
-    createdAt: "2026-08-05T11:00:00Z", requestedBy: "Amit Kumar", attachments: [],
-    comments: [],
-  },
-  {
-    id: "REQ-003", clientId: "CL-00022", clientName: "GreenField Retail",
-    title: "Partnership Compliance Review", type: "Compliance Document", description: "Legal compliance review for new retail partnership.",
-    priority: "Low", status: "New", assignedTo: "Neha Jain", dueDate: "2026-08-30",
-    createdAt: "2026-08-10T08:00:00Z", requestedBy: "Karan Mehta", attachments: [],
-    comments: [],
-  },
-  {
-    id: "REQ-004", clientId: "CL-00025", clientName: "Prism Healthcare",
-    title: "HIPAA Compliance Document", type: "Compliance Document", description: "Prepare HIPAA-compliant data processing agreement.",
-    priority: "Urgent", status: "Waiting for Client", assignedTo: "Priya Nair", dueDate: "2026-08-12",
-    createdAt: "2026-08-08T07:00:00Z", requestedBy: "Sunita Rao", attachments: [],
-    comments: [
-      { id: "C-002", author: "Priya Nair", text: "Waiting for client to provide their DPA template.", createdAt: "2026-08-09T09:00:00Z" },
-    ],
-  },
-];
-
-const SAMPLE_ACTIVITIES: Activity[] = [
-  { id: "ACT-001", clientId: "CL-00021", type: "Client created", description: "Client ABC Technologies was created", user: "Aman Verma", createdAt: "2026-01-15T09:30:00Z" },
-  { id: "ACT-002", clientId: "CL-00021", type: "Contact added", description: "Priya Singh added as Legal Contact", user: "Aman Verma", createdAt: "2026-01-15T10:00:00Z" },
-  { id: "ACT-003", clientId: "CL-00021", type: "Document created", description: "NDA Agreement 2026 created", user: "Priya Singh", createdAt: "2026-01-20T10:00:00Z" },
-  { id: "ACT-004", clientId: "CL-00021", type: "Document shared", description: "NDA sent to client for review", user: "Aman Verma", createdAt: "2026-02-01T11:00:00Z" },
-  { id: "ACT-005", clientId: "CL-00021", type: "Document approved", description: "NDA Agreement approved by HR Manager", user: "Rahul Sharma", createdAt: "2026-02-08T14:00:00Z" },
-  { id: "ACT-006", clientId: "CL-00021", type: "Signature requested", description: "E-signature requested on NDA Agreement", user: "Aman Verma", createdAt: "2026-02-09T09:30:00Z" },
-  { id: "ACT-007", clientId: "CL-00021", type: "Signature completed", description: "Client signed the NDA Agreement", user: "Rahul Sharma", createdAt: "2026-02-10T14:00:00Z" },
-  { id: "ACT-008", clientId: "CL-00021", type: "Request created", description: "NDA Agreement Request created with High priority", user: "Rahul Sharma", createdAt: "2026-08-01T09:00:00Z" },
-  { id: "ACT-009", clientId: "CL-00021", type: "Note added", description: "Internal note added: Legal review required", user: "Priya Singh", createdAt: "2026-08-05T10:30:00Z" },
-  { id: "ACT-010", clientId: "CL-00021", type: "User assigned", description: "Priya Singh assigned to NDA Request", user: "Aman Verma", createdAt: "2026-08-01T09:05:00Z" },
-  { id: "ACT-011", clientId: "CL-00022", type: "Client created", description: "Client GreenField Retail was created", user: "Neha Jain", createdAt: "2026-03-20T11:00:00Z" },
-  { id: "ACT-012", clientId: "CL-00025", type: "Client created", description: "Client Prism Healthcare was created", user: "Priya Nair", createdAt: "2026-02-08T08:00:00Z" },
-];
-
-const SAMPLE_NOTES: Note[] = [
-  { id: "NOTE-001", clientId: "CL-00021", title: "Legal Review Requirement", description: "Client prefers all contracts to be reviewed by legal before sending. Ensure Priya Singh reviews all outgoing agreements.", createdBy: "Aman Verma", createdAt: "2026-01-20T10:00:00Z", isPinned: true },
-  { id: "NOTE-002", clientId: "CL-00021", title: "Communication Preference", description: "Rahul Sharma prefers email communication. WhatsApp only for urgent matters. Do not call on weekends.", createdBy: "Priya Singh", createdAt: "2026-02-01T09:00:00Z", isPinned: false },
-  { id: "NOTE-003", clientId: "CL-00021", title: "Q3 Contract Renewal Notes", description: "Client is interested in upgrading the service package for Q3. Schedule a call with the finance team to discuss pricing.", createdBy: "Aman Verma", createdAt: "2026-07-15T11:00:00Z", isPinned: false },
-  { id: "NOTE-004", clientId: "CL-00025", title: "HIPAA Requirements", description: "All documents must be HIPAA compliant. Client has a strict data retention policy — no data beyond 7 years.", createdBy: "Priya Nair", createdAt: "2026-02-10T09:00:00Z", isPinned: true },
-];
+// ─── Initial Empty Stores ──────────────────────────────────────────────────
+const SAMPLE_CLIENTS: Client[] = [];
+const SAMPLE_CONTACTS: Contact[] = [];
+const SAMPLE_DOCUMENTS: ClientDocument[] = [];
+const SAMPLE_REQUESTS: ClientRequest[] = [];
+const SAMPLE_ACTIVITIES: Activity[] = [];
+const SAMPLE_NOTES: Note[] = [];
 
 // ─── Storage Keys ─────────────────────────────────────────────────────────────
 
@@ -412,13 +196,11 @@ export const clientStore = {
           lastActivity: c.updatedAt || c.createdAt || new Date().toISOString(),
           documents: Array.isArray(c.documents) ? c.documents.length : (c.documentsCount || 0),
         }));
-        if (backendClients.length > 0) {
-          save(KEYS.clients, backendClients);
-          return backendClients;
-        }
+        save(KEYS.clients, backendClients);
+        return backendClients;
       }
     } catch (err) {
-      console.warn("CRM fetchClients backend sync fallback:", err);
+      console.warn("CRM fetchClients backend sync:", err);
     }
     return this.getClients();
   },
@@ -434,7 +216,8 @@ export const clientStore = {
         createdRecord = res.data;
       }
     } catch (err) {
-      console.warn("CRM addClient API fallback:", err);
+      console.error("CRM addClient API error:", err);
+      throw err;
     }
 
     const clientId = createdRecord?.id || `CL-${String(10000 + clients.length + 1).slice(-5)}`;
@@ -451,23 +234,24 @@ export const clientStore = {
     return newClient;
   },
   async updateClient(id: string, patch: Partial<Client>): Promise<void> {
-    const clients = this.getClients().map(c => c.id === id ? { ...c, ...patch, lastActivity: now() } : c);
-    this.saveClients(clients);
-    this.addActivity({ clientId: id, type: "Client updated", description: "Client information updated", user: "You" });
-
     try {
       await crmApi.updateClient(id, patch as any);
     } catch (err) {
-      console.warn("CRM updateClient API fallback:", err);
+      console.error("CRM updateClient API error:", err);
+      throw err;
     }
+    const clients = this.getClients().map(c => c.id === id ? { ...c, ...patch, lastActivity: now() } : c);
+    this.saveClients(clients);
+    this.addActivity({ clientId: id, type: "Client updated", description: "Client information updated", user: "You" });
   },
   async deleteClient(id: string): Promise<void> {
-    this.saveClients(this.getClients().filter(c => c.id !== id));
     try {
       await crmApi.deleteClient(id);
     } catch (err) {
-      console.warn("CRM deleteClient API fallback:", err);
+      console.error("CRM deleteClient API error:", err);
+      throw err;
     }
+    this.saveClients(this.getClients().filter(c => c.id !== id));
   },
 
   // CONTACTS

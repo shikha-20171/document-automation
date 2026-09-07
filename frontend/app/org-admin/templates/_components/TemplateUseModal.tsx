@@ -154,15 +154,7 @@ export default function TemplateUseModal({
         createdAt: new Date().toISOString(),
       };
 
-      // 1. Save to localStorage for instant UI reactivity
-      if (typeof window !== "undefined") {
-        try {
-          const storedDocs = JSON.parse(localStorage.getItem("org_saved_documents") || "[]");
-          localStorage.setItem("org_saved_documents", JSON.stringify([newDocItem, ...storedDocs]));
-        } catch {}
-      }
-
-      // 2. Save into system documents repository database
+      // Save into system documents repository database via API
       await aiApi.saveGeneratedDocument({
         title: finalDocFileName,
         content: finalDocText,

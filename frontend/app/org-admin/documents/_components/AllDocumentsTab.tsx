@@ -97,27 +97,17 @@ export default function AllDocumentsTab({ onOpenCreate, onOpenUpload, extraDocum
         } catch {}
       }
 
-      // 2. Fetch locally saved template/AI generated documents
-      let localSaved: DocumentItem[] = [];
-      if (typeof window !== "undefined") {
-        try {
-          localSaved = JSON.parse(localStorage.getItem("org_saved_documents") || "[]");
-        } catch {}
-      }
-
-      // 3. Combine unique items
+      // Combine unique items from backend and extra props
       setDocuments((prev) => {
         const map = new Map<string, DocumentItem>();
-        // Add local saved first (newest)
-        localSaved.forEach((d) => map.set(d.id, d));
         // Add DB docs
         dbDocs.forEach((d) => map.set(d.id, d));
         // Add extra passed from parent
         (extraDocuments || []).forEach((d) => map.set(d.id, d));
-        // Add initial seed docs if not present
-        initialDocuments.forEach((d) => {
-          if (!map.has(d.id)) map.set(d.id, d);
-        });
+        // If DB has no documents yet, fall back to initial documents
+        if (map.size === 0) {
+          initialDocuments.forEach((d) => map.set(d.id, d));
+        }
         return Array.from(map.values());
       });
       setIsLoadingDocs(false);

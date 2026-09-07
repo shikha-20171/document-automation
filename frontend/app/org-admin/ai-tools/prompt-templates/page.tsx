@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import api from "@/services/api";
 import {
   Terminal,
   Search,
@@ -110,6 +111,34 @@ export default function OrgAdminPromptTemplatesPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchPrompts = async () => {
+      try {
+        const res = await api.get("/org-admin/ai-tools/prompts");
+        if (res.data?.success && res.data.data) {
+          const { predefined = [], organizationCustom = [] } = res.data.data;
+          const combined = [...predefined, ...organizationCustom].map((p: any) => ({
+            id: p.id,
+            name: p.title || p.name,
+            description: p.description || p.prompt?.slice(0, 100) || "AI prompt template",
+            category: (p.category as any) || "General",
+            status: "Active" as const,
+            version: "v1.0",
+            promptText: p.prompt || "",
+            variables: (p.prompt?.match(/\{\{([^}]+)\}\}/g) || []).map((v: string) => v.replace(/\{\{|\}\}/g, "").trim()),
+            updatedAt: "Live Backend",
+          }));
+          if (combined.length > 0) {
+            setTemplates(combined);
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to fetch backend prompt templates:", err);
+      }
+    };
+    fetchPrompts();
+  }, []);
 
   // Modals state
   const [viewModalTemplate, setViewModalTemplate] = useState<PromptTemplate | null>(null);

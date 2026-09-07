@@ -78,15 +78,6 @@ export default function TemplateShareModal({
       console.warn("Template share backend update fallback:", e);
     }
 
-    // Save to local storage for instant reactivity
-    if (typeof window !== "undefined") {
-      try {
-        const stored = JSON.parse(localStorage.getItem("org_custom_templates") || "[]");
-        const filtered = stored.filter((s: TemplateItem) => s.id !== template.id);
-        localStorage.setItem("org_custom_templates", JSON.stringify([updated, ...filtered]));
-      } catch {}
-    }
-
     onUpdateShare(updated);
     setIsSuccess(true);
   };

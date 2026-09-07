@@ -5,6 +5,7 @@ import { FileText, User, Upload, Edit3, Eye, Download, Tag } from "lucide-react"
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { api } from "@/services/api";
 
 interface MyDocumentsTabProps {
   onOpenCreate: () => void;
@@ -20,25 +21,22 @@ export default function MyDocumentsTab({ onOpenCreate, onOpenUpload }: MyDocumen
   ]);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    const loadDocs = async () => {
       try {
-        const localSaved = JSON.parse(localStorage.getItem("org_saved_documents") || "[]");
-        if (Array.isArray(localSaved) && localSaved.length > 0) {
-          const formatted = localSaved.map((d) => ({
+        const res = await api.get("/org-admin/documents");
+        if (res.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
+          const formatted = res.data.data.map((d: any) => ({
             name: d.name,
             cat: d.category || "General",
-            date: d.updated || "Just now",
+            date: d.updated || "Recent",
             status: d.status || "Active",
-            desc: `Generated from ${d.tags?.[1] || "Template"} format.`,
+            desc: `${d.category || "Document"} authored in workspace.`,
           }));
-          setMyCreatedDocs((prev) => {
-            const existingNames = new Set(prev.map((p) => p.name));
-            const newOnes = formatted.filter((f) => !existingNames.has(f.name));
-            return [...newOnes, ...prev];
-          });
+          setMyCreatedDocs(formatted);
         }
       } catch {}
-    }
+    };
+    loadDocs();
   }, []);
 
   const myUploadedDocs = [

@@ -60,23 +60,35 @@ export default function SuperAdminProfilePage() {
   const [formData, setFormData] = useState<ProfileFormData>(DEFAULT_PROFILE);
 
   useEffect(() => {
-    const raw = localStorage.getItem("superAdminProfile") || localStorage.getItem("organization");
-    if (!raw) return;
-    try {
-      const data = JSON.parse(raw);
-      setFormData((prev) => ({
-        ...prev,
-        platformName: data.platformName || data.name || prev.platformName,
-        platformTagline: data.platformTagline || prev.platformTagline,
-        platformLogo: data.platformLogo || data.logo || prev.platformLogo,
-        fullName: data.fullName || data.admin_name || prev.fullName,
-        email: data.email || data.admin_email || prev.email,
-        phone: data.phone || prev.phone,
-        profilePhoto: data.profilePhoto || prev.profilePhoto,
-      }));
-    } catch {
-      // Ignore parse errors
-    }
+    const loadProfile = async () => {
+      try {
+        const [settingsRes, meRes] = await Promise.allSettled([
+          axios.get("/super-admin/settings"),
+          axios.get("/auth/me"),
+        ]);
+
+        if (settingsRes.status === "fulfilled" && settingsRes.value?.data?.data) {
+          const s = settingsRes.value.data.data;
+          setFormData((prev) => ({
+            ...prev,
+            platformName: s.systemName || s.platformName || prev.platformName,
+            supportEmail: s.supportEmail || prev.supportEmail,
+          }));
+        }
+
+        if (meRes.status === "fulfilled" && meRes.value?.data?.data) {
+          const u = meRes.value.data.data;
+          setFormData((prev) => ({
+            ...prev,
+            fullName: u.name || prev.fullName,
+            email: u.email || prev.email,
+          }));
+        }
+      } catch (err) {
+        console.warn("Error fetching super-admin profile from API:", err);
+      }
+    };
+    loadProfile();
   }, []);
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {

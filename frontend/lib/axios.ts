@@ -1,4 +1,12 @@
-import { api, apiClient, ApiError, type ApiResponse } from "@/services/api";
+import {
+  api,
+  apiClient,
+  ApiError,
+  type ApiResponse,
+  getApiBaseUrl,
+  API_BASE,
+} from "@/lib/api/axios";
 
-export { api, apiClient, ApiError, type ApiResponse };
+export { api, apiClient, ApiError, type ApiResponse, getApiBaseUrl, API_BASE };
 export default apiClient;
+

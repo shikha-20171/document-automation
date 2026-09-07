@@ -39,24 +39,6 @@ export default function DashboardTab({ onNavigateTab, onOpenUpload, onOpenCreate
 
   useEffect(() => {
     const fetchRecent = async () => {
-      let combined: any[] = [];
-      if (typeof window !== "undefined") {
-        try {
-          const localSaved = JSON.parse(localStorage.getItem("org_saved_documents") || "[]");
-          if (Array.isArray(localSaved) && localSaved.length > 0) {
-            combined = localSaved.map((d) => ({
-              id: d.id,
-              name: d.name,
-              cat: d.category || "General",
-              owner: d.owner || "Organisation Admin",
-              dept: d.department || "General",
-              status: d.status || "Active",
-              date: d.updated || "Just now",
-            }));
-          }
-        } catch {}
-      }
-
       try {
         const res = await api.get("/org-admin/documents");
         if (res.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
@@ -69,18 +51,12 @@ export default function DashboardTab({ onNavigateTab, onOpenUpload, onOpenCreate
             status: d.status || "Active",
             date: d.updated || "Recent",
           }));
-          const existingIds = new Set(combined.map((c) => c.id));
-          const toAdd = dbFormatted.filter((d: any) => !existingIds.has(d.id));
-          combined = [...combined, ...toAdd];
+          setRecentDocs(dbFormatted.slice(0, 8));
           if (res.data.stats?.totalDocuments) {
             setTotalCount(String(res.data.stats.totalDocuments));
           }
         }
       } catch {}
-
-      if (combined.length > 0) {
-        setRecentDocs(combined.slice(0, 8));
-      }
     };
 
     fetchRecent();
