@@ -42,14 +42,25 @@ export const templatesApi = {
   generateDocumentFromTemplate: async (
     templateId: string,
     fieldValues: Record<string, any>,
-    docName?: string
+    docName?: string,
+    basePath = "/org-admin/templates/generate-document"
   ): Promise<ApiResponse> => {
-    const { data } = await api.post<ApiResponse>("/employee/templates/generate-document", {
-      templateId,
-      fieldValues,
-      docName,
-    });
-    return data;
+    try {
+      const { data } = await api.post<ApiResponse>(basePath, {
+        templateId,
+        fieldValues,
+        docName,
+        name: docName,
+      });
+      return data;
+    } catch {
+      const { data } = await api.post<ApiResponse>("/employee/templates/generate-document", {
+        templateId,
+        fieldValues,
+        docName,
+      });
+      return data;
+    }
   },
 
   createTeamTemplate: async (payload: { name: string; type?: string; description?: string; fields?: string[] }): Promise<ApiResponse> => {

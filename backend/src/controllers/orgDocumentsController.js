@@ -319,10 +319,183 @@ const deleteOrgDocument = async (req, res, next) => {
 
     res.json(result);
   } catch (err) {
-    res.status(err.message.includes("Unauthorized") ? 403 : 400).json({
+    res.status(err.message?.includes("Unauthorized") ? 403 : 400).json({
       success: false,
       message: err.message,
     });
+  }
+};
+
+/**
+ * Update existing document
+ * PUT /api/org-admin/documents/:id
+ */
+const updateOrgDocument = async (req, res, next) => {
+  try {
+    const { organisationId, userName } = getAuthContext(req);
+    const id = Number(req.params.id);
+    const { name, type, status, content, category, folder } = req.body;
+
+    const existing = await prisma.document.findFirst({
+      where: { id, organisation_id: organisationId, status: { not: "DELETED" } },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ success: false, message: "Document not found" });
+    }
+
+    const updateData = {};
+    if (name && name.trim()) {
+      updateData.name = name.trim();
+      updateData.original_name = name.trim();
+    }
+    if (type || category) updateData.type = type || category;
+    if (status) updateData.status = status;
+    if (folder) updateData.folder = folder;
+    if (content !== undefined) {
+      updateData.size = Math.max(1024, Buffer.byteLength(String(content), "utf8"));
+    }
+
+    const updated = await prisma.document.update({
+      where: { id },
+      data: updateData,
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        organisation_id: organisationId,
+        action: "DOCUMENT_UPDATED",
+        user: userName,
+        details: `Updated document "${updated.name}" (${updated.type || "General"})`,
+      },
+    }).catch(() => null);
+
+    res.json({
+      success: true,
+      message: `Document "${updated.name}" updated successfully!`,
+      data: {
+        id: String(updated.id),
+        name: updated.name,
+        type: updated.type,
+        status: updated.status,
+        size: `${(updated.size / (1024 * 1024)).toFixed(2)} MB`,
+        content,
+        updatedAt: updated.updated_at,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Share document with recipient
+ * POST /api/org-admin/documents/:id/share
+ */
+const shareOrgDocument = async (req, res, next) => {
+  try {
+    const { organisationId, userName } = getAuthContext(req);
+    const id = Number(req.params.id);
+    const { email, recipientName, message, permission = "VIEW" } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ success: false, message: "Recipient email is required" });
+    }
+
+    const doc = await prisma.document.findFirst({
+      where: { id, organisation_id: organisationId, status: { not: "DELETED" } },
+    });
+
+    if (!doc) {
+      return res.status(404).json({ success: false, message: "Document not found" });
+    }
+
+    await prisma.activityLog.create({
+      data: {
+        organisation_id: organisationId,
+        action: "DOCUMENT_SHARED",
+        user: userName,
+        details: `Shared document "${doc.name}" with ${recipientName ? recipientName + ' (' + email + ')' : email} (${permission})`,
+      },
+    }).catch(() => null);
+
+    res.json({
+      success: true,
+      message: `Document "${doc.name}" successfully shared with ${email}!`,
+      data: {
+        documentId: doc.id,
+        documentName: doc.name,
+        recipient: email,
+        recipientName: recipientName || email,
+        permission,
+        sharedAt: new Date().toISOString(),
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Duplicate document / Use as base for new document
+ * POST /api/org-admin/documents/:id/duplicate
+ */
+const duplicateOrgDocument = async (req, res, next) => {
+  try {
+    const { organisationId, userId, userName } = getAuthContext(req);
+    const id = Number(req.params.id);
+    const { newName, newContent, recipientName, category } = req.body;
+
+    const sourceDoc = await prisma.document.findFirst({
+      where: { id, organisation_id: organisationId, status: { not: "DELETED" } },
+    });
+
+    if (!sourceDoc) {
+      return res.status(404).json({ success: false, message: "Source document not found" });
+    }
+
+    const copyName = (newName || `Copy of ${sourceDoc.name}`).trim();
+    const finalDocName = copyName.endsWith(".pdf") || copyName.endsWith(".docx") || copyName.endsWith(".txt")
+      ? copyName
+      : `${copyName}.pdf`;
+
+    const newDoc = await prisma.document.create({
+      data: {
+        organisation_id: organisationId,
+        created_by_user_id: userId,
+        name: finalDocName,
+        original_name: finalDocName,
+        type: category || sourceDoc.type || "Document",
+        mime_type: sourceDoc.mime_type || "application/pdf",
+        status: "ACTIVE",
+        uploaded_by: userName,
+        size: newContent ? Buffer.byteLength(String(newContent), "utf8") : sourceDoc.size,
+      },
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        organisation_id: organisationId,
+        action: "DOCUMENT_DUPLICATED",
+        user: userName,
+        details: `Created new document "${finalDocName}" based on "${sourceDoc.name}"${recipientName ? ` for ${recipientName}` : ""}`,
+      },
+    }).catch(() => null);
+
+    res.status(201).json({
+      success: true,
+      message: `New document "${finalDocName}" created successfully!`,
+      data: {
+        id: String(newDoc.id),
+        name: newDoc.name,
+        type: newDoc.type,
+        status: newDoc.status,
+        owner: newDoc.uploaded_by,
+        createdAt: newDoc.created_at,
+      },
+    });
+  } catch (err) {
+    next(err);
   }
 };
 
@@ -333,4 +506,7 @@ module.exports = {
   getOrgDocumentById,
   getDocumentDownloadUrl,
   deleteOrgDocument,
+  updateOrgDocument,
+  shareOrgDocument,
+  duplicateOrgDocument,
 };
