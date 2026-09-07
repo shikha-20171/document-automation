@@ -80,6 +80,7 @@ const getOrgDocuments = async (req, res, next) => {
         name: d.name,
         originalName: d.original_name || d.name,
         type: d.type || "Document",
+        category: categoryTag,
         mimeType: d.mime_type || "application/pdf",
         status: docStatus,
         owner: d.uploaded_by || "Administrator",
@@ -90,10 +91,16 @@ const getOrgDocuments = async (req, res, next) => {
           day: "numeric",
           year: "numeric",
         }),
+        updated: new Date(d.updated_at || d.created_at).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }),
         tags: [categoryTag, ext].filter(Boolean),
         size: mbSize,
         sizeBytes,
         createdAt: d.created_at,
+        updatedAt: d.updated_at,
       };
     });
 
@@ -122,39 +129,31 @@ const getOrgDocuments = async (req, res, next) => {
 const uploadOrgDocument = async (req, res, next) => {
   try {
     const context = getAuthContext(req);
+    const { folder, tags } = req.body;
     const file = req.file;
 
     if (!file) {
-      return res.status(400).json({ success: false, message: "No file provided in form-data ('file')." });
+      return res.status(400).json({ success: false, message: "No file provided." });
     }
 
-    const { folder, departmentId, teamId, name } = req.body;
-
-    const doc = await StorageService.uploadDocument({
-      organisationId: context.organisationId,
-      userId: context.userId,
-      uploadedBy: context.userName,
+    const doc = await StorageService.uploadFile({
       fileBuffer: file.buffer,
-      fileName: name || file.originalname,
+      fileName: file.originalname,
       originalName: file.originalname,
       mimeType: file.mimetype,
       folder: folder || "General",
-      departmentId,
-      teamId,
       actor: { email: req.user?.email || context.userName, ipAddress: req.ip },
     });
 
     res.status(201).json({
       success: true,
-      message: `Document "${doc.name}" uploaded successfully to AWS S3!`,
+      message: `File "${file.originalname}" uploaded and saved to AWS S3!`,
       data: {
         id: String(doc.id),
         name: doc.name,
         type: doc.type,
-        mimeType: doc.mime_type,
         size: `${(doc.size).toFixed(2)} MB`,
-        storageProvider: doc.storage_provider,
-        uploadedBy: doc.uploaded_by,
+        owner: doc.uploaded_by,
         createdAt: doc.created_at,
       },
     });
@@ -172,30 +171,19 @@ const uploadOrgDocument = async (req, res, next) => {
 };
 
 /**
- * Create a new document in the repository (JSON payload)
+ * Create blank/generated document directly in PostgreSQL & AWS S3
  * POST /api/org-admin/documents
  */
 const createOrgDocument = async (req, res, next) => {
   try {
     const context = getAuthContext(req);
-    const { name, title, type = "General Document", content, folder } = req.body;
-    const rawName = name || title;
+    const { name, title, type, content, folder } = req.body;
 
-    if (!rawName) {
-      return res.status(400).json({ success: false, message: "Document name is required." });
-    }
+    const docName = (title || name || "Untitled Document.pdf").trim();
+    const docContent = content || `Official Document: ${docName}\nCreated by ${context.userName}`;
+    const fileBuffer = Buffer.from(docContent, "utf-8");
 
-    const docName = rawName.endsWith(".pdf") || rawName.endsWith(".docx") || rawName.endsWith(".txt")
-      ? rawName
-      : `${rawName}.pdf`;
-
-    const fileContent = content ? String(content) : `DocuCore Document Content: ${docName}`;
-    const fileBuffer = Buffer.from(fileContent, "utf8");
-
-    const doc = await StorageService.uploadDocument({
-      organisationId: context.organisationId,
-      userId: context.userId,
-      uploadedBy: context.userName,
+    const doc = await StorageService.uploadFile({
       fileBuffer,
       fileName: docName,
       originalName: docName,
@@ -260,13 +248,23 @@ const getOrgDocumentById = async (req, res, next) => {
         id: String(doc.id),
         name: doc.name,
         originalName: doc.original_name || doc.name,
-        type: doc.type,
+        type: doc.type || "Document",
+        category: doc.type || "General",
         mimeType: doc.mime_type,
+        status: doc.status || "Active",
         size: `${(doc.size).toFixed(2)} MB`,
         storageProvider: doc.storage_provider,
         hasS3Object: Boolean(doc.s3_key),
-        uploadedBy: doc.uploaded_by,
+        uploadedBy: doc.uploaded_by || "Administrator",
+        owner: doc.uploaded_by || "Administrator",
         createdAt: doc.created_at,
+        updatedAt: doc.updated_at,
+        updated: new Date(doc.updated_at || doc.created_at).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }),
+        tags: [doc.type || "General", doc.name.split(".").pop()?.toUpperCase() || "PDF"],
       },
     });
   } catch (err) {

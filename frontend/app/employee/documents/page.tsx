@@ -11,6 +11,7 @@ import {
   Download,
   Eye,
   Edit,
+  Edit3,
   Trash2,
   Archive,
   Send,
@@ -478,6 +479,13 @@ export default function MyDocumentsPage() {
                     </td>
                     <td className="px-5 py-3.5 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
+                        <Link
+                          href={`/documents/view?id=${doc.id}&name=${encodeURIComponent(doc.name)}&edit=true`}
+                          title="Open Full Document Editor"
+                          className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-[#274690]"
+                        >
+                          <Edit3 size={15} />
+                        </Link>
                         <button
                           onClick={() => {
                             setDetailsDoc(doc);
@@ -731,13 +739,22 @@ export default function MyDocumentsPage() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-500">Live Preview Container</span>
-                    <button
-                      onClick={() => handleDownload(detailsDoc, "txt")}
-                      className="flex items-center gap-1 text-xs font-bold text-[#274690] hover:underline"
-                    >
-                      <Download size={13} />
-                      <span>Download File</span>
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <Link
+                        href={`/documents/view?id=${detailsDoc.id}&name=${encodeURIComponent(detailsDoc.name)}`}
+                        className="flex items-center gap-1 text-xs font-bold text-[#274690] hover:underline"
+                      >
+                        <Eye size={13} />
+                        <span>Full Page View & Edit</span>
+                      </Link>
+                      <button
+                        onClick={() => handleDownload(detailsDoc, "txt")}
+                        className="flex items-center gap-1 text-xs font-bold text-emerald-700 hover:underline"
+                      >
+                        <Download size={13} />
+                        <span>Download</span>
+                      </button>
+                    </div>
                   </div>
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 font-mono text-xs text-slate-800 whitespace-pre-wrap max-h-96 overflow-y-auto leading-relaxed">
                     {detailsDoc.content || "No text content available for preview."}
@@ -863,6 +880,13 @@ export default function MyDocumentsPage() {
                 Close
               </button>
               <div className="flex items-center gap-2">
+                <Link
+                  href={`/documents/view?id=${detailsDoc.id}&name=${encodeURIComponent(detailsDoc.name)}&edit=true`}
+                  className="flex items-center gap-1.5 rounded-2xl bg-[#274690] px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-[#1f3561]"
+                >
+                  <Edit3 size={14} />
+                  <span>Open Full Editor</span>
+                </Link>
                 {detailsDoc.status === "Draft" && (
                   <button
                     onClick={() => handleSubmitApproval(detailsDoc)}

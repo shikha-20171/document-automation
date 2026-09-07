@@ -114,6 +114,7 @@ export default function TemplateUseModal({
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
   const [generatedContent, setGeneratedContent] = useState<string>("");
+  const [createdDocId, setCreatedDocId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"fill" | "preview">("fill");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -162,7 +163,7 @@ export default function TemplateUseModal({
       setGeneratedContent(finalDocText);
 
       // Save into system documents repository database via orgDocBuilderApi
-      await orgDocBuilderApi.generateDocumentFromTemplate({
+      const docRes: any = await orgDocBuilderApi.generateDocumentFromTemplate({
         templateId: template.id,
         docTitle: finalDocFileName,
         name: finalDocFileName,
@@ -172,7 +173,12 @@ export default function TemplateUseModal({
         workflow,
       }).catch((err) => {
         console.warn("generateDocumentFromTemplate fallback:", err);
+        return null;
       });
+
+      if (docRes?.data?.id || docRes?.id) {
+        setCreatedDocId(String(docRes?.data?.id || docRes?.id));
+      }
 
       // Also call aiApi.saveGeneratedDocument
       await aiApi.saveGeneratedDocument({
@@ -355,8 +361,18 @@ export default function TemplateUseModal({
               </div>
             </div>
 
-            {/* Action Buttons: Download PDF, Download Doc, Copy, Create Another */}
+            {/* Action Buttons: View & Edit, Download PDF, Download Doc, Copy, Create Another */}
             <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+              <Button
+                onClick={() => {
+                  onClose();
+                  router.push(`/documents/view?id=${createdDocId || "1"}&name=${encodeURIComponent(docTitle)}`);
+                }}
+                className="h-10 px-5 rounded-xl bg-[#274690] hover:bg-[#1f3561] text-white text-xs font-bold gap-1.5 shadow-md"
+              >
+                <Eye size={15} /> View & Edit Document
+              </Button>
+
               <Button
                 onClick={handleDownloadPDF}
                 className="h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold gap-1.5 shadow-md"
@@ -373,26 +389,19 @@ export default function TemplateUseModal({
               </Button>
 
               <Button
-                variant="outline"
-                onClick={() => {
-                  navigator.clipboard.writeText(generatedContent || resolvedContent);
-                  showToast("Document content copied to clipboard!");
-                }}
-                className="h-10 px-4 rounded-xl text-xs font-bold border-slate-200 gap-1.5"
-              >
-                <Copy size={14} /> Copy Text
-              </Button>
-
-              <Button
                 onClick={handleCreateAnother}
-                className="h-10 px-4 rounded-xl bg-[#274690] hover:bg-[#1f3561] text-white text-xs font-bold gap-1.5 shadow-md"
+                variant="outline"
+                className="h-10 px-4 rounded-xl border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100 text-xs font-bold gap-1.5 shadow-xs"
               >
-                <RefreshCw size={14} /> Create Another with Same Template
+                <RefreshCw size={14} className="text-amber-600" /> Use Again for Next Client
               </Button>
 
               <Button
                 variant="ghost"
-                onClick={() => router.push("/org-admin/documents")}
+                onClick={() => {
+                  onClose();
+                  router.push("/org-admin/documents?tab=all-documents");
+                }}
                 className="h-10 px-4 rounded-xl text-xs font-bold text-slate-600 gap-1.5 hover:bg-slate-100"
               >
                 <FileText size={15} /> Open in Documents Vault
