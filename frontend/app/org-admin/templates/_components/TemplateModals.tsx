@@ -10,12 +10,15 @@ import TemplateDesigner from "./TemplateDesigner";
 import TemplatePreviewModal from "./TemplatePreviewModal";
 import TemplateUseModal from "./TemplateUseModal";
 import TemplateShareModal from "./TemplateShareModal";
+import TemplateQuickEditModal from "./TemplateQuickEditModal";
+import TemplateQuickCreateModal from "./TemplateQuickCreateModal";
 
 interface TemplateModalsProps {
   modal: ModalKind;
   selected: TemplateItem | null;
   categories: string[];
   onClose: () => void;
+  onOpenModal?: (kind: ModalKind, template?: TemplateItem) => void;
   onCreateTemplate: (template: Partial<TemplateItem>) => void;
   onUpdateTemplate: (template: TemplateItem) => void;
 }
@@ -25,6 +28,7 @@ export default function TemplateModals({
   selected,
   categories,
   onClose,
+  onOpenModal,
   onCreateTemplate,
   onUpdateTemplate,
 }: TemplateModalsProps) {
@@ -32,7 +36,18 @@ export default function TemplateModals({
 
   return (
     <>
-      {/* 1. Step 1: Create Template Modal (Template Details) */}
+      {/* Quick Create Template Modal */}
+      {modal === "quickCreate" && (
+        <TemplateQuickCreateModal
+          isOpen={true}
+          onClose={onClose}
+          onCreate={(newTmpl) => {
+            onCreateTemplate(newTmpl);
+          }}
+        />
+      )}
+
+      {/* Step 1: Create Template Wizard (Template Details) */}
       {modal === "create" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
           <div className="w-full max-w-4xl max-h-[95vh] overflow-y-auto">
@@ -54,7 +69,19 @@ export default function TemplateModals({
         </div>
       )}
 
-      {/* 2. Step 2: Full Manual Template Designer */}
+      {/* Quick In-Place Edit Template Modal */}
+      {modal === "edit" && selected && (
+        <TemplateQuickEditModal
+          isOpen={true}
+          onClose={onClose}
+          template={selected}
+          onSave={(updated) => {
+            onUpdateTemplate(updated);
+          }}
+        />
+      )}
+
+      {/* Full Manual Template Designer */}
       {modal === "builder" && selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-xs p-2 md:p-4 overflow-hidden">
           <div className="w-full h-full max-w-7xl">
@@ -92,7 +119,7 @@ export default function TemplateModals({
         </div>
       )}
 
-      {/* 3. Live Preview Modal */}
+      {/* Live Preview / Content Modal */}
       {modal === "preview" && selected && (
         <TemplatePreviewModal
           isOpen={true}
@@ -100,13 +127,19 @@ export default function TemplateModals({
           templateName={selected.name}
           category={selected.category}
           content={
-            (selected as any).content ||
-            `# ${selected.name.toUpperCase()}\n\nDear {{employee_name}},\n\nWe are pleased to offer you the position of **{{designation}}** in the **{{department}}** department at **{{organisation_name}}**.\n\n### Compensation\n- Annual Salary: {{total_salary}}\n- Joining Date: {{joining_date}}\n\n### Responsibilities\n{{AI_JOB_RESPONSIBILITIES}}\n\n---\n\n| Employer Signatory | Candidate Signatory |\n| :--- | :--- |\n| __________________ | __________________ |\n| Name: {{manager_name}} | Name: {{employee_name}} |`
+            selected.content ||
+            `# ${selected.name.toUpperCase()}\n\nDear {{employee_name}},\n\nWe are pleased to offer you the position of **{{designation}}** in the **{{department}}** department at **{{organisation_name}}**.\n\n### Compensation\n- Annual Salary: {{total_salary}}\n- Joining Date: {{joining_date}}\n\n---\n\n| Employer Signatory | Candidate Signatory |\n| :--- | :--- |\n| __________________ | __________________ |\n| Name: {{manager_name}} | Name: {{employee_name}} |`
           }
+          onUseTemplate={() => {
+            if (onOpenModal) onOpenModal("use", selected);
+          }}
+          onEditTemplate={() => {
+            if (onOpenModal) onOpenModal("edit", selected);
+          }}
         />
       )}
 
-      {/* 4. Use Template & Fill Document Modal */}
+      {/* Use Template & Fill Document Modal */}
       {modal === "use" && selected && (
         <TemplateUseModal
           isOpen={true}
@@ -118,7 +151,7 @@ export default function TemplateModals({
         />
       )}
 
-      {/* 5. Share Template Modal */}
+      {/* Send & Share Template Modal */}
       {modal === "share" && selected && (
         <TemplateShareModal
           isOpen={true}

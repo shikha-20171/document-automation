@@ -51,6 +51,36 @@ export default function CreateTemplatePage() {
   };
 
   const handlePublish = async (content: string) => {
+    const newTemplate = {
+      id: `tmpl-${Date.now()}`,
+      name: templateDetails.name,
+      description: templateDetails.description,
+      category: templateDetails.category,
+      documentType: templateDetails.name,
+      status: "Active",
+      usage: 0,
+      createdBy: "Org Admin",
+      owner: "Org Admin",
+      updated: "Just now",
+      department: templateDetails.department || "All",
+      visibility: templateDetails.visibility,
+      tags: templateDetails.tags || [templateDetails.category],
+      isShared: true,
+      content,
+      activities: [{ time: "Just now", event: "Template published" }],
+    };
+
+    if (typeof window !== "undefined") {
+      try {
+        const rawLocal = localStorage.getItem("docucore_custom_templates");
+        const existing = rawLocal ? JSON.parse(rawLocal) : [];
+        localStorage.setItem(
+          "docucore_custom_templates",
+          JSON.stringify([newTemplate, ...existing.filter((t: any) => t.name !== newTemplate.name)])
+        );
+      } catch {}
+    }
+
     try {
       const payload = {
         name: templateDetails.name,

@@ -72,6 +72,8 @@ interface TemplatePreviewModalProps {
   version?: string;
   category?: string;
   content: string;
+  onUseTemplate?: () => void;
+  onEditTemplate?: () => void;
   pageSettings?: {
     pageSize: "A4" | "Letter" | "Legal";
     orientation: "portrait" | "landscape";
@@ -89,6 +91,8 @@ export default function TemplatePreviewModal({
   version = "v1.0",
   category = "HR",
   content,
+  onUseTemplate,
+  onEditTemplate,
   pageSettings = {
     pageSize: "A4",
     orientation: "portrait",
@@ -350,13 +354,43 @@ export default function TemplatePreviewModal({
             <CheckCircle2 size={15} className="text-emerald-600" />
             <span>Sample data mapped seamlessly. Zero unresolved variables detected.</span>
           </div>
-          <Button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl bg-[#274690] hover:bg-[#1f3561] text-xs font-bold text-white px-5 h-8"
-          >
-            Back to Editor
-          </Button>
+          <div className="flex items-center gap-2">
+            {onEditTemplate && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  onClose();
+                  onEditTemplate();
+                }}
+                className="rounded-xl border-slate-200 text-slate-700 text-xs font-bold px-4 h-8 hover:bg-slate-50"
+              >
+                Edit Template
+              </Button>
+            )}
+
+            {onUseTemplate && (
+              <Button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onUseTemplate();
+                }}
+                className="rounded-xl bg-[#274690] hover:bg-[#1f3561] text-xs font-bold text-white px-5 h-8 shadow-xs"
+              >
+                Use Template Now
+              </Button>
+            )}
+
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onClose}
+              className="rounded-xl text-xs font-bold text-slate-600 px-3 h-8"
+            >
+              Close
+            </Button>
+          </div>
         </div>
       </div>
     </div>

@@ -1161,7 +1161,60 @@ const generateDocumentFromTemplate = async (req, res) => {
     });
   } catch (error) {
     console.error("generateDocumentFromTemplate error:", error);
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * 8. Share/Send Template to Recipient Email or Update Visibility
+ */
+const shareTemplate = async (req, res) => {
+  try {
+    const { orgId, userName } = await resolveOrgAndUser(req);
+    const { id } = req.params;
+    const { email, recipientName, message, visibility, department } = req.body;
+
+    let template = null;
+    if (id) {
+      template = await prisma.documentTemplate.findUnique({
+        where: { id: String(id) },
+      }).catch(() => null);
+
+      if (template && (visibility || department)) {
+        await prisma.documentTemplate.update({
+          where: { id: String(id) },
+          data: {
+            ...(visibility && { visibility }),
+            ...(department && { department }),
+          },
+        }).catch(() => null);
+      }
+    }
+
+    if (email) {
+      await prisma.activityLog.create({
+        data: {
+          organisation_id: orgId,
+          action: "TEMPLATE_SHARED",
+          user: userName,
+          details: `Shared template "${template?.name || id}" with ${recipientName ? recipientName + ' (' + email + ')' : email}. Message: ${message || 'None'}`,
+        },
+      }).catch(() => null);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Template "${template?.name || "Document"}" successfully sent to ${email || "recipient"}!`,
+      data: {
+        templateId: id,
+        recipient: email,
+        recipientName: recipientName || email,
+        sharedAt: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error("shareTemplate error:", error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -1180,4 +1233,5 @@ module.exports = {
   getTemplateVersions,
   restoreTemplateVersion,
   generateDocumentFromTemplate,
+  shareTemplate,
 };

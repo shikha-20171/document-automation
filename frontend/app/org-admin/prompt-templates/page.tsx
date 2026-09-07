@@ -1,5 +1,5 @@
-import OrgAdminPromptTemplatesPage from "../ai-tools/prompt-templates/page";
+import { redirect } from "next/navigation";
 
 export default function PromptTemplatesAliasPage() {
-  return <OrgAdminPromptTemplatesPage />;
+  redirect("/org-admin/templates");
 }

@@ -751,6 +751,13 @@ export default function AllDocumentsTab({ onOpenCreate, onOpenUpload, extraDocum
                           <div className="flex items-center gap-1.5 mt-0.5">
                             <span className="text-[10px] text-slate-400">{doc.size}</span>
                             <span className="text-slate-300">•</span>
+                            <Link
+                              href="/org-admin/templates"
+                              className="text-[9px] font-bold text-[#274690] bg-blue-50 hover:bg-blue-100 border border-blue-200 px-1.5 py-0.5 rounded-md transition inline-flex items-center gap-0.5"
+                              title="Generated from Document Template Blueprint. Click to reuse on Templates page."
+                            >
+                              📋 Template Blueprint
+                            </Link>
                             {doc.tags.map((t) => (
                               <span key={t} className="text-[9px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded-md">
                                 {t}

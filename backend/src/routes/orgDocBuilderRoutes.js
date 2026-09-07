@@ -16,6 +16,7 @@ const {
   getTemplateVersions,
   restoreTemplateVersion,
   generateDocumentFromTemplate,
+  shareTemplate,
 } = require("../controllers/orgDocBuilderController");
 
 // Protect all routes with authMiddleware
@@ -52,6 +53,10 @@ router.delete("/:id", deleteTemplate);
 
 router.post("/templates/:id/duplicate", duplicateTemplate);
 router.post("/:id/duplicate", duplicateTemplate);
+
+router.post("/templates/:id/share", shareTemplate);
+router.post("/:id/share", shareTemplate);
+router.post("/share", shareTemplate);
 
 router.patch("/templates/:id/publish", toggleTemplatePublish);
 router.patch("/:id/publish", toggleTemplatePublish);

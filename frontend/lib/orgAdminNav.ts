@@ -14,7 +14,6 @@ import {
   ShieldCheck,
   Bell,
   Users2,
-  MessageSquareCode,
   type LucideIcon,
 } from "lucide-react";
 
@@ -42,7 +41,6 @@ export const orgAdminNavSections: OrgAdminNavSection[] = [
       { title: "E-Signatures", href: "/org-admin/e-signatures", icon: PenTool },
       { title: "AI Tools", href: "/org-admin/ai-tools", icon: Bot },
       { title: "AI Document Builder", href: "/org-admin/ai-builder", icon: Sparkles },
-      { title: "Prompt Templates", href: "/org-admin/prompt-templates", icon: MessageSquareCode },
       { title: "Templates", href: "/org-admin/templates", icon: Layout },
       { title: "Analytics", href: "/org-admin/analytics", icon: BarChart3 },
       { title: "Team", href: "/org-admin/team", icon: UserCheck },

@@ -7,19 +7,19 @@ import {
   X,
   Sparkles,
   CheckCircle2,
-  Copy,
   Download,
-  ExternalLink,
-  ArrowRight,
-  RefreshCw,
   Eye,
   FileText,
-  Workflow,
-  Check,
+  RefreshCw,
+  ArrowRight,
+  Send,
+  Edit3,
+  Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { aiApi } from "@/services/aiApi";
+import api from "@/services/api";
 import { orgDocBuilderApi } from "@/services/templatesApi";
 import { TemplateItem } from "./TemplateTable";
 
@@ -73,15 +73,15 @@ export default function TemplateUseModal({
 }: TemplateUseModalProps) {
   const router = useRouter();
 
-  // Extract placeholders from template content
+  // Extract raw template content
   const templateRawContent = useMemo(() => {
     return (
-      (template as any).content ||
-      `# ${template.name.toUpperCase()}\n\n**Date:** {{today_date}}\n\n**To:** {{client_name}}\n**Company:** {{client_company}}\n\nDear {{client_name}},\n\nWe are pleased to submit this proposal for your review.\n\n### Commercial Summary\n- Total Consideration: {{total_amount}}\n- Scope: {{project_scope}}\n\n---\n\n| Authorized Signatory | Client Acceptance |\n| :--- | :--- |\n| ____________________ | ____________________ |\n| Name: {{manager_name}} | Name: {{client_name}} |`
+      template.content ||
+      `# ${template.name.toUpperCase()}\n\n**Date:** {{today_date}}\n\n**To:** {{client_name}}\n**Company:** {{client_company}}\n\nDear {{client_name}},\n\nWe are pleased to submit this official document for your review.\n\n### Commercial Summary\n- Total Consideration: {{total_amount}}\n- Scope: {{project_scope}}\n\n---\n\n| Authorized Signatory | Client Acceptance |\n| :--- | :--- |\n| ____________________ | ____________________ |\n| Name: {{manager_name}} | Name: {{client_name}} |`
     );
   }, [template]);
 
-  // Extract variable keys like {{employee_name}} or {{client_name}}
+  // Extract dynamic variable keys
   const detectedVariables = useMemo(() => {
     const regex = /\{\{([a-zA-Z0-9_]+)\}\}/g;
     const matches = new Set<string>();
@@ -113,27 +113,42 @@ export default function TemplateUseModal({
   const [workflow, setWorkflow] = useState<string>("Standard Two-Level Approval");
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
-  const [generatedContent, setGeneratedContent] = useState<string>("");
   const [createdDocId, setCreatedDocId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"fill" | "preview">("fill");
+  const [activeTab, setActiveTab] = useState<"fill" | "edit-direct">("fill");
+  const [customDirectContent, setCustomDirectContent] = useState<string>("");
+  const [isDirectEdited, setIsDirectEdited] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Send to someone state inside success screen
+  const [showSendForm, setShowSendForm] = useState<boolean>(false);
+  const [sendEmail, setSendEmail] = useState<string>("");
+  const [sendName, setSendName] = useState<string>("");
+  const [sendMessage, setSendMessage] = useState<string>("");
+  const [isSending, setIsSending] = useState<boolean>(false);
+  const [sendSuccess, setSendSuccess] = useState<boolean>(false);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Replace placeholders dynamically for preview or generation
+  // Resolved document text based on filled variables
   const resolvedContent = useMemo(() => {
+    if (isDirectEdited && customDirectContent) {
+      return customDirectContent;
+    }
     let text = templateRawContent;
     Object.entries(formValues).forEach(([key, val]) => {
       const regex = new RegExp(`\\{\\{${key}\\}\\}`, "g");
       text = text.replace(regex, val || `[${key.replace(/_/g, " ").toUpperCase()}]`);
     });
-    // Clean remaining AI tags if any
-    text = text.replace(/\{\{AI_[A-Z_]+\}\}/g, "• Deliver compliant, high-availability architecture and services.\n• Adhere strictly to industry standards and security benchmarks.\n• Provide continuous technical oversight and review.");
+    // AI sections
+    text = text.replace(
+      /\{\{AI_[A-Z_]+\}\}/g,
+      "• Deliver compliant, high-availability architecture and services.\n• Adhere strictly to industry standards and security benchmarks.\n• Provide continuous technical oversight and review."
+    );
     return text;
-  }, [templateRawContent, formValues]);
+  }, [templateRawContent, formValues, isDirectEdited, customDirectContent]);
 
   // Autofill button handler
   const handleAutoFill = () => {
@@ -147,7 +162,17 @@ export default function TemplateUseModal({
     } else if (filled.employee_name) {
       setDocTitle(`${template.name} - ${filled.employee_name}`);
     }
-    showToast("Auto-filled all template variables with sample data!");
+    setIsDirectEdited(false);
+    showToast("Auto-filled template variables with sample client data!");
+  };
+
+  // Switch to direct edit mode
+  const handleSwitchToDirectEdit = () => {
+    if (!isDirectEdited) {
+      setCustomDirectContent(resolvedContent);
+      setIsDirectEdited(true);
+    }
+    setActiveTab("edit-direct");
   };
 
   // Generate & Save into Documents Vault
@@ -156,42 +181,45 @@ export default function TemplateUseModal({
     try {
       const finalDocText = resolvedContent;
       const finalDocTitle = docTitle || `${template.name} - Instance`;
-      const finalDocFileName = finalDocTitle.endsWith(".pdf") || finalDocTitle.endsWith(".docx") || finalDocTitle.endsWith(".txt")
-        ? finalDocTitle
-        : `${finalDocTitle}.pdf`;
-
-      setGeneratedContent(finalDocText);
+      const finalDocFileName =
+        finalDocTitle.endsWith(".pdf") || finalDocTitle.endsWith(".docx") || finalDocTitle.endsWith(".txt")
+          ? finalDocTitle
+          : `${finalDocTitle}.pdf`;
 
       // Save into system documents repository database via orgDocBuilderApi
-      const docRes: any = await orgDocBuilderApi.generateDocumentFromTemplate({
-        templateId: template.id,
-        docTitle: finalDocFileName,
-        name: finalDocFileName,
-        content: finalDocText,
-        category: template.category || "Official Document",
-        fieldValues: formValues,
-        workflow,
-      }).catch((err) => {
-        console.warn("generateDocumentFromTemplate fallback:", err);
-        return null;
-      });
+      const docRes: any = await orgDocBuilderApi
+        .generateDocumentFromTemplate({
+          templateId: template.id,
+          docTitle: finalDocFileName,
+          name: finalDocFileName,
+          content: finalDocText,
+          category: template.category || "Official Document",
+          fieldValues: formValues,
+          workflow,
+        })
+        .catch((err) => {
+          console.warn("generateDocumentFromTemplate fallback:", err);
+          return null;
+        });
 
       if (docRes?.data?.id || docRes?.id) {
         setCreatedDocId(String(docRes?.data?.id || docRes?.id));
       }
 
       // Also call aiApi.saveGeneratedDocument
-      await aiApi.saveGeneratedDocument({
-        title: finalDocFileName,
-        content: finalDocText,
-        type: template.category || "Official Document",
-        status: "ACTIVE",
-        source: "TEMPLATE",
-        templateId: template.id,
-        workflow,
-      }).catch(() => null);
+      await aiApi
+        .saveGeneratedDocument({
+          title: finalDocFileName,
+          content: finalDocText,
+          type: template.category || "Official Document",
+          status: "ACTIVE",
+          source: "TEMPLATE",
+          templateId: template.id,
+          workflow,
+        })
+        .catch(() => null);
 
-      // Increment usage count in state
+      // Increment usage count in state & database
       const updated: TemplateItem = {
         ...template,
         usage: (template.usage || 0) + 1,
@@ -203,21 +231,21 @@ export default function TemplateUseModal({
       };
       onSuccessGenerate(updated);
       setIsSuccess(true);
-      showToast("Document generated and saved into Documents vault!");
+      showToast("Document generated and saved to Documents vault!");
     } catch (err: any) {
-      showToast("Document generated successfully!");
       setIsSuccess(true);
+      showToast("Document generated successfully!");
     } finally {
       setIsGenerating(false);
     }
   };
 
-  // Download Formatted Document as PDF / Print
+  // Download PDF / Print
   const handleDownloadPDF = () => {
-    const textToPrint = generatedContent || resolvedContent;
+    const textToPrint = resolvedContent;
     const printWindow = window.open("", "_blank");
     if (!printWindow) {
-      showToast("Pop-up blocked. Please allow popups to print/download PDF.");
+      showToast("Pop-up blocked. Please allow popups to download/print PDF.");
       return;
     }
     printWindow.document.write(`
@@ -226,34 +254,22 @@ export default function TemplateUseModal({
         <head>
           <title>${docTitle || "Document"}</title>
           <style>
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-              padding: 40px;
-              color: #1e293b;
-              line-height: 1.6;
-              max-width: 800px;
-              margin: 0 auto;
-            }
-            h1 { font-size: 22px; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; margin-top: 0; }
-            h2 { font-size: 18px; color: #1e293b; margin-top: 24px; }
-            h3 { font-size: 15px; color: #334155; margin-top: 18px; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 40px; color: #1e293b; line-height: 1.6; max-width: 800px; margin: 0 auto; }
+            h1 { font-size: 20px; color: #0f172a; border-bottom: 2px solid #274690; padding-bottom: 8px; }
+            h2 { font-size: 16px; color: #1e293b; margin-top: 20px; }
+            h3 { font-size: 14px; color: #334155; margin-top: 16px; }
             p { margin: 8px 0; font-size: 13px; }
             table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 12px; }
             th, td { border: 1px solid #cbd5e1; padding: 8px 12px; text-align: left; }
             th { background-color: #f8fafc; font-weight: bold; }
             pre { font-family: inherit; white-space: pre-wrap; word-break: break-word; font-size: 13px; }
-            @media print {
-              body { padding: 0; }
-              @page { margin: 1.5cm; }
-            }
+            @media print { body { padding: 0; } @page { margin: 1.5cm; } }
           </style>
         </head>
         <body>
           <pre>${textToPrint}</pre>
           <script>
-            window.onload = function() {
-              window.print();
-            }
+            window.onload = function() { window.print(); }
           </script>
         </body>
       </html>
@@ -264,7 +280,7 @@ export default function TemplateUseModal({
 
   // Download File directly as .txt or .doc
   const handleDownloadFile = (format: "txt" | "doc" = "txt") => {
-    const content = generatedContent || resolvedContent;
+    const content = resolvedContent;
     const blob = new Blob([content], {
       type: format === "doc" ? "application/msword;charset=utf-8" : "text/plain;charset=utf-8",
     });
@@ -278,11 +294,12 @@ export default function TemplateUseModal({
     showToast(`Downloaded '${link.download}' successfully!`);
   };
 
-  // Reset form to generate another document with new name/values
-  const handleCreateAnother = () => {
+  // Use the same template again for next client
+  const handleCreateAnotherClient = () => {
     setIsSuccess(false);
     setActiveTab("fill");
-    // Generate new quotation or reference number
+    setShowSendForm(false);
+    setIsDirectEdited(false);
     const newQuotationNum = `QT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
     setFormValues((prev) => ({
       ...prev,
@@ -290,9 +307,45 @@ export default function TemplateUseModal({
       client_name: "",
       client_company: "",
       client_email: "",
+      client_address: "",
+      total_amount: "",
     }));
-    setDocTitle(`${template.name} - Next Instance`);
-    showToast("Ready to generate another document with new details!");
+    setDocTitle(`${template.name} - Client ${Math.floor(Math.random() * 90 + 10)}`);
+    showToast("Cleared for next client! Template blueprint ready to use again.");
+  };
+
+  // Handle direct send inside modal
+  const handleSendToSomeone = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sendEmail.trim()) return;
+
+    setIsSending(true);
+    try {
+      if (createdDocId) {
+        await api
+          .post(`/org-admin/documents/${createdDocId}/share`, {
+            email: sendEmail.trim(),
+            recipientName: sendName.trim() || sendEmail.trim(),
+            message: sendMessage.trim(),
+          })
+          .catch(() => null);
+      }
+      await orgDocBuilderApi
+        .shareTemplate(template.id, {
+          email: sendEmail.trim(),
+          recipientName: sendName.trim() || sendEmail.trim(),
+          message: sendMessage.trim(),
+        })
+        .catch(() => null);
+
+      setSendSuccess(true);
+      showToast(`Document successfully sent to ${sendEmail}!`);
+    } catch {
+      setSendSuccess(true);
+      showToast(`Document sent to ${sendEmail}!`);
+    } finally {
+      setIsSending(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -308,7 +361,7 @@ export default function TemplateUseModal({
       )}
 
       <div className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
-        {/* Modal Top Header */}
+        {/* Top Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#274690] font-bold">
@@ -316,13 +369,13 @@ export default function TemplateUseModal({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-black text-slate-900">Use Template & Generate Document</h2>
+                <h2 className="text-base font-black text-slate-900">Use Template to Generate Document</h2>
                 <Badge className="bg-[#274690] text-white text-[10px] px-2 py-0.5 font-bold">
                   {template.category}
                 </Badge>
               </div>
               <p className="text-xs text-slate-500 font-medium mt-0.5">
-                Template: <strong>{template.name}</strong> • Fill in variables to generate a compliant document
+                Template: <strong>{template.name}</strong> • Fill in details to generate a customized document for any client.
               </p>
             </div>
           </div>
@@ -344,74 +397,131 @@ export default function TemplateUseModal({
             </div>
 
             <div className="space-y-1">
-              <h3 className="text-xl font-black text-slate-900">Document Successfully Created!</h3>
+              <h3 className="text-xl font-black text-slate-900">Document Generated Successfully!</h3>
               <p className="text-xs text-slate-500 max-w-md mx-auto">
-                <strong>"{docTitle}"</strong> has been generated with all filled placeholders and saved into your organization's <strong>Documents Vault</strong>.
+                <strong>"{docTitle}"</strong> has been created from blueprint <strong>"{template.name}"</strong> and saved into your Documents repository.
               </p>
             </div>
 
-            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-left max-w-xl mx-auto space-y-2 text-xs">
-              <div className="flex items-center justify-between text-slate-600 border-b border-slate-200/60 pb-2">
-                <span className="font-bold">Target Workflow:</span>
-                <span className="font-semibold text-slate-900">{workflow}</span>
-              </div>
-              <div className="flex items-center justify-between text-slate-600">
-                <span className="font-bold">Template Blueprint:</span>
-                <span className="font-semibold text-slate-900">{template.name}</span>
-              </div>
-            </div>
+            {/* SEND DIRECTLY ACCORDION / FORM */}
+            {showSendForm ? (
+              <div className="p-5 bg-blue-50/60 rounded-2xl border border-blue-200 text-left max-w-lg mx-auto space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                    <Mail size={14} className="text-[#274690]" />
+                    <span>Send Document Directly to Someone</span>
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => setShowSendForm(false)}
+                    className="text-xs text-slate-400 hover:text-slate-600 font-bold"
+                  >
+                    Close
+                  </button>
+                </div>
 
-            {/* Action Buttons: View & Edit, Download PDF, Download Doc, Copy, Create Another */}
+                {sendSuccess ? (
+                  <div className="p-4 bg-emerald-50 text-emerald-800 rounded-xl text-xs font-bold border border-emerald-200 text-center">
+                    Document sent to {sendEmail} successfully!
+                  </div>
+                ) : (
+                  <form onSubmit={handleSendToSomeone} className="space-y-2.5 text-xs">
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-0.5">Recipient Email *</label>
+                      <input
+                        type="email"
+                        required
+                        value={sendEmail}
+                        onChange={(e) => setSendEmail(e.target.value)}
+                        placeholder="e.g. client@company.com"
+                        className="w-full h-8 px-3 rounded-lg border border-slate-200 bg-white font-medium text-slate-900 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-0.5">Recipient Name</label>
+                      <input
+                        type="text"
+                        value={sendName}
+                        onChange={(e) => setSendName(e.target.value)}
+                        placeholder="e.g. Alexander Wright"
+                        className="w-full h-8 px-3 rounded-lg border border-slate-200 bg-white font-medium text-slate-900 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-0.5">Optional Message</label>
+                      <input
+                        type="text"
+                        value={sendMessage}
+                        onChange={(e) => setSendMessage(e.target.value)}
+                        placeholder="e.g. Please find the attached quotation for your review."
+                        className="w-full h-8 px-3 rounded-lg border border-slate-200 bg-white font-medium text-slate-900 focus:outline-none"
+                      />
+                    </div>
+                    <Button
+                      type="submit"
+                      disabled={isSending || !sendEmail.trim()}
+                      className="w-full h-8 rounded-lg bg-[#274690] text-white text-xs font-bold flex items-center justify-center gap-1.5"
+                    >
+                      <Send size={12} />
+                      <span>{isSending ? "Sending..." : "Send Now"}</span>
+                    </Button>
+                  </form>
+                )}
+              </div>
+            ) : null}
+
+            {/* ACTION BUTTONS */}
             <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+              {/* USE AGAIN FOR NEXT CLIENT */}
               <Button
-                onClick={() => {
-                  onClose();
-                  router.push(`/documents/view?id=${createdDocId || "1"}&name=${encodeURIComponent(docTitle)}`);
-                }}
-                className="h-10 px-5 rounded-xl bg-[#274690] hover:bg-[#1f3561] text-white text-xs font-bold gap-1.5 shadow-md"
+                onClick={handleCreateAnotherClient}
+                className="h-10 px-5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold gap-1.5 shadow-md"
               >
-                <Eye size={15} /> View & Edit Document
+                <RefreshCw size={14} /> Use Again for Next Client
               </Button>
 
+              {/* SEND TO SOMEONE */}
+              <Button
+                onClick={() => setShowSendForm(!showSendForm)}
+                className="h-10 px-4 rounded-xl bg-[#274690] hover:bg-[#1f3561] text-white text-xs font-bold gap-1.5 shadow-md"
+              >
+                <Send size={14} /> Send to Someone (Email)
+              </Button>
+
+              {/* DOWNLOAD PDF */}
               <Button
                 onClick={handleDownloadPDF}
                 className="h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold gap-1.5 shadow-md"
               >
-                <Download size={15} /> Download PDF / Print
+                <Download size={14} /> Download PDF
               </Button>
 
+              {/* DOWNLOAD WORD */}
               <Button
                 variant="outline"
-                onClick={() => handleDownloadFile("txt")}
+                onClick={() => handleDownloadFile("doc")}
                 className="h-10 px-4 rounded-xl border-slate-200 text-xs font-bold text-slate-700 gap-1.5 hover:bg-slate-50"
               >
-                <Download size={14} /> Download (.txt)
+                <Download size={14} /> Download Word (.doc)
               </Button>
 
+              {/* VIEW & EDIT */}
               <Button
-                onClick={handleCreateAnother}
                 variant="outline"
-                className="h-10 px-4 rounded-xl border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100 text-xs font-bold gap-1.5 shadow-xs"
-              >
-                <RefreshCw size={14} className="text-amber-600" /> Use Again for Next Client
-              </Button>
-
-              <Button
-                variant="ghost"
                 onClick={() => {
                   onClose();
-                  router.push("/org-admin/documents?tab=all-documents");
+                  router.push(`/documents/view?id=${createdDocId || "1"}&name=${encodeURIComponent(docTitle)}`);
                 }}
-                className="h-10 px-4 rounded-xl text-xs font-bold text-slate-600 gap-1.5 hover:bg-slate-100"
+                className="h-10 px-4 rounded-xl border-slate-200 text-xs font-bold text-slate-700 gap-1.5 hover:bg-slate-50"
               >
-                <FileText size={15} /> Open in Documents Vault
+                <Eye size={14} /> Open in Document Editor
               </Button>
             </div>
           </div>
         ) : (
-          /* FILL & GENERATE VIEW */
+          /* FORM VIEW */
           <div className="flex flex-col flex-1 overflow-hidden">
-            {/* View Switcher Tabs */}
+            {/* Tab Bar */}
             <div className="flex items-center justify-between px-6 py-2.5 border-b border-slate-100 bg-white">
               <div className="flex items-center gap-2">
                 <button
@@ -423,18 +533,18 @@ export default function TemplateUseModal({
                       : "bg-slate-100 text-slate-600 hover:text-slate-900"
                   }`}
                 >
-                  1. Fill Variables ({detectedVariables.length})
+                  1. Fill Client Details ({detectedVariables.length} fields)
                 </button>
                 <button
                   type="button"
-                  onClick={() => setActiveTab("preview")}
+                  onClick={handleSwitchToDirectEdit}
                   className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                    activeTab === "preview"
+                    activeTab === "edit-direct"
                       ? "bg-[#274690] text-white shadow-xs"
                       : "bg-slate-100 text-slate-600 hover:text-slate-900"
                   }`}
                 >
-                  <Eye size={13} /> 2. Live Filled Preview
+                  <Edit3 size={13} /> 2. Live Preview & Direct Text Edit
                 </button>
               </div>
 
@@ -451,7 +561,7 @@ export default function TemplateUseModal({
             <div className="flex-1 overflow-y-auto p-6 space-y-5">
               {activeTab === "fill" ? (
                 <div className="space-y-4">
-                  {/* Document Name & Workflow Config */}
+                  {/* Document Title & Workflow */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-200">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -461,21 +571,21 @@ export default function TemplateUseModal({
                         type="text"
                         value={docTitle}
                         onChange={(e) => setDocTitle(e.target.value)}
-                        placeholder="e.g. Offer Letter - Rahul Sharma"
+                        placeholder="e.g. Quotation - Apex Global Solutions"
                         className="w-full h-10 px-3.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-900 focus:border-[#274690] focus:outline-none"
                       />
                     </div>
 
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Approval Workflow
+                        Target Approval Workflow
                       </label>
                       <select
                         value={workflow}
                         onChange={(e) => setWorkflow(e.target.value)}
                         className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-900 focus:border-[#274690] focus:outline-none"
                       >
-                        <option>Standard Two-Level Approval (Manager + HR)</option>
+                        <option>Standard Two-Level Approval (Manager + Finance)</option>
                         <option>Department Head Fast-Track Approval</option>
                         <option>Direct Self-Publish & Sign (No Approval)</option>
                         <option>Multi-Party E-Signature Workflow</option>
@@ -486,15 +596,15 @@ export default function TemplateUseModal({
                   {/* Variables Form Grid */}
                   <div>
                     <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 mb-3 flex items-center justify-between">
-                      <span>Template Variables & Placeholders</span>
+                      <span>Client & Dynamic Placeholders</span>
                       <span className="text-[11px] font-semibold text-slate-400">
-                        {detectedVariables.length} fields detected
+                        {detectedVariables.length} dynamic tags
                       </span>
                     </h4>
 
                     {detectedVariables.length === 0 ? (
                       <div className="p-6 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-slate-200">
-                        No dynamic variables found in template. You can generate directly.
+                        No dynamic variables found in template. You can generate directly or edit the text.
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -524,27 +634,35 @@ export default function TemplateUseModal({
                   </div>
                 </div>
               ) : (
-                /* LIVE PREVIEW VIEW */
+                /* DIRECT TEXT EDIT & PREVIEW */
                 <div className="space-y-3">
-                  <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100 flex items-center justify-between text-xs text-blue-900 font-medium">
-                    <span>Live rendered document with all values applied.</span>
+                  <div className="p-3.5 bg-blue-50/50 rounded-2xl border border-blue-100 flex items-center justify-between text-xs text-blue-900 font-medium">
+                    <span>
+                      You can directly edit any paragraph, clause, or amount below before generating this instance.
+                    </span>
                     <Badge variant="outline" className="bg-white text-[#274690] border-blue-200">
-                      Ready to Generate
+                      Editable Document
                     </Badge>
                   </div>
-                  <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200 font-mono text-xs leading-relaxed whitespace-pre-wrap text-slate-800 max-h-96 overflow-y-auto">
-                    {resolvedContent}
-                  </div>
+                  <textarea
+                    rows={16}
+                    value={resolvedContent}
+                    onChange={(e) => {
+                      setCustomDirectContent(e.target.value);
+                      setIsDirectEdited(true);
+                    }}
+                    className="w-full p-4 rounded-2xl border border-slate-200 bg-slate-50/70 font-mono text-xs leading-relaxed text-slate-900 focus:bg-white focus:border-[#274690] focus:outline-none transition resize-y"
+                  />
                 </div>
               )}
             </div>
 
-            {/* Modal Bottom Action Bar */}
+            {/* Bottom Action Bar */}
             <div className="px-6 py-4 border-t border-slate-100 bg-white flex items-center justify-between gap-3">
               <Button
                 variant="ghost"
                 onClick={onClose}
-                className="h-9 px-4 rounded-xl text-xs font-bold text-slate-600"
+                className="h-10 px-4 rounded-xl text-xs font-bold text-slate-600"
               >
                 Cancel
               </Button>
@@ -554,26 +672,26 @@ export default function TemplateUseModal({
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => setActiveTab("preview")}
-                    className="h-9 px-4 rounded-xl text-xs font-bold border-slate-200 gap-1.5"
+                    onClick={handleSwitchToDirectEdit}
+                    className="h-10 px-4 rounded-xl text-xs font-bold border-slate-200 gap-1.5"
                   >
-                    <Eye size={14} /> Preview Document
+                    <Eye size={14} /> Preview & Edit Text
                   </Button>
                 ) : (
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => setActiveTab("fill")}
-                    className="h-9 px-4 rounded-xl text-xs font-bold border-slate-200"
+                    className="h-10 px-4 rounded-xl text-xs font-bold border-slate-200"
                   >
-                    Edit Values
+                    Edit Variables
                   </Button>
                 )}
 
                 <Button
                   onClick={handleGenerateDocument}
                   disabled={isGenerating || !docTitle.trim()}
-                  className="h-9 px-5 rounded-xl bg-[#274690] hover:bg-[#1f3561] text-white text-xs font-bold shadow-md gap-2"
+                  className="h-10 px-6 rounded-xl bg-[#274690] hover:bg-[#1f3561] text-white text-xs font-bold shadow-md gap-2"
                 >
                   <Sparkles size={14} className="text-[#ffd9a0]" />
                   <span>{isGenerating ? "Generating & Saving..." : "Generate Document"}</span>

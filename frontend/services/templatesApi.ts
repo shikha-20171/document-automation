@@ -150,4 +150,14 @@ export const orgDocBuilderApi = {
     const { data } = await api.post<ApiResponse>("/org-admin/templates/generate-document", payload);
     return data;
   },
+  shareTemplate: async (id: string | number, payload: {
+    email?: string;
+    recipientName?: string;
+    message?: string;
+    visibility?: string;
+    department?: string;
+  }): Promise<ApiResponse> => {
+    const { data } = await api.post<ApiResponse>(`/org-admin/templates/${id}/share`, payload);
+    return data;
+  },
 };

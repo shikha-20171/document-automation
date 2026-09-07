@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import TemplateTable, {
   TemplateItem,
@@ -9,17 +9,47 @@ import TemplateTable, {
   Visibility,
 } from "./_components/TemplateTable";
 import TemplateModals from "./_components/TemplateModals";
+import { orgDocBuilderApi } from "@/services/templatesApi";
 
-const categorySeed = ["HR", "Legal", "Finance", "Sales", "Procurement", "Operations", "Compliance", "Other"];
+const categorySeed = [
+  "Sales",
+  "Finance",
+  "HR",
+  "Legal",
+  "Procurement",
+  "Operations",
+  "Compliance",
+  "Other",
+];
 
 const templateSeed: TemplateItem[] = [
   {
     id: 1001,
+    name: "Commercial Proposal & Quotation",
+    description: "Standard commercial quotation with itemized milestone fees, payment schedule, and signature block.",
+    category: "Sales",
+    status: "Active",
+    usage: 48,
+    createdBy: "Org Admin",
+    owner: "Org Admin",
+    updated: "10 Aug 2026",
+    department: "Sales",
+    documentType: "Quotation",
+    tags: ["quotation", "sales", "proposal"],
+    visibility: "Organisation Wide",
+    isShared: true,
+    content: `# COMMERCIAL PROPOSAL & QUOTATION\n\n**Quotation Reference:** {{quotation_number}}\n**Date:** {{today_date}}\n**Validity:** 30 Days from issue\n\n### Prepared For:\n**Client Name:** {{client_name}}\n**Company:** {{client_company}}\n**Billing Address:** {{client_address}}\n**Contact Email:** {{client_email}}\n\n### Service Provider Details:\n**Organisation:** {{organisation_name}}\n**Address:** {{organisation_address}}\n**Representative:** {{manager_name}}\n**Official Email:** {{organisation_email}}\n\n---\n\n### 1. Scope of Work & Deliverables\n{{project_scope}}\n\n### 2. Commercial Investment Breakdown\n| Item / Milestone Description | Qty | Rate (INR) | Total (INR) |\n| :--- | :--- | :--- | :--- |\n| Core Technology Platform License | 1 | {{basic_fee}} | {{basic_fee}} |\n| Custom Module Engineering & Setup | 1 | {{integration_fee}} | {{integration_fee}} |\n| Annual Technical Support & Maintenance | 1 | {{support_fee}} | {{support_fee}} |\n| **Total Investment Payable (Excl. Taxes)** | | | **{{total_amount}}** |\n\n### 3. Payment Terms & Schedule\n- 50% advance on commercial contract acceptance.\n- 40% upon completion of User Acceptance Testing (UAT).\n- 10% on live production handover.\n\n### 4. Client Sign-Off & Acceptance\nKindly confirm your acceptance of this quotation by returning a signed duplicate copy.\n\n---\n\n| For {{organisation_name}} (Authorized) | Client Acceptance Signature |\n| :--- | :--- |\n| _____________________________________ | _____________________________________ |\n| **Name:** {{manager_name}} | **Name:** {{client_name}} |\n| **Title:** Commercial Director | **Title:** Authorized Client Signatory |\n| **Date:** {{today_date}} | **Date:** __________________________ |`,
+    activities: [
+      { time: "10 Aug 11:30", event: "Admin published quotation template" },
+    ],
+  },
+  {
+    id: 1002,
     name: "Employee Offer Letter",
-    description: "Standard offer letter for new employees with compensation breakdown, joining date, and e-signatures.",
+    description: "Standard offer letter for new hires with compensation breakdown, joining date, and e-signatures.",
     category: "HR",
     status: "Active",
-    usage: 42,
+    usage: 34,
     createdBy: "Rahul Admin",
     owner: "Rahul Admin",
     updated: "12 Aug 2026",
@@ -28,34 +58,31 @@ const templateSeed: TemplateItem[] = [
     tags: ["employee", "offer", "joining"],
     visibility: "Organisation Wide",
     isShared: true,
-    content: `# EMPLOYMENT OFFER LETTER\n\n**Date:** {{joining_date}}\n\n**To:** {{employee_name}}  \n**Employee ID:** {{employee_id}}  \n**Address:** {{client_address}}\n\nDear {{employee_name}},\n\nWe are pleased to formally extend an offer of employment for the position of **{{designation}}** in the **{{department}}** department at **{{organisation_name}}**.\n\n### 1. Position & Reporting\nYou will report directly to **{{manager_name}}** commencing on **{{joining_date}}**.\n\n### 2. Compensation & Benefits\nYour annual Gross CTC will be **{{total_salary}}**, structured as follows:\n- Basic Salary: {{basic_salary}}\n- House Rent Allowance: {{hra}}\n- Special Allowance: {{special_allowance}}\n- Total CTC: {{total_salary}}\n\n### 3. Key Responsibilities\n{{AI_JOB_RESPONSIBILITIES}}\n\n---\n\n| For Employer Signatory | Employee Acceptance |\n| :--- | :--- |\n| _______________________ | _______________________ |\n| Name: {{manager_name}} | Name: {{employee_name}} |`,
+    content: `# EMPLOYMENT OFFER LETTER\n\n**Date:** {{joining_date}}\n\n**To:** {{employee_name}}  \n**Employee ID:** {{employee_id}}  \n**Address:** {{client_address}}\n\nDear {{employee_name}},\n\nWe are pleased to formally extend an offer of employment for the position of **{{designation}}** in the **{{department}}** department at **{{organisation_name}}**.\n\n### 1. Position & Reporting\nYou will report directly to **{{manager_name}}** commencing on **{{joining_date}}**.\n\n### 2. Compensation & Benefits\nYour annual Gross CTC will be **{{total_salary}}**, structured as follows:\n- Basic Salary: {{basic_salary}}\n- House Rent Allowance: {{hra}}\n- Special Allowance: {{special_allowance}}\n- Total CTC: {{total_salary}}\n\n### 3. Key Responsibilities\n• Deliver scalable and compliant enterprise engineering solutions.\n• Adhere strictly to industry standards and security benchmarks.\n• Collaborate cross-functionally with team stakeholders.\n\n---\n\n| For Employer Signatory | Employee Acceptance |\n| :--- | :--- |\n| _______________________ | _______________________ |\n| Name: {{manager_name}} | Name: {{employee_name}} |`,
     activities: [
       { time: "12 Aug 10:30", event: "Rahul updated template" },
-      { time: "12 Aug 10:45", event: "Admin published template" },
     ],
   },
   {
-    id: 1002,
+    id: 1003,
     name: "Mutual Non-Disclosure Agreement (NDA)",
     description: "Mutual confidentiality agreement for vendors, contractors, and corporate clients.",
     category: "Legal",
     status: "Active",
-    usage: 31,
+    usage: 28,
     createdBy: "Priya Legal",
     owner: "Priya Legal",
     updated: "10 Aug 2026",
     department: "Legal",
     documentType: "NDA",
     tags: ["nda", "legal", "confidential"],
-    visibility: "Department Only",
+    visibility: "Organisation Wide",
     isShared: true,
-    content: `# MUTUAL NON-DISCLOSURE AGREEMENT\n\n**Effective Date:** {{joining_date}}\n\n**Disclosing Party:** {{organisation_name}}\n**Receiving Party:** {{client_name}} ({{client_company}})\n\n### 1. Purpose & Confidentiality\nThe parties intend to engage in discussions concerning potential business collaboration. Both parties agree to protect proprietary source codes, financial statements, and business data.\n\n### 2. Non-Disclosure Obligations\nThe Receiving Party shall hold all Confidential Information in strict confidence for a period of 3 (three) years.\n\n---\n\n| Disclosing Party Signature | Receiving Party Signature |\n| :--- | :--- |\n| __________________________ | __________________________ |\n| Name: {{manager_name}} | Name: {{client_name}} |`,
-    activities: [
-      { time: "10 Aug 09:10", event: "Template published" },
-    ],
+    content: `# MUTUAL NON-DISCLOSURE AGREEMENT\n\n**Effective Date:** {{today_date}}\n\n**Disclosing Party:** {{organisation_name}}\n**Receiving Party:** {{client_name}} ({{client_company}})\n\n### 1. Purpose & Confidentiality\nThe parties intend to engage in discussions concerning potential business collaboration. Both parties agree to protect proprietary source codes, financial statements, and business data.\n\n### 2. Non-Disclosure Obligations\nThe Receiving Party shall hold all Confidential Information in strict confidence for a period of 3 (three) years.\n\n---\n\n| Disclosing Party Signature | Receiving Party Signature |\n| :--- | :--- |\n| __________________________ | __________________________ |\n| Name: {{manager_name}} | Name: {{client_name}} |`,
+    activities: [{ time: "10 Aug 09:10", event: "Template published" }],
   },
   {
-    id: 1003,
+    id: 1004,
     name: "GST Tax Invoice & Billing",
     description: "Standard tax invoice template with itemized line items, GSTIN, and payment terms.",
     category: "Finance",
@@ -69,30 +96,10 @@ const templateSeed: TemplateItem[] = [
     tags: ["invoice", "gst", "payment"],
     visibility: "Organisation Wide",
     isShared: true,
-    content: `# TAX INVOICE\n\n**Invoice Date:** {{joining_date}}\n**Vendor:** {{organisation_name}}\n**Client:** {{client_name}} ({{client_company}})\n**Client Address:** {{client_address}}\n\n### Billing Summary\n| Description | Rate | Amount |\n| :--- | :--- | :--- |\n| Professional Technology Services | Standard Fee | {{total_salary}} |\n| Total Tax & GST | 18% | Included |\n| **Grand Total Payable** | Net 30 Days | **{{total_salary}}** |\n\nAuthorized Signatory:\n{{organisation_name}} Accounts Dept`,
+    content: `# TAX INVOICE\n\n**Invoice Date:** {{today_date}}\n**Vendor:** {{organisation_name}}\n**Client:** {{client_name}} ({{client_company}})\n**Client Address:** {{client_address}}\n\n### Billing Summary\n| Description | Rate | Amount |\n| :--- | :--- | :--- |\n| Professional Technology Services | Standard Fee | {{total_amount}} |\n| Total Tax & GST | 18% | Included |\n| **Grand Total Payable** | Net 30 Days | **{{total_amount}}** |\n\nAuthorized Signatory:\n{{organisation_name}} Accounts Dept`,
     activities: [{ time: "09 Aug 14:20", event: "Template published" }],
   },
-  {
-    id: 1004,
-    name: "B2B Enterprise Master Services Agreement",
-    description: "Comprehensive services contract covering SLAs, liability limits, and milestones.",
-    category: "Sales",
-    status: "Active",
-    usage: 14,
-    createdBy: "Anil Sales",
-    owner: "Anil Sales",
-    updated: "30 Jul 2026",
-    department: "Sales",
-    documentType: "Proposal",
-    tags: ["contract", "sales", "msa"],
-    visibility: "Organisation Wide",
-    isShared: true,
-    content: `# MASTER SERVICES AGREEMENT\n\n**Contract Value:** {{contract_value}}\n**Effective Date:** {{joining_date}}\n**Service Provider:** {{organisation_name}}\n**Client:** {{client_name}}\n\n### 1. Scope of Work\nProvider shall deliver digital automation software and infrastructure maintenance.\n\n### 2. Payment Terms\nInvoices are payable within 30 days of issuance. Total consideration: {{contract_value}}.\n\nAuthorized Signatures:\nFor Provider: {{manager_name}}\nFor Client: {{client_name}}`,
-    activities: [{ time: "30 Jul 10:00", event: "Template published" }],
-  },
 ];
-
-import { orgDocBuilderApi } from "@/services/templatesApi";
 
 export default function OrgAdminTemplatesPage() {
   const router = useRouter();
@@ -101,15 +108,20 @@ export default function OrgAdminTemplatesPage() {
   const [selected, setSelected] = useState<TemplateItem | null>(null);
 
   const loadTemplates = async () => {
+    let apiItems: TemplateItem[] = [];
     try {
       const res = await orgDocBuilderApi.getTemplates();
       if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
-        const formatted: TemplateItem[] = res.data.map((t: any, idx: number) => ({
+        apiItems = res.data.map((t: any, idx: number) => ({
           id: t.id || idx + 1,
           name: t.name,
           description: t.description || "",
           category: t.category || "General",
-          status: (t.status === "DRAFT" || t.status === "Draft" ? "Draft" : t.status === "ARCHIVED" || t.status === "Archived" ? "Archived" : "Active") as TemplateStatus,
+          status: (t.status === "DRAFT" || t.status === "Draft"
+            ? "Draft"
+            : t.status === "ARCHIVED" || t.status === "Archived"
+            ? "Archived"
+            : "Active") as TemplateStatus,
           usage: t.usage || 0,
           createdBy: t.createdBy || "Org Admin",
           owner: t.createdBy || "Org Admin",
@@ -122,11 +134,29 @@ export default function OrgAdminTemplatesPage() {
           content: t.content || "",
           activities: t.activities || [{ time: "Just now", event: "Template active" }],
         }));
-        setTemplates(formatted);
       }
     } catch (err) {
-      console.warn("Failed to load templates from API, using fallback:", err);
+      console.warn("Failed to load templates from API, using cached fallback:", err);
     }
+
+    // Read any local custom templates created by user
+    let localItems: TemplateItem[] = [];
+    if (typeof window !== "undefined") {
+      try {
+        const rawLocal = localStorage.getItem("docucore_custom_templates");
+        if (rawLocal) {
+          localItems = JSON.parse(rawLocal);
+        }
+      } catch {}
+    }
+
+    // Merge: templateSeed -> apiItems -> localItems (ensuring user creations are always preserved!)
+    const mergedMap = new Map<string, TemplateItem>();
+    templateSeed.forEach((t) => mergedMap.set(String(t.name.toLowerCase()), t));
+    apiItems.forEach((t) => mergedMap.set(String(t.name.toLowerCase()), t));
+    localItems.forEach((t) => mergedMap.set(String(t.name.toLowerCase()), t));
+
+    setTemplates(Array.from(mergedMap.values()));
   };
 
   useEffect(() => {
@@ -147,35 +177,53 @@ export default function OrgAdminTemplatesPage() {
   };
 
   const handleCreateTemplate = async (data: Partial<TemplateItem>) => {
+    const newId = `tmpl-${Date.now()}`;
+    const newTemplate: TemplateItem = {
+      id: newId,
+      name: data.name || "Untitled Template",
+      description: data.description || "",
+      category: data.category || "General",
+      status: "Active",
+      usage: 0,
+      createdBy: "Org Admin",
+      owner: "Org Admin",
+      updated: "Just now",
+      department: data.department || "All",
+      documentType: data.documentType || data.name || "Document",
+      tags: data.tags || [data.category || "General"],
+      visibility: (data.visibility || "Organisation Wide") as Visibility,
+      isShared: true,
+      content: data.content || `# ${data.name || "Template"}\n\nStandard template content.`,
+      activities: [{ time: "Just now", event: "Template created" }],
+    };
+
+    // Immediate UI update
+    setTemplates((prev) => [newTemplate, ...prev.filter((t) => t.name !== newTemplate.name)]);
+
+    // Store in localStorage
+    if (typeof window !== "undefined") {
+      try {
+        const rawLocal = localStorage.getItem("docucore_custom_templates");
+        const existing: TemplateItem[] = rawLocal ? JSON.parse(rawLocal) : [];
+        localStorage.setItem(
+          "docucore_custom_templates",
+          JSON.stringify([newTemplate, ...existing.filter((t) => t.name !== newTemplate.name)])
+        );
+      } catch {}
+    }
+
+    // Persist to backend database
     try {
       const res = await orgDocBuilderApi.createTemplate({
-        name: data.name || "Untitled Template",
-        description: data.description || "",
-        category: data.category || "General",
-        documentType: data.documentType || "Document",
-        content: (data as any).content || `# ${data.name || "Template"}\n\nStandard template content.`,
-        status: data.status === "Active" ? "ACTIVE" : "DRAFT",
+        name: newTemplate.name,
+        description: newTemplate.description,
+        category: newTemplate.category,
+        documentType: newTemplate.documentType,
+        content: newTemplate.content,
+        status: "ACTIVE",
       });
-      await loadTemplates();
-      if (res?.data) {
-        setSelected({
-          id: res.data.id,
-          name: res.data.name,
-          description: res.data.description || "",
-          category: res.data.category || "General",
-          status: res.data.status === "Active" || res.data.status === "ACTIVE" ? "Active" : "Draft",
-          usage: 0,
-          createdBy: res.data.createdBy || "Org Admin",
-          owner: res.data.createdBy || "Org Admin",
-          updated: "Just now",
-          department: data.department || "All",
-          documentType: res.data.documentType || "Document",
-          tags: data.tags || [data.category || "General"],
-          visibility: (data.visibility || "Organisation Wide") as Visibility,
-          isShared: true,
-          content: res.data.content,
-        });
-        setModal("builder");
+      if (res?.data?.id) {
+        newTemplate.id = res.data.id;
       }
     } catch (e) {
       console.error("Template creation error:", e);
@@ -184,6 +232,17 @@ export default function OrgAdminTemplatesPage() {
 
   const handleUpdateTemplate = async (updated: TemplateItem) => {
     setTemplates((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+
+    // Update in localStorage
+    if (typeof window !== "undefined") {
+      try {
+        const rawLocal = localStorage.getItem("docucore_custom_templates");
+        const existing: TemplateItem[] = rawLocal ? JSON.parse(rawLocal) : [];
+        const filtered = existing.filter((t) => t.id !== updated.id && t.name !== updated.name);
+        localStorage.setItem("docucore_custom_templates", JSON.stringify([updated, ...filtered]));
+      } catch {}
+    }
+
     try {
       await orgDocBuilderApi.updateTemplate(updated.id, {
         name: updated.name,
@@ -193,16 +252,34 @@ export default function OrgAdminTemplatesPage() {
         content: updated.content,
         status: updated.status,
       });
-      await loadTemplates();
     } catch (e) {
       console.error("Template update error:", e);
     }
   };
 
   const handleDuplicate = async (template: TemplateItem) => {
+    const copyId = `tmpl-${Date.now()}`;
+    const copy: TemplateItem = {
+      ...template,
+      id: copyId,
+      name: `${template.name} (Copy)`,
+      usage: 0,
+      updated: "Just now",
+      activities: [{ time: "Just now", event: "Duplicated template" }],
+    };
+
+    setTemplates((prev) => [copy, ...prev]);
+
+    if (typeof window !== "undefined") {
+      try {
+        const rawLocal = localStorage.getItem("docucore_custom_templates");
+        const existing: TemplateItem[] = rawLocal ? JSON.parse(rawLocal) : [];
+        localStorage.setItem("docucore_custom_templates", JSON.stringify([copy, ...existing]));
+      } catch {}
+    }
+
     try {
       await orgDocBuilderApi.duplicateTemplate(template.id);
-      await loadTemplates();
     } catch (e) {
       console.error("Template duplicate error:", e);
     }
@@ -210,9 +287,22 @@ export default function OrgAdminTemplatesPage() {
 
   const handleDelete = async (id: number | string) => {
     setTemplates((prev) => prev.filter((t) => t.id !== id));
+
+    if (typeof window !== "undefined") {
+      try {
+        const rawLocal = localStorage.getItem("docucore_custom_templates");
+        if (rawLocal) {
+          const existing: TemplateItem[] = JSON.parse(rawLocal);
+          localStorage.setItem(
+            "docucore_custom_templates",
+            JSON.stringify(existing.filter((t) => t.id !== id))
+          );
+        }
+      } catch {}
+    }
+
     try {
       await orgDocBuilderApi.deleteTemplate(id);
-      await loadTemplates();
     } catch (e) {
       console.error("Template delete error:", e);
     }
@@ -233,6 +323,7 @@ export default function OrgAdminTemplatesPage() {
         selected={selected}
         categories={categorySeed}
         onClose={handleCloseModal}
+        onOpenModal={handleOpenModal}
         onCreateTemplate={handleCreateTemplate}
         onUpdateTemplate={handleUpdateTemplate}
       />
