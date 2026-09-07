@@ -71,7 +71,6 @@ export default function DocumentTemplatesPage() {
   const [customCategoryInput, setCustomCategoryInput] = useState("");
   const [templateDesc, setTemplateDesc] = useState("");
   const [templateContent, setTemplateContent] = useState("");
-  const [customVarInput, setCustomVarInput] = useState("");
   const [savingTemplate, setSavingTemplate] = useState(false);
 
   // AI Generator Modal State
@@ -89,20 +88,6 @@ export default function DocumentTemplatesPage() {
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const [customDocName, setCustomDocName] = useState("");
   const [generatingDoc, setGeneratingDoc] = useState(false);
-
-  // Pre-set standard variables to quickly insert
-  const quickVariables = [
-    { label: "Employee Name", key: "employee_name" },
-    { label: "Designation", key: "designation" },
-    { label: "Department", key: "department" },
-    { label: "Joining Date", key: "joining_date" },
-    { label: "Organization Name", key: "organization_name" },
-    { label: "Manager Name", key: "manager_name" },
-    { label: "Annual CTC / Salary", key: "salary_ctc" },
-    { label: "Document Number", key: "document_number" },
-    { label: "Address", key: "address" },
-    { label: "Today's Date", key: "today_date" },
-  ];
 
   const fetchTemplates = async () => {
     setLoading(true);
@@ -170,20 +155,6 @@ Sincerely,
     setTemplateDesc(tmpl.description || "");
     setTemplateContent(tmpl.contentTemplate || "");
     setEditorOpen(true);
-  };
-
-  // Insert Variable into template text
-  const handleInsertVariable = (varKey: string) => {
-    const formatted = `{{${varKey}}}`;
-    setTemplateContent((prev) => prev + " " + formatted);
-  };
-
-  // Add custom variable
-  const handleAddCustomVar = () => {
-    if (!customVarInput.trim()) return;
-    const cleanKey = customVarInput.trim().toLowerCase().replace(/[^a-z0-9_]/g, "_");
-    handleInsertVariable(cleanKey);
-    setCustomVarInput("");
   };
 
   // Insert formatting block
@@ -355,10 +326,7 @@ Sincerely,
     return content;
   };
 
-  // Detected variables in current editor
-  const detectedVariablesInEditor = Array.from(
-    new Set((templateContent.match(/{{([a-zA-Z0-9_]+)}}/g) || []).map((v) => v.replace(/[{}]/g, "")))
-  );
+
 
   return (
     <div className="space-y-6">
@@ -790,51 +758,6 @@ Sincerely,
                   </button>
                 </div>
 
-                {/* Quick Dynamic Variables Chips */}
-                <div className="pt-2 border-t border-slate-200/70">
-                  <div className="text-[10px] font-bold text-slate-500 uppercase mb-1.5 flex items-center justify-between">
-                    <span>Click to Insert Dynamic Placeholder:</span>
-                    <span className="text-[#274690]">
-                      {detectedVariablesInEditor.length} Placeholders In Content
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {quickVariables.map((v) => (
-                      <button
-                        key={v.key}
-                        type="button"
-                        onClick={() => handleInsertVariable(v.key)}
-                        className="rounded-lg border border-[#274690]/20 bg-[#274690]/5 px-2 py-1 font-mono text-[11px] font-bold text-[#274690] hover:bg-[#274690] hover:text-white transition"
-                      >
-                        +{`{{${v.key}}}`}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Add Custom Variable Field */}
-                  <div className="mt-2.5 flex items-center gap-2">
-                    <input
-                      type="text"
-                      placeholder="Add custom placeholder name (e.g. project_code, bonus_amount)..."
-                      value={customVarInput}
-                      onChange={(e) => setCustomVarInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          handleAddCustomVar();
-                        }
-                      }}
-                      className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs outline-none focus:border-[#274690]"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddCustomVar}
-                      className="rounded-xl bg-slate-800 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-700"
-                    >
-                      + Insert Custom Variable
-                    </button>
-                  </div>
-                </div>
               </div>
 
               {/* Template Content Editor Textarea */}

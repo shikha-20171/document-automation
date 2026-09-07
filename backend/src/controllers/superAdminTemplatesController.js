@@ -5,7 +5,7 @@ const getAllTemplates = async (req, res, next) => {
     const templates = await prisma.documentTemplate.findMany({
       include: {
         organisation: { select: { id: true, name: true } },
-        createdBy: { select: { id: true, name: true, email: true } },
+        createdBy: { select: { id: true, full_name: true, email: true } },
         fields: true,
       },
       orderBy: { createdAt: "desc" },
@@ -27,7 +27,7 @@ const getTemplateById = async (req, res, next) => {
       where: { id: String(id) },
       include: {
         organisation: { select: { id: true, name: true } },
-        createdBy: { select: { id: true, name: true, email: true } },
+        createdBy: { select: { id: true, full_name: true, email: true } },
         fields: true,
         versions: { orderBy: { version: "desc" } },
       },

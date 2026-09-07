@@ -877,7 +877,7 @@ const _mapTemplate = (t) => ({
   documentType: t.type || "Template",
   scope: t.createdById ? "MY_TEMPLATES" : "SHARED",
   version: `v${t.currentVersion || 1}.0`,
-  createdBy: t.createdBy?.name || "System",
+  createdBy: t.createdBy?.full_name || t.createdBy?.name || "System",
   createdAt: t.createdAt?.toISOString?.() || t.createdAt,
   updatedAt: t.updatedAt?.toISOString?.() || t.updatedAt,
   variables: [],
@@ -906,7 +906,7 @@ const getTemplates = async (req) => {
 
   const templates = await prisma.documentTemplate.findMany({
     where,
-    include: { createdBy: { select: { name: true } } },
+    include: { createdBy: { select: { id: true, full_name: true, email: true } } },
     orderBy: { updatedAt: "desc" },
   });
 
@@ -925,7 +925,7 @@ const getTemplates = async (req) => {
 const getTemplateById = async (id) => {
   const t = await prisma.documentTemplate.findUnique({
     where: { id },
-    include: { createdBy: { select: { name: true } } },
+    include: { createdBy: { select: { id: true, full_name: true, email: true } } },
   });
   if (!t) throw new Error("Template not found");
   return _mapTemplate(t);
@@ -946,7 +946,7 @@ const createTemplate = async (templateData, req) => {
       organisation: { connect: { id: context.organisationId } },
       createdBy: { connect: { id: context.userId } },
     },
-    include: { createdBy: { select: { name: true } } },
+    include: { createdBy: { select: { id: true, full_name: true, email: true } } },
   });
   return _mapTemplate(created);
 };
@@ -965,7 +965,7 @@ const updateTemplate = async (id, templateData, req) => {
   const updated = await prisma.documentTemplate.update({
     where: { id },
     data: updateData,
-    include: { createdBy: { select: { name: true } } },
+    include: { createdBy: { select: { id: true, full_name: true, email: true } } },
   });
   return _mapTemplate(updated);
 };
@@ -985,7 +985,7 @@ const duplicateTemplate = async (id, req) => {
       organisation: { connect: { id: context.organisationId } },
       createdBy: { connect: { id: context.userId } },
     },
-    include: { createdBy: { select: { name: true } } },
+    include: { createdBy: { select: { id: true, full_name: true, email: true } } },
   });
   return _mapTemplate(cloned);
 };
