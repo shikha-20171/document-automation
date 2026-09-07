@@ -1,869 +1,1386 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
-  Sparkles,
-  Save,
-  Eye,
-  FileCheck,
-  CheckCircle2,
-  Layout,
-  History,
-  Wand2,
-  RotateCcw,
-  X,
-  Plus,
-  Copy,
-  Trash2,
-  Download,
-  Share2,
-  FileText,
-  ArrowRight,
-  ArrowLeft,
-  Check,
-  Sliders,
-  Send,
-  ShieldCheck,
-  Zap,
-  Building2,
-  User,
-  Briefcase,
-  Layers,
-  FileCode,
-  FileSignature,
-  FileDown,
-  AlertCircle,
-  Clock,
-  Printer,
-  ChevronDown,
+  Sparkles, Save, Eye, CheckCircle2, History, Plus, Trash2,
+  Download, Send, Building2, Layers, AlertCircle, RefreshCw,
+  FileText, ArrowLeft, MoreVertical, FileCode, Check, Copy,
+  ExternalLink, ArrowUpRight, ShieldCheck, ChevronDown, PenTool
 } from "lucide-react";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { aiApi } from "@/services/aiApi";
-import api from "@/services/api";
+import apiClient from "@/lib/axios";
 
-const DOC_TYPES = [
-  "Offer Letter",
-  "Contract",
-  "Invoice",
-  "NDA Agreement",
-  "Leave Application",
-  "Report",
-  "Policy",
-  "Custom Document",
-];
-
-const PROMPT_SUGGESTIONS = [
-  "Create an employment offer letter for the candidate with CTC, probation period, and confidentiality clause.",
-  "Draft a mutual Non-Disclosure Agreement (NDA) with 3 years term and trade secret protection.",
-  "Generate a client software consulting proposal with Net 30 payment terms and 4 delivery milestones.",
-  "Create an enterprise remote work and Bring-Your-Own-Device (BYOD) security policy.",
-  "Draft a formal vendor service level agreement (SLA) with 99.9% uptime commitment.",
-];
-
-interface SelectOption {
-  id: string | number;
-  name: string;
-  role?: string;
-  department?: string;
-  company?: string;
+interface DocumentSection {
+  id: string;
+  type: "header" | "text" | "table" | "terms" | "signature";
+  title: string;
+  body?: string;
+  tableData?: {
+    headers: string[];
+    rows: string[][];
+  };
+  metadata?: Record<string, any>;
 }
 
-export default function OrgAdminAiBuilderPage() {
+interface DocumentVersion {
+  id: string;
+  versionNumber: number;
+  title: string;
+  changeSummary?: string | null;
+  createdByName?: string | null;
+  createdAt: string;
+}
+
+interface UnifiedDocument {
+  id: string;
+  documentNumber: string;
+  title: string;
+  documentType: string;
+  category: string;
+  status: string;
+  clientName?: string | null;
+  clientEmail?: string | null;
+  clientPhone?: string | null;
+  clientAddress?: string | null;
+  clientContactPerson?: string | null;
+  clientId?: string | null;
+  content: DocumentSection[];
+  financialData?: {
+    currency?: string;
+    subtotal?: number;
+    discountValue?: number;
+    discountAmount?: number;
+    taxRate?: number;
+    taxAmount?: number;
+    total?: number;
+  } | null;
+  variables: Record<string, string>;
+  templateId?: string | null;
+  currentVersion: number;
+  publicShareToken: string;
+  createdAt: string;
+  updatedAt: string;
+  versions?: DocumentVersion[];
+}
+
+interface CrmClient {
+  id: string;
+  name: string;
+  contactPerson?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  city?: string | null;
+}
+
+interface TemplateOption {
+  id: string;
+  name: string;
+  category: string;
+  documentType: string;
+  description?: string | null;
+  sections?: DocumentSection[] | null;
+  defaultVariables?: Record<string, string> | null;
+}
+
+const PROMPT_SUGGESTIONS = [
+  "Create a professional quotation for ABC Technologies for ₹3,00,000 website development.",
+  "Create an invoice for ABC Technologies for website development worth ₹3,00,000.",
+  "Create a professional business proposal for an e-commerce website project.",
+  "Create a service agreement between my company and ABC Technologies.",
+  "Create an employment offer letter for a frontend developer.",
+  "Create an NDA between my company and XYZ Pvt Ltd.",
+  "Create a project completion certificate.",
+  "Create a purchase order for 50 laptops.",
+  "Create a sales contract for software development services.",
+  "Create a custom document explaining our company's software development services, pricing model, implementation process and support.",
+];
+
+export default function UniversalAiDocumentBuilderPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const docIdParam = searchParams.get("id");
+  const templateIdParam = searchParams.get("templateId");
 
-  // Wizard state: "prompt" (Initial creation) | "editor" (Generated result & refinement)
-  const [viewState, setViewState] = useState<"prompt" | "editor">("prompt");
+  // Document State
+  const [documentId, setDocumentId] = useState<string | null>(docIdParam);
+  const [documentNumber, setDocumentNumber] = useState<string>("");
+  const [title, setTitle] = useState<string>("Professional Business Document");
+  const [documentType, setDocumentType] = useState<string>("Business Proposal");
+  const [category, setCategory] = useState<string>("Business");
+  const [status, setStatus] = useState<string>("DRAFT");
+  const [currentVersion, setCurrentVersion] = useState<number>(1);
+  const [publicShareToken, setPublicShareToken] = useState<string>("");
 
-  // Core Prompt Inputs
-  const [prompt, setPrompt] = useState<string>("");
-  const [docType, setDocType] = useState<string>("Offer Letter");
-  const [tone, setTone] = useState<string>("Professional");
-  const [language, setLanguage] = useState<string>("English");
-  const [length, setLength] = useState<"Short" | "Standard" | "Detailed">("Standard");
-  const [additionalNotes, setAdditionalNotes] = useState<string>("");
+  // Client Details
+  const [clientId, setClientId] = useState<string>("");
+  const [clientName, setClientName] = useState<string>("");
+  const [clientContactPerson, setClientContactPerson] = useState<string>("");
+  const [clientEmail, setClientEmail] = useState<string>("");
+  const [clientPhone, setClientPhone] = useState<string>("");
+  const [clientAddress, setClientAddress] = useState<string>("");
 
-  // Live Database Dynamic Entities
-  const [employeesList, setEmployeesList] = useState<SelectOption[]>([]);
-  const [clientsList, setClientsList] = useState<SelectOption[]>([]);
-  const [departmentsList, setDepartmentsList] = useState<string[]>([
-    "Human Resources",
-    "Engineering & Tech",
-    "Legal & Compliance",
-    "Finance & Accounts",
-    "Sales & Marketing",
-    "Operations",
+  // Content Sections
+  const [sections, setSections] = useState<DocumentSection[]>([
+    {
+      id: "sec_1",
+      type: "header",
+      title: "Document Heading & Overview",
+      body: "This document outlines the commercial objectives, scope of deliverables, and service level commitments.",
+    },
+    {
+      id: "sec_2",
+      type: "text",
+      title: "1. Scope of Deliverables & Requirements",
+      body: "• Implementation of scalable cloud architectures and authenticated API endpoints.\n• Responsive user interface engineering adhering to design tokens.\n• Quality assurance, end-to-end testing, and production deployment pipeline.",
+    },
+    {
+      id: "sec_3",
+      type: "table",
+      title: "2. Deliverable Milestones & Investment",
+      tableData: {
+        headers: ["Milestone / Item", "Scope Description", "Qty", "Unit", "Rate (INR)", "Amount (INR)"],
+        rows: [
+          ["Sprint 1: Architecture & Prototyping", "Design tokens, Figma system & DB schema", "1", "milestone", "50000", "50000"],
+          ["Sprint 2: Full-Stack Engineering", "Core microservices and frontend application", "1", "milestone", "150000", "150000"],
+          ["Sprint 3: QA & Cloud Go-Live", "Penetration testing and production launch", "1", "milestone", "50000", "50000"],
+        ],
+      },
+    },
+    {
+      id: "sec_4",
+      type: "terms",
+      title: "3. Terms, Payment Schedule & IP Ownership",
+      body: "• Payment Terms: 50% advance on execution, 50% upon final production handover.\n• Validity: Valid for 30 calendar days from the date of issuance.\n• Complete intellectual property and source code transferred upon final invoice settlement.",
+    },
+    {
+      id: "sec_5",
+      type: "signature",
+      title: "4. Execution & Authorization",
+      body: "Signed by authorized representatives of both parties.",
+    },
   ]);
 
-  // Context Data Selection
-  const [selectedEmployee, setSelectedEmployee] = useState<string>("None");
-  const [selectedClient, setSelectedClient] = useState<string>("None");
-  const [selectedDepartment, setSelectedDepartment] = useState<string>("Human Resources");
-  const [selectedTemplate, setSelectedTemplate] = useState<string>("None (100% Pure Custom AI)");
+  // Variables & Financials
+  const [variables, setVariables] = useState<Record<string, string>>({
+    company_name: "Enterprise Solutions Tech Pvt Ltd",
+    client_name: "ABC Technologies",
+  });
+  const [financialData, setFinancialData] = useState<any>({
+    currency: "INR",
+    subtotal: 250000,
+    taxRate: 18,
+    taxAmount: 45000,
+    total: 295000,
+  });
 
-  // Live Generation Progress State
-  const [isGenerating, setIsGenerating] = useState<boolean>(false);
-  const [generationStep, setGenerationStep] = useState<string>("Preparing...");
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  // AI & Detection State
+  const [aiPrompt, setAiPrompt] = useState<string>("");
+  const [detectedType, setDetectedType] = useState<{ type: string; category: string; confidence: number } | null>(null);
+  const [generatingAi, setGeneratingAi] = useState<boolean>(false);
 
-  // Generated Document State
-  const [documentTitle, setDocumentTitle] = useState<string>("New AI Document");
-  const [documentContent, setDocumentContent] = useState<string>("");
+  // CRM & Template Data
+  const [crmClients, setCrmClients] = useState<CrmClient[]>([]);
+  const [templates, setTemplates] = useState<TemplateOption[]>([]);
+  const [versions, setVersions] = useState<DocumentVersion[]>([]);
 
-  // Selected Text Transformation & Accept / Reject
-  const [selectedText, setSelectedText] = useState<string>("");
-  const [aiSuggestion, setAiSuggestion] = useState<{
-    original: string;
-    suggested: string;
-    action: string;
-  } | null>(null);
-  const [isTransforming, setIsTransforming] = useState<boolean>(false);
+  // UI Modes
+  const [activeTab, setActiveTab] = useState<"editor" | "preview">("editor");
+  const [saving, setSaving] = useState<boolean>(false);
+  const [showVersionsDrawer, setShowVersionsDrawer] = useState<boolean>(false);
+  const [showTemplateModal, setShowTemplateModal] = useState<boolean>(false);
+  const [templateSaveName, setTemplateSaveName] = useState<string>("");
+  const [templateSaveCategory, setTemplateSaveCategory] = useState<string>("General");
+  const [showEmailModal, setShowEmailModal] = useState<boolean>(false);
+  const [emailRecipient, setEmailRecipient] = useState<string>("");
+  const [emailMessage, setEmailMessage] = useState<string>("");
+  const [sendingEmail, setSendingEmail] = useState<boolean>(false);
 
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  // Toast
+  const [toastMessage, setToastMessage] = useState<{ title: string; desc?: string; type?: "success" | "error" } | null>(null);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
+  const showToast = (title: string, desc?: string, type: "success" | "error" = "success") => {
+    setToastMessage({ title, desc, type });
+    setTimeout(() => setToastMessage(null), 4500);
   };
 
-  // Fetch Live Database Context on Mount
+  // Load CRM Clients & Templates
   useEffect(() => {
-    // 1. Fetch live employees / team users
-    api
-      .get("/org-admin/team/users")
-      .then((res) => {
-        const users = res.data?.data || res.data;
-        if (Array.isArray(users) && users.length > 0) {
-          setEmployeesList(
-            users.map((u: any) => ({
-              id: u.id,
-              name: u.full_name || u.name || u.email,
-              role: u.role || "Member",
-              department: u.department || "General",
-            }))
-          );
+    async function fetchCatalogs() {
+      try {
+        const [clientRes, tplRes] = await Promise.all([
+          apiClient.get("/api/crm/clients").catch(() => ({ data: { data: [] } })),
+          apiClient.get("/api/unified-templates").catch(() => ({ data: { data: [] } })),
+        ]);
+        if (clientRes.data?.data) setCrmClients(clientRes.data.data);
+        if (tplRes.data?.data) {
+          setTemplates(tplRes.data.data);
+          if (templateIdParam) {
+            const found = tplRes.data.data.find((t: TemplateOption) => t.id === templateIdParam);
+            if (found) applyTemplate(found);
+          }
         }
-      })
-      .catch(() => {});
-
-    // 2. Fetch live CRM clients
-    api
-      .get("/clients")
-      .then((res) => {
-        const clients = res.data?.data || res.data;
-        if (Array.isArray(clients) && clients.length > 0) {
-          setClientsList(
-            clients.map((c: any) => ({
-              id: c.id,
-              name: c.name || c.company || "Client",
-              company: c.company || c.name,
-            }))
-          );
-        }
-      })
-      .catch(() => {});
-
-    // 3. Fetch live departments
-    api
-      .get("/org-admin/team/departments")
-      .then((res) => {
-        const depts = res.data?.data || res.data;
-        if (Array.isArray(depts) && depts.length > 0) {
-          setDepartmentsList(depts.map((d: any) => d.name || d));
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  // Cross-Module Seamless Ingestion (e.g. from AI Tools OCR)
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const refText = sessionStorage.getItem("aiBuilderReferenceText");
-      const refPrompt = sessionStorage.getItem("aiBuilderPrompt");
-      if (refPrompt) {
-        setPrompt(refPrompt);
-        sessionStorage.removeItem("aiBuilderPrompt");
-      }
-      if (refText) {
-        setPrompt(
-          (prev) => `${prev}\n\n[Reference Context from AI Tools]:\n${refText}`
-        );
-        sessionStorage.removeItem("aiBuilderReferenceText");
-        showToast("Loaded extracted reference data into prompt!");
+      } catch (err) {
+        console.warn("Catalog fetch error:", err);
       }
     }
-  }, []);
+    fetchCatalogs();
+  }, [templateIdParam]);
 
-  // Handle Real AI Generation with Google Gemini
-  const handleGenerate = async () => {
-    if (!prompt.trim()) {
-      showToast("Please enter a document prompt description.");
+  // Load Existing Document if docIdParam present
+  useEffect(() => {
+    if (!docIdParam) return;
+    async function loadDoc() {
+      try {
+        const res = await apiClient.get(`/api/unified-documents/${docIdParam}`);
+        if (res.data?.success && res.data.data) {
+          populateDocument(res.data.data);
+        }
+      } catch (err: any) {
+        showToast("Load Failed", err.response?.data?.message || err.message, "error");
+      }
+    }
+    loadDoc();
+  }, [docIdParam]);
+
+  const populateDocument = (doc: UnifiedDocument) => {
+    setDocumentId(doc.id);
+    setDocumentNumber(doc.documentNumber);
+    setTitle(doc.title);
+    setDocumentType(doc.documentType);
+    setCategory(doc.category);
+    setStatus(doc.status);
+    setCurrentVersion(doc.currentVersion);
+    setPublicShareToken(doc.publicShareToken);
+    setClientId(doc.clientId || "");
+    setClientName(doc.clientName || "");
+    setClientContactPerson(doc.clientContactPerson || "");
+    setClientEmail(doc.clientEmail || "");
+    setClientPhone(doc.clientPhone || "");
+    setClientAddress(doc.clientAddress || "");
+    if (Array.isArray(doc.content)) setSections(doc.content);
+    if (doc.financialData) setFinancialData(doc.financialData);
+    if (doc.variables) setVariables(doc.variables);
+    if (Array.isArray(doc.versions)) setVersions(doc.versions);
+  };
+
+  // Real-time intent detection on typing
+  useEffect(() => {
+    if (!aiPrompt.trim() || aiPrompt.length < 5) {
+      setDetectedType(null);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await apiClient.post("/api/unified-documents/detect-intent", { prompt: aiPrompt });
+        if (res.data?.success && res.data.data) {
+          setDetectedType({
+            type: res.data.data.documentType,
+            category: res.data.data.category,
+            confidence: res.data.data.confidence,
+          });
+        }
+      } catch {
+        // quiet fallback
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [aiPrompt]);
+
+  // Handle Client Selection
+  const handleSelectClient = (cId: string) => {
+    setClientId(cId);
+    const client = crmClients.find((c) => c.id === cId);
+    if (client) {
+      setClientName(client.name);
+      if (client.contactPerson) setClientContactPerson(client.contactPerson);
+      if (client.email) setClientEmail(client.email);
+      if (client.phone) setClientPhone(client.phone);
+      if (client.address || client.city) {
+        setClientAddress([client.address, client.city].filter(Boolean).join(", "));
+      }
+      setVariables((prev) => ({
+        ...prev,
+        client_name: client.name,
+        client_address: client.address || client.city || "",
+      }));
+    }
+  };
+
+  // Apply Template
+  const applyTemplate = (tpl: TemplateOption) => {
+    setDocumentType(tpl.documentType);
+    setCategory(tpl.category);
+    setTitle(`${tpl.documentType} - ${clientName || "Valued Client"}`);
+    if (Array.isArray(tpl.sections) && tpl.sections.length > 0) {
+      setSections(tpl.sections);
+    }
+    if (tpl.defaultVariables) {
+      setVariables((prev) => ({ ...tpl.defaultVariables, ...prev }));
+    }
+    showToast("Template Applied", `Loaded structure from "${tpl.name}"`);
+  };
+
+  // Generate with AI
+  const handleGenerateAI = async () => {
+    if (!aiPrompt.trim()) {
+      showToast("Empty Prompt", "Please describe the document you want to generate.", "error");
       return;
     }
 
-    setIsGenerating(true);
-    setGenerationStep("Preparing request...");
-
-    setTimeout(() => setGenerationStep("Reading database context..."), 600);
-    setTimeout(() => setGenerationStep("Generating document with Gemini AI..."), 1200);
-
     try {
-      const employeePayload =
-        selectedEmployee !== "None"
-          ? {
-              recipient_name: selectedEmployee,
-              department: selectedDepartment,
-              role:
-                employeesList.find((e) => e.name === selectedEmployee)?.role ||
-                "Employee",
-            }
-          : {};
-
-      const clientPayload =
-        selectedClient !== "None"
-          ? {
-              company: selectedClient,
-              client_name: selectedClient,
-            }
-          : {};
-
-      const finalTitle =
-        documentTitle && documentTitle !== "New AI Document"
-          ? documentTitle
-          : `${docType}${selectedEmployee !== "None" ? ` - ${selectedEmployee}` : ""}`;
-
-      const res = await aiApi.generateDocument({
-        title: finalTitle,
-        type: docType,
-        prompt: `${prompt}${additionalNotes ? `\n\nAdditional guidelines: ${additionalNotes}` : ""}`,
-        tone,
-        language,
-        length,
-        employeeData: employeePayload,
-        clientData: clientPayload,
+      setGeneratingAi(true);
+      const res = await apiClient.post("/api/unified-documents/ai-generate", {
+        prompt: aiPrompt.trim(),
+        clientContext: clientId ? crmClients.find((c) => c.id === clientId) : null,
+        documentTypeOverride: detectedType?.type || documentType,
+        categoryOverride: detectedType?.category || category,
       });
 
-      setGenerationStep("Preparing document editor...");
+      if (res.data?.success && res.data.data) {
+        const gen = res.data.data;
+        setTitle(gen.title);
+        setDocumentType(gen.documentType);
+        setCategory(gen.category);
+        if (gen.clientName && !clientName) setClientName(gen.clientName);
+        if (gen.clientEmail && !clientEmail) setClientEmail(gen.clientEmail);
+        if (gen.clientContactPerson && !clientContactPerson) setClientContactPerson(gen.clientContactPerson);
+        if (Array.isArray(gen.content) && gen.content.length > 0) setSections(gen.content);
+        if (gen.financialData) setFinancialData(gen.financialData);
+        if (gen.variables) setVariables((prev) => ({ ...prev, ...gen.variables }));
 
-      const content = res?.data?.content || res?.data?.documentContent;
-      if (content) {
-        setDocumentContent(content);
-        setDocumentTitle(finalTitle);
-        setViewState("editor");
-        showToast(`Document created successfully with Gemini AI!`);
-      } else {
-        showToast("Failed to generate document. Please verify prompt.");
+        showToast("Document Generated!", `AI structured a ${gen.documentType} with ${gen.content.length} sections.`);
       }
     } catch (err: any) {
-      showToast(`AI Error: ${err.message || "Failed to generate document"}`);
+      showToast("AI Generation Failed", err.response?.data?.message || err.message, "error");
     } finally {
-      setIsGenerating(false);
+      setGeneratingAi(false);
     }
   };
 
-  // Handle Selected Text Actions (Improve, Rewrite, Shorten, Expand, Simplify, Translate)
-  const handleSelectedTextAction = async (action: string) => {
-    const textarea = textareaRef.current;
-    let target = selectedText;
+  // Section Manipulation
+  const handleAddSection = (type: "text" | "table" | "terms" | "signature") => {
+    const newId = `sec_${Date.now()}`;
+    let newSec: DocumentSection = {
+      id: newId,
+      type,
+      title: type === "table" ? "Deliverables / Breakdown" : type === "terms" ? "Terms & Conditions" : "New Section",
+      body: type !== "table" ? "Enter section content here..." : undefined,
+    };
 
-    if (textarea) {
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      if (start !== end) {
-        target = documentContent.substring(start, end);
-        setSelectedText(target);
-      }
+    if (type === "table") {
+      newSec.tableData = {
+        headers: ["Item", "Specification", "Qty", "Amount"],
+        rows: [["Component A", "Standard scope", "1", "10000"]],
+      };
     }
 
-    if (!target || !target.trim()) {
-      target = documentContent.slice(0, 500);
+    setSections([...sections, newSec]);
+  };
+
+  const handleUpdateSection = (id: string, field: keyof DocumentSection, val: any) => {
+    setSections(sections.map((s) => (s.id === id ? { ...s, [field]: val } : s)));
+  };
+
+  const handleRemoveSection = (id: string) => {
+    if (sections.length <= 1) {
+      showToast("Notice", "Document must maintain at least one section.", "error");
+      return;
+    }
+    setSections(sections.filter((s) => s.id !== id));
+  };
+
+  // Table Row Add/Remove
+  const handleAddTableRow = (secId: string) => {
+    setSections(
+      sections.map((s) => {
+        if (s.id !== secId || !s.tableData) return s;
+        const colCount = s.tableData.headers.length;
+        const newRow = Array(colCount).fill("New item");
+        return {
+          ...s,
+          tableData: {
+            ...s.tableData,
+            rows: [...s.tableData.rows, newRow],
+          },
+        };
+      })
+    );
+  };
+
+  const handleUpdateTableCell = (secId: string, rowIdx: number, colIdx: number, val: string) => {
+    setSections(
+      sections.map((s) => {
+        if (s.id !== secId || !s.tableData) return s;
+        const newRows = [...s.tableData.rows];
+        const updatedRow = [...newRows[rowIdx]];
+        updatedRow[colIdx] = val;
+        newRows[rowIdx] = updatedRow;
+        return {
+          ...s,
+          tableData: {
+            ...s.tableData,
+            rows: newRows,
+          },
+        };
+      })
+    );
+  };
+
+  const handleRemoveTableRow = (secId: string, rowIdx: number) => {
+    setSections(
+      sections.map((s) => {
+        if (s.id !== secId || !s.tableData) return s;
+        if (s.tableData.rows.length <= 1) return s;
+        return {
+          ...s,
+          tableData: {
+            ...s.tableData,
+            rows: s.tableData.rows.filter((_, i) => i !== rowIdx),
+          },
+        };
+      })
+    );
+  };
+
+  // Save / Versioning
+  const handleSave = async (targetStatus: string = "DRAFT") => {
+    if (!title.trim()) {
+      showToast("Missing Title", "Please provide a document title.", "error");
+      return;
     }
 
-    setIsTransforming(true);
     try {
-      const res = await aiApi.rewrite({
-        text: target,
-        option: action,
-        tone,
-        language,
-      });
-
-      if (res?.data?.suggested) {
-        setAiSuggestion({
-          original: target,
-          suggested: res.data.suggested,
-          action,
-        });
-        showToast(`Suggested "${action}" revision ready for review!`);
-      }
-    } catch (err: any) {
-      showToast(`Error: ${err.message}`);
-    } finally {
-      setIsTransforming(false);
-    }
-  };
-
-  // Accept AI Suggestion
-  const handleAcceptSuggestion = () => {
-    if (!aiSuggestion) return;
-    if (documentContent.includes(aiSuggestion.original)) {
-      setDocumentContent(
-        documentContent.replace(aiSuggestion.original, aiSuggestion.suggested)
-      );
-    } else {
-      setDocumentContent(documentContent + "\n\n" + aiSuggestion.suggested);
-    }
-    setAiSuggestion(null);
-    showToast("Accepted AI revision into document!");
-  };
-
-  // Reject AI Suggestion
-  const handleRejectSuggestion = () => {
-    setAiSuggestion(null);
-    showToast("Rejected AI revision.");
-  };
-
-  // Save to Documents Vault
-  const handleSaveToDocuments = async () => {
-    try {
-      const rawTitle = (documentTitle && documentTitle !== "New AI Document" ? documentTitle : `${docType}_AI_${Date.now()}`).trim();
-      const fileName = rawTitle.endsWith(".docx") || rawTitle.endsWith(".pdf") ? rawTitle : `${rawTitle}.docx`;
-
-      const newDocItem = {
-        id: `ai-doc-${Date.now()}`,
-        name: fileName,
-        type: fileName.split(".").pop()?.toUpperCase() || "DOCX",
-        category: docType || "General",
-        owner: "Organisation Admin",
-        department: selectedDepartment !== "None" ? selectedDepartment : "Operations",
-        branch: "Headquarters",
-        status: "Active",
-        updated: "Just now",
-        tags: ["AI Generated", docType],
-        ocrStatus: "Completed",
-        size: `${(Math.max(1024, (documentContent || "").length) / (1024 * 1024)).toFixed(2)} MB`,
-        content: documentContent,
+      setSaving(true);
+      const payload = {
+        title: title.trim(),
+        documentType,
+        category,
+        clientId: clientId || null,
+        clientName: clientName?.trim() || null,
+        clientEmail: clientEmail?.trim() || null,
+        clientPhone: clientPhone?.trim() || null,
+        clientAddress: clientAddress?.trim() || null,
+        clientContactPerson: clientContactPerson?.trim() || null,
+        content: sections,
+        financialData,
+        variables,
+        status: targetStatus,
+        aiPrompt: aiPrompt || null,
       };
 
-      if (typeof window !== "undefined") {
-        try {
-          const raw = localStorage.getItem("docucore_saved_documents");
-          const existing = raw ? JSON.parse(raw) : [];
-          localStorage.setItem(
-            "docucore_saved_documents",
-            JSON.stringify([newDocItem, ...existing.filter((d: any) => d.id !== newDocItem.id)])
-          );
-        } catch {}
+      let res;
+      if (documentId) {
+        res = await apiClient.put(`/api/unified-documents/${documentId}`, payload);
+      } else {
+        res = await apiClient.post("/api/unified-documents", payload);
       }
 
-      // 1. Post to org documents API
-      try {
-        await api.post("/org-admin/documents", {
-          name: fileName,
-          title: fileName,
-          category: docType,
-          type: "AI_GENERATED",
-          content: documentContent,
-          status: "Active",
-        });
-      } catch {}
-
-      // 2. Post to AI generated documents save
-      await aiApi.saveGeneratedDocument({
-        title: fileName,
-        content: documentContent,
-        type: docType,
-        departmentName: selectedDepartment,
-        status: "ACTIVE",
-        source: "AI_BUILDER",
-        aiMetadata: {
-          prompt,
-          tone,
-          language,
-          provider: "Google Gemini",
-          model: "gemini-3.5-flash",
-        },
-      }).catch(() => null);
-
-      showToast(`"${fileName}" successfully saved to Documents module!`);
+      if (res.data?.success && res.data.data) {
+        populateDocument(res.data.data);
+        showToast("Document Saved!", `Version ${res.data.data.currentVersion} saved successfully.`);
+        if (!documentId) {
+          router.replace(`/org-admin/ai-builder?id=${res.data.data.id}`);
+        }
+      }
     } catch (err: any) {
-      showToast(`Notice: Document saved.`);
+      showToast("Save Failed", err.response?.data?.message || err.message, "error");
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleExportTxt = () => {
-    const blob = new Blob([documentContent], {
-      type: "text/plain;charset=utf-8",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${documentTitle.replace(/\s+/g, "_")}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast("Downloaded document text!");
+  // Restore Version
+  const handleRestoreVersion = async (versionNum: number) => {
+    if (!documentId) return;
+    try {
+      setSaving(true);
+      const res = await apiClient.post(`/api/unified-documents/${documentId}/restore-version/${versionNum}`);
+      if (res.data?.success && res.data.data) {
+        populateDocument(res.data.data);
+        setShowVersionsDrawer(false);
+        showToast("Version Restored", `Document restored to version ${versionNum}. Now at version ${res.data.data.currentVersion}.`);
+      }
+    } catch (err: any) {
+      showToast("Restore Failed", err.response?.data?.message || err.message, "error");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handlePrintPdf = () => {
-    window.print();
+  // Save as Template
+  const handleSaveAsTemplate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!documentId) {
+      showToast("Notice", "Please save the document first before saving it as a template.", "error");
+      return;
+    }
+    if (!templateSaveName.trim()) return;
+
+    try {
+      const res = await apiClient.post(`/api/unified-documents/${documentId}/save-as-template`, {
+        name: templateSaveName.trim(),
+        category: templateSaveCategory,
+      });
+      if (res.data?.success) {
+        showToast("Template Created!", `Saved reusable template "${templateSaveName}"`);
+        setShowTemplateModal(false);
+      }
+    } catch (err: any) {
+      showToast("Template Save Failed", err.response?.data?.message || err.message, "error");
+    }
+  };
+
+  // Email Dispatch
+  const handleSendEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!documentId || !emailRecipient.trim()) return;
+
+    try {
+      setSendingEmail(true);
+      const res = await apiClient.post(`/api/unified-documents/${documentId}/send-email`, {
+        recipientEmail: emailRecipient.trim(),
+        recipientName: clientContactPerson || clientName,
+        customMessage: emailMessage.trim(),
+      });
+      if (res.data?.success) {
+        showToast("Email Dispatched!", `Document sent successfully to ${emailRecipient}`);
+        setShowEmailModal(false);
+        setStatus("SENT");
+      }
+    } catch (err: any) {
+      showToast("Dispatch Failed", err.response?.data?.message || err.message, "error");
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
+  const handleDownloadPdf = () => {
+    if (!documentId) {
+      showToast("Save First", "Please save the document before downloading PDF.", "error");
+      return;
+    }
+    window.open(`/api/unified-documents/${documentId}/download-pdf`, "_blank");
+  };
+
+  const handleDownloadDocx = () => {
+    if (!documentId) {
+      showToast("Save First", "Please save the document before downloading DOCX.", "error");
+      return;
+    }
+    window.open(`/api/unified-documents/${documentId}/download-docx`, "_blank");
+  };
+
+  const handleCopyLink = () => {
+    if (!publicShareToken) {
+      showToast("Save First", "Save document to generate secure share link.", "error");
+      return;
+    }
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const url = `${origin}/documents/view/${publicShareToken}`;
+    navigator.clipboard.writeText(url);
+    showToast("Link Copied!", "Client portal view link copied to clipboard.");
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-16">
-      {/* Toast Notification */}
+    <div className="min-h-screen bg-slate-50/60 p-6 space-y-6">
+      {/* Toast */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 rounded-2xl bg-slate-900 px-5 py-3 text-xs font-bold text-white shadow-2xl flex items-center gap-2 border border-slate-700 animate-in fade-in slide-in-from-bottom-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-          <span>{toastMessage}</span>
+        <div
+          className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-2xl border backdrop-blur-md transition-all ${
+            toastMessage.type === "error"
+              ? "bg-rose-50/95 text-rose-800 border-rose-200"
+              : "bg-emerald-50/95 text-emerald-800 border-emerald-200"
+          }`}
+        >
+          {toastMessage.type === "error" ? <AlertCircle className="w-5 h-5 text-rose-600" /> : <CheckCircle2 className="w-5 h-5 text-emerald-600" />}
+          <div>
+            <div className="font-semibold text-sm">{toastMessage.title}</div>
+            {toastMessage.desc && <div className="text-xs opacity-90">{toastMessage.desc}</div>}
+          </div>
         </div>
       )}
 
-      {/* Header Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-3xl bg-gradient-to-r from-[#274690]/10 via-indigo-50/50 to-blue-50/20 border border-[#274690]/15">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-8 h-8 rounded-xl bg-[#274690] text-white flex items-center justify-center shadow-md shadow-[#274690]/25">
-              <Sparkles className="w-4 h-4" />
+      {/* Top Navigation & Action Bar */}
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <Link
+            href="/org-admin/documents"
+            className="p-2 text-slate-500 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Link>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-slate-900">AI Document Builder Studio</h1>
+              {documentNumber && (
+                <span className="font-mono text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
+                  {documentNumber}
+                </span>
+              )}
+              <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full">
+                v{currentVersion}.0
+              </span>
             </div>
-            <h1 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
-              AI Document Builder
-            </h1>
-            <Badge className="bg-[#274690] text-white text-[10px] font-bold">
-              Gemini AI
-            </Badge>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Natural language generation • Multi-category document structuring • Reusable template engine
+            </p>
           </div>
-          <p className="text-xs md:text-sm text-slate-500 font-medium">
-            Generate legally structured contracts, offer letters, NDAs, and
-            proposals from natural language instructions.
-          </p>
         </div>
 
+        <div className="flex flex-wrap items-center gap-2">
+          {documentId && (
+            <>
+              <button
+                onClick={() => setShowVersionsDrawer(true)}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition"
+              >
+                <History className="w-3.5 h-3.5" />
+                <span>Versions ({versions.length || 1})</span>
+              </button>
+
+              <button
+                onClick={handleDownloadPdf}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 rounded-xl border border-slate-200 transition"
+              >
+                <Download className="w-3.5 h-3.5 text-blue-600" />
+                <span>PDF</span>
+              </button>
+
+              <button
+                onClick={handleDownloadDocx}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 rounded-xl border border-slate-200 transition"
+              >
+                <Download className="w-3.5 h-3.5 text-indigo-600" />
+                <span>DOCX</span>
+              </button>
+
+              <button
+                onClick={handleCopyLink}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 rounded-xl border border-slate-200 transition"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>Share Link</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setEmailRecipient(clientEmail || "");
+                  setEmailMessage(`Please find attached your document for ${title}.`);
+                  setShowEmailModal(true);
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 rounded-xl border border-slate-200 transition"
+              >
+                <Send className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Send</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setTemplateSaveName(`${title} Template`);
+                  setShowTemplateModal(true);
+                }}
+                className="p-2 text-slate-500 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition"
+                title="Save as Reusable Template"
+              >
+                <Layers className="w-4 h-4" />
+              </button>
+            </>
+          )}
+
+          <button
+            onClick={() => handleSave("DRAFT")}
+            disabled={saving}
+            className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 rounded-xl border border-slate-200 transition disabled:opacity-50"
+          >
+            <Save className="w-3.5 h-3.5" />
+            <span>Save Draft</span>
+          </button>
+
+          <button
+            onClick={() => handleSave("FINAL")}
+            disabled={saving}
+            className="flex items-center gap-2 px-5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md shadow-blue-600/20 transition disabled:opacity-50"
+          >
+            {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+            <span>Finalize Document</span>
+          </button>
+        </div>
+      </div>
+
+      {/* AI Assistant Banner */}
+      <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2 text-blue-300 text-xs font-bold uppercase tracking-wider">
+            <Sparkles className="w-4 h-4" />
+            <span>AI Universal Document Architect</span>
+          </div>
+
+          {detectedType && (
+            <div className="flex items-center gap-2 bg-white/10 px-3 py-1 rounded-full text-xs border border-white/10">
+              <span className="text-blue-300 font-semibold">Detected Intent:</span>
+              <strong className="text-white">{detectedType.type}</strong>
+              <span className="text-blue-200/70">({detectedType.category})</span>
+            </div>
+          )}
+        </div>
+
+        <h2 className="text-lg font-bold mb-1">Generate Any Commercial, Legal, HR, or Operational Document</h2>
+        <p className="text-xs text-blue-200/80 mb-4 max-w-2xl">
+          Enter what you need in plain English. The AI will classify intent, structure deliverables or legal clauses, calculate values, and apply dynamic templates.
+        </p>
+
+        <div className="flex flex-col md:flex-row gap-3">
+          <div className="relative flex-1">
+            <textarea
+              rows={2}
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+              placeholder="e.g. Create an NDA between my company and XYZ Pvt Ltd with a 3-year term..."
+              className="w-full px-4 py-2.5 bg-white/10 hover:bg-white/15 focus:bg-white/20 border border-white/20 focus:border-blue-400 rounded-xl text-xs text-white placeholder-blue-200/50 focus:outline-none transition resize-none"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleGenerateAI}
+            disabled={generatingAi || !aiPrompt.trim()}
+            className="md:self-start flex items-center justify-center gap-2 px-6 py-3 bg-blue-500 hover:bg-blue-400 text-white text-xs font-bold rounded-xl shadow-lg shadow-blue-500/30 transition disabled:opacity-50 whitespace-nowrap"
+          >
+            {generatingAi ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                <span>Structuring Document...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4" />
+                <span>Generate with AI</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Suggestion Chips */}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="text-[10px] text-blue-300/80 uppercase font-semibold">Try Prompts:</span>
+          {PROMPT_SUGGESTIONS.slice(0, 4).map((s, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => setAiPrompt(s)}
+              className="text-[11px] bg-white/10 hover:bg-white/20 text-blue-100 px-3 py-1 rounded-lg border border-white/10 transition truncate max-w-xs"
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Editor / Preview Switcher for Small Screens */}
+      <div className="flex items-center justify-between bg-white p-3 rounded-2xl border border-slate-200 shadow-sm">
         <div className="flex items-center gap-2">
-          {viewState === "editor" ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setViewState("prompt")}
-              className="rounded-xl text-xs font-bold gap-1.5"
+          <button
+            onClick={() => setActiveTab("editor")}
+            className={`px-4 py-2 text-xs font-bold rounded-xl transition ${
+              activeTab === "editor" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            Structure & Section Editor
+          </button>
+          <button
+            onClick={() => setActiveTab("preview")}
+            className={`px-4 py-2 text-xs font-bold rounded-xl transition ${
+              activeTab === "preview" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            Live Document Preview
+          </button>
+        </div>
+
+        <div className="text-xs text-slate-500">
+          Template Independence Active: <span className="text-emerald-600 font-semibold">Immutable Snapshot Guaranteed</span>
+        </div>
+      </div>
+
+      {/* Main Studio Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left Column: Metadata & Config (3 cols) */}
+        <div className="lg:col-span-3 space-y-6">
+          {/* Metadata Card */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2">
+              Document Properties
+            </h3>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                Document Title <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                Document Type
+              </label>
+              <input
+                type="text"
+                value={documentType}
+                onChange={(e) => setDocumentType(e.target.value)}
+                className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                Category
+              </label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white"
+              >
+                <option value="Sales">Sales & Commercial</option>
+                <option value="Business">Business Documents</option>
+                <option value="Legal">Legal & Agreements</option>
+                <option value="HR">HR Documents</option>
+                <option value="Operational">Operational Documents</option>
+                <option value="Custom">Custom Document</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                Lifecycle Status
+              </label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white font-semibold text-slate-800"
+              >
+                <option value="DRAFT">Draft</option>
+                <option value="GENERATED">Generated</option>
+                <option value="UNDER_REVIEW">Under Review</option>
+                <option value="FINAL">Final</option>
+                <option value="SENT">Sent</option>
+                <option value="ACCEPTED">Accepted</option>
+                <option value="REJECTED">Rejected</option>
+              </select>
+            </div>
+          </div>
+
+          {/* CRM Client Picker */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2 flex items-center justify-between">
+              <span>Recipient / Counterparty</span>
+              <Building2 className="w-3.5 h-3.5 text-slate-400" />
+            </h3>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                Load from CRM Directory
+              </label>
+              <select
+                value={clientId}
+                onChange={(e) => handleSelectClient(e.target.value)}
+                className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white"
+              >
+                <option value="">-- Manual Entry or Select Client --</option>
+                {crmClients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} {c.contactPerson ? `(${c.contactPerson})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                Client / Counterparty Name
+              </label>
+              <input
+                type="text"
+                value={clientName}
+                onChange={(e) => setClientName(e.target.value)}
+                placeholder="e.g. ABC Technologies"
+                className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                Contact Person
+              </label>
+              <input
+                type="text"
+                value={clientContactPerson}
+                onChange={(e) => setClientContactPerson(e.target.value)}
+                placeholder="e.g. John Doe"
+                className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                Email Address
+              </label>
+              <input
+                type="email"
+                value={clientEmail}
+                onChange={(e) => setClientEmail(e.target.value)}
+                placeholder="client@company.com"
+                className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg"
+              />
+            </div>
+          </div>
+
+          {/* Template Quick Loader */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2 flex items-center justify-between">
+              <span>Apply Template</span>
+              <Layers className="w-3.5 h-3.5 text-blue-600" />
+            </h3>
+
+            <select
+              onChange={(e) => {
+                const found = templates.find((t) => t.id === e.target.value);
+                if (found) applyTemplate(found);
+              }}
+              defaultValue=""
+              className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white"
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              Back to Prompt
-            </Button>
+              <option value="" disabled>
+                -- Choose from Template Catalog --
+              </option>
+              {templates.map((tpl) => (
+                <option key={tpl.id} value={tpl.id}>
+                  {tpl.name} ({tpl.category})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Center/Right: Active View (Editor or Preview) (9 cols) */}
+        <div className="lg:col-span-9 space-y-6">
+          {activeTab === "editor" ? (
+            /* SECTION EDITOR */
+            <div className="space-y-4">
+              <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Document Sections & Clauses</h3>
+                  <p className="text-xs text-slate-500">Add, edit, or customize any structural component.</p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleAddSection("text")}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Text Clause</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleAddSection("table")}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Data Table</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleAddSection("terms")}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg transition"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Terms Box</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleAddSection("signature")}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Signatures</span>
+                  </button>
+                </div>
+              </div>
+
+              {sections.map((sec, idx) => (
+                <div
+                  key={sec.id}
+                  className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3 hover:border-blue-200 transition"
+                >
+                  <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-600 text-xs font-bold flex items-center justify-center">
+                        {idx + 1}
+                      </span>
+                      <input
+                        type="text"
+                        value={sec.title}
+                        onChange={(e) => handleUpdateSection(sec.id, "title", e.target.value)}
+                        className="font-bold text-slate-900 text-xs border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none px-1"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                        {sec.type}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSection(sec.id)}
+                        className="p-1 text-slate-400 hover:text-rose-600 rounded"
+                        title="Remove Section"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Body for Text / Terms / Header */}
+                  {sec.type !== "table" && (
+                    <textarea
+                      rows={sec.type === "terms" ? 4 : 3}
+                      value={sec.body || ""}
+                      onChange={(e) => handleUpdateSection(sec.id, "body", e.target.value)}
+                      className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500 leading-relaxed"
+                    />
+                  )}
+
+                  {/* Table Component Editor */}
+                  {sec.type === "table" && sec.tableData && (
+                    <div className="space-y-2">
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => handleAddTableRow(sec.id)}
+                          className="text-xs font-semibold text-blue-600 hover:underline flex items-center gap-1"
+                        >
+                          <Plus className="w-3 h-3" /> Add Row
+                        </button>
+                      </div>
+
+                      <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                        <table className="w-full text-xs text-left">
+                          <thead className="bg-slate-900 text-white uppercase text-[10px]">
+                            <tr>
+                              {sec.tableData.headers.map((h, hIdx) => (
+                                <th key={hIdx} className="py-2.5 px-3">
+                                  {h}
+                                </th>
+                              ))}
+                              <th className="py-2.5 px-2 w-10 text-center">✕</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {sec.tableData.rows.map((row, rIdx) => (
+                              <tr key={rIdx} className="hover:bg-slate-50">
+                                {row.map((cell, cIdx) => (
+                                  <td key={cIdx} className="p-1.5">
+                                    <input
+                                      type="text"
+                                      value={cell}
+                                      onChange={(e) =>
+                                        handleUpdateTableCell(sec.id, rIdx, cIdx, e.target.value)
+                                      }
+                                      className="w-full px-2 py-1 text-xs border border-slate-200 rounded bg-white"
+                                    />
+                                  </td>
+                                ))}
+                                <td className="p-1.5 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveTableRow(sec.id, rIdx)}
+                                    className="text-slate-400 hover:text-rose-600"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => router.push("/org-admin/documents")}
-              className="rounded-xl text-xs font-bold gap-1.5"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              View Documents
-            </Button>
+            /* LIVE DOCUMENT PREVIEW */
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 md:p-12 space-y-8 max-w-4xl mx-auto">
+              <div className="flex justify-between items-start border-b border-slate-200 pb-6">
+                <div>
+                  <div className="text-2xl font-bold text-slate-900">Enterprise Solutions Tech Pvt Ltd</div>
+                  <div className="text-xs text-slate-500 mt-0.5">Corporate Headquarters • Technology Division</div>
+                </div>
+
+                <div className="text-right">
+                  <div className="text-2xl font-bold font-mono text-blue-600">
+                    {documentType.toUpperCase()}
+                  </div>
+                  <div className="text-xs font-mono font-bold text-slate-700 mt-1">
+                    {documentNumber || "DOC-DRAFT"}
+                  </div>
+                  <div className="text-xs text-slate-400 mt-1">
+                    v{currentVersion}.0 • Status: {status}
+                  </div>
+                </div>
+              </div>
+
+              {clientName && (
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
+                  <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">PREPARED FOR</div>
+                  <div className="text-sm font-bold text-slate-900">{clientName}</div>
+                  {clientContactPerson && <div className="text-slate-600">Attn: {clientContactPerson}</div>}
+                  {clientEmail && <div className="text-slate-400">{clientEmail}</div>}
+                </div>
+              )}
+
+              <div>
+                <div className="text-base font-bold text-slate-900">{title}</div>
+              </div>
+
+              {/* Render Sections */}
+              {sections.map((sec) => (
+                <div key={sec.id} className="space-y-2 text-xs">
+                  {sec.title && sec.type !== "header" && (
+                    <h4 className="font-bold text-slate-900 text-sm text-blue-900">{sec.title}</h4>
+                  )}
+
+                  {sec.body && (
+                    <div
+                      className={`leading-relaxed ${
+                        sec.type === "terms"
+                          ? "bg-slate-50 p-4 rounded-xl border border-slate-200 text-slate-600 whitespace-pre-line"
+                          : "text-slate-700 whitespace-pre-line"
+                      }`}
+                    >
+                      {sec.body}
+                    </div>
+                  )}
+
+                  {sec.type === "table" && sec.tableData && (
+                    <div className="overflow-x-auto border border-slate-200 rounded-xl my-3">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-900 text-white uppercase text-[10px]">
+                          <tr>
+                            {sec.tableData.headers.map((h, i) => (
+                              <th key={i} className="py-2.5 px-3">
+                                {h}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {sec.tableData.rows.map((row, rI) => (
+                            <tr key={rI} className={rI % 2 === 0 ? "bg-white" : "bg-slate-50/50"}>
+                              {row.map((cell, cI) => (
+                                <td key={cI} className="py-2.5 px-3 text-slate-700">
+                                  {cell}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {sec.type === "signature" && (
+                    <div className="pt-6 grid grid-cols-2 gap-8">
+                      <div className="border-t border-slate-300 pt-2">
+                        <div className="font-bold text-slate-900">For Enterprise Solutions</div>
+                        <div className="text-slate-400 text-[11px]">Authorized Signatory</div>
+                      </div>
+                      <div className="border-t border-slate-300 pt-2">
+                        <div className="font-bold text-slate-900">
+                          Accepted by: {clientName || "Counterparty"}
+                        </div>
+                        <div className="text-slate-400 text-[11px]">Authorized Signatory</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </div>
 
-      {/* ========================================================================= */}
-      {/* 1. WIZARD STEP: PROMPT & CONTEXT CONFIGURATION                           */}
-      {/* ========================================================================= */}
-      {viewState === "prompt" && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left / Center 2 Columns: Prompt Editor */}
-          <div className="lg:col-span-2 space-y-5">
-            <Card className="p-5 md:p-6 rounded-3xl border-slate-200 shadow-sm space-y-4">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
-                  <Wand2 className="w-4 h-4 text-[#274690]" />
-                  What would you like to create?
-                </label>
-                <span className="text-[11px] font-bold text-slate-400">
-                  Natural Language Prompt
-                </span>
-              </div>
-
-              {/* Large Prompt Textarea */}
-              <div className="space-y-2">
-                <textarea
-                  rows={5}
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  placeholder="e.g. Create a comprehensive employment offer letter for [Candidate Name] with ₹18 LPA CTC, 3 months probation, 30 days notice period, and confidentiality clauses..."
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/60 p-4 text-xs md:text-sm font-medium text-slate-900 focus:bg-white focus:border-[#274690] focus:outline-none transition leading-relaxed shadow-xs resize-none"
-                />
-
-                {/* Quick Prompt Suggestions */}
-                <div className="space-y-1.5 pt-1">
-                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-                    Quick Examples (Click to insert):
-                  </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {PROMPT_SUGGESTIONS.map((sug, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => setPrompt(sug)}
-                        className="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-blue-50 hover:text-[#274690] border border-slate-200 text-[11px] font-semibold text-slate-700 transition text-left"
-                      >
-                        ⚡ {sug.slice(0, 52)}...
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Below Prompt: Document Type & Real Context Data */}
-              <div className="space-y-4 pt-4 border-t border-slate-100">
-                {/* Document Type Selector */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-2">
-                    Document Type / Classification
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {DOC_TYPES.map((dt) => (
-                      <button
-                        key={dt}
-                        type="button"
-                        onClick={() => setDocType(dt)}
-                        className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition ${
-                          docType === dt
-                            ? "bg-[#274690] text-white shadow-xs"
-                            : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                        }`}
-                      >
-                        {dt}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Data Selectors Grid (Live Database Context) */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-                  {/* Select Employee (Live from Database) */}
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                      👤 Select Recipient / Employee
-                    </label>
-                    <select
-                      value={selectedEmployee}
-                      onChange={(e) => setSelectedEmployee(e.target.value)}
-                      className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#274690]"
-                    >
-                      <option value="None">
-                        None (Direct Custom Prompt / General)
-                      </option>
-                      {employeesList.map((emp) => (
-                        <option key={emp.id} value={emp.name}>
-                          {emp.name} ({emp.department || emp.role || "Member"})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Select Client (Live CRM) */}
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                       Select Client / Entity
-                    </label>
-                    <select
-                      value={selectedClient}
-                      onChange={(e) => setSelectedClient(e.target.value)}
-                      className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#274690]"
-                    >
-                      <option value="None">None</option>
-                      {clientsList.map((c) => (
-                        <option key={c.id} value={c.name}>
-                          {c.name} {c.company ? `(${c.company})` : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Department */}
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                       Department Scope
-                    </label>
-                    <select
-                      value={selectedDepartment}
-                      onChange={(e) => setSelectedDepartment(e.target.value)}
-                      className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#274690]"
-                    >
-                      {departmentsList.map((dept) => (
-                        <option key={dept} value={dept}>
-                          {dept}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* AI Generation Options */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                      Tone
-                    </label>
-                    <select
-                      value={tone}
-                      onChange={(e) => setTone(e.target.value)}
-                      className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#274690]"
-                    >
-                      <option value="Professional">
-                        Professional (Standard)
-                      </option>
-                      <option value="Formal">Formal & Binding Legal</option>
-                      <option value="Friendly">Friendly & Warm</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                      Language
-                    </label>
-                    <select
-                      value={language}
-                      onChange={(e) => setLanguage(e.target.value)}
-                      className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#274690]"
-                    >
-                      <option value="English">English</option>
-                      <option value="Hindi">Hindi (हिंदी)</option>
-                      <option value="Spanish">Spanish (Español)</option>
-                      <option value="French">French (Français)</option>
-                      <option value="German">German (Deutsch)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                      Document Depth
-                    </label>
-                    <select
-                      value={length}
-                      onChange={(e) => setLength(e.target.value as any)}
-                      className="w-full h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#274690]"
-                    >
-                      <option value="Standard">
-                        Standard (2-3 Pages / Comprehensive)
-                      </option>
-                      <option value="Short">Short (1 Page Summary)</option>
-                      <option value="Detailed">
-                        Detailed (Full Clauses & Schedules)
-                      </option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Additional Guidelines */}
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                    Special Clauses or Custom Requirements (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={additionalNotes}
-                    onChange={(e) => setAdditionalNotes(e.target.value)}
-                    placeholder="e.g. Include ₹5,00,000 performance bonus, 6 months non-compete, and 15 days paid leave..."
-                    className="w-full h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-800 focus:outline-none focus:border-[#274690]"
-                  />
-                </div>
-              </div>
-
-              {/* Generate Button */}
-              <div className="pt-3">
-                <Button
-                  size="lg"
-                  disabled={isGenerating || !prompt.trim()}
-                  onClick={handleGenerate}
-                  className="w-full h-12 rounded-2xl bg-[#274690] hover:bg-[#1e3670] text-white font-bold text-sm shadow-md shadow-[#274690]/25 transition gap-2"
-                >
-                  {isGenerating ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      <span>{generationStep}</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4" />
-                      <span>Generate Document with Gemini AI</span>
-                    </>
-                  )}
-                </Button>
-              </div>
-            </Card>
-          </div>
-
-          {/* Right Column: AI Model Info & Tips */}
-          <div className="space-y-4">
-            <Card className="p-5 rounded-3xl border-slate-200 shadow-sm space-y-3">
+      {/* Version History Drawer / Modal */}
+      {showVersionsDrawer && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white w-full max-w-md h-full p-6 shadow-2xl overflow-y-auto space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-xs">
-                  <ShieldCheck className="w-4 h-4" />
-                </div>
-                <h3 className="text-xs font-black uppercase tracking-wider text-slate-900">
-                  AI Guardrails Active
-                </h3>
+                <History className="w-4 h-4 text-blue-600" />
+                <h3 className="font-bold text-slate-900">Version History</h3>
               </div>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                DocuCore AI uses strict anti-hallucination rules. It incorporates
-                your exact prompt details and factual database variables into
-                legal clauses without fabricating unverified claims.
-              </p>
-              <div className="space-y-2 pt-1">
-                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-[11px] text-slate-600 flex items-center gap-2">
-                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span>Exact prompt instructions preserved</span>
+              <button onClick={() => setShowVersionsDrawer(false)} className="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+
+            <div className="divide-y divide-slate-100">
+              {versions.map((ver) => (
+                <div key={ver.id} className="py-3 flex items-center justify-between text-xs">
+                  <div>
+                    <div className="font-bold text-slate-900 flex items-center gap-2">
+                      <span>v{ver.versionNumber}.0</span>
+                      {ver.versionNumber === currentVersion && (
+                        <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200">
+                          Current
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-slate-500 mt-0.5">{ver.changeSummary || "Update saved"}</div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">
+                      {new Date(ver.createdAt).toLocaleString("en-GB")}
+                    </div>
+                  </div>
+
+                  {ver.versionNumber !== currentVersion && (
+                    <button
+                      onClick={() => handleRestoreVersion(ver.versionNumber)}
+                      className="px-3 py-1 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition"
+                    >
+                      Restore
+                    </button>
+                  )}
                 </div>
-                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-[11px] text-slate-600 flex items-center gap-2">
-                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span>Real recipient names & designations</span>
-                </div>
-                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-[11px] text-slate-600 flex items-center gap-2">
-                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span>Full Markdown & Export Support</span>
-                </div>
-              </div>
-            </Card>
+              ))}
+            </div>
           </div>
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* 2. WIZARD STEP: DOCUMENT EDITOR & REFINEMENT                              */}
-      {/* ========================================================================= */}
-      {viewState === "editor" && (
-        <div className="space-y-4">
-          {/* Editor Action Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-white border border-slate-200 shadow-sm">
-            <div className="flex items-center gap-3 flex-1 min-w-[240px]">
-              <input
-                type="text"
-                value={documentTitle}
-                onChange={(e) => setDocumentTitle(e.target.value)}
-                className="text-base font-bold text-slate-900 border-b border-transparent hover:border-slate-300 focus:border-[#274690] focus:outline-none px-1 py-0.5 w-full max-w-md"
-              />
-              <Badge variant="outline" className="text-[10px] font-bold">
-                {docType}
-              </Badge>
+      {/* Save as Template Modal */}
+      {showTemplateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="font-bold text-slate-900">Save as Reusable Template</h3>
+              <button onClick={() => setShowTemplateModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleExportTxt}
-                className="rounded-xl text-xs font-bold gap-1.5"
-              >
-                <Download className="w-3.5 h-3.5" />
-                Download TXT
-              </Button>
+            <form onSubmit={handleSaveAsTemplate} className="mt-4 space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Template Name <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={templateSaveName}
+                  onChange={(e) => setTemplateSaveName(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl"
+                />
+              </div>
 
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handlePrintPdf}
-                className="rounded-xl text-xs font-bold gap-1.5"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                Print / PDF
-              </Button>
-
-              <Button
-                size="sm"
-                onClick={handleSaveToDocuments}
-                className="rounded-xl bg-[#274690] hover:bg-[#1e3670] text-white text-xs font-bold gap-1.5 shadow-sm"
-              >
-                <Save className="w-3.5 h-3.5" />
-                Save to Documents
-              </Button>
-            </div>
-          </div>
-
-          {/* Quick AI Text Refinement Bar */}
-          <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-              <Sparkles className="w-3.5 h-3.5 text-[#274690]" />
-              <span>Transform Selection:</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                { label: "Make More Formal", action: "Formal" },
-                { label: "Shorten Clauses", action: "Shorten" },
-                { label: "Expand Details", action: "Expand" },
-                { label: "Fix Grammar", action: "Improve" },
-                { label: "Simplify Language", action: "Simplify" },
-              ].map((btn) => (
-                <button
-                  key={btn.action}
-                  type="button"
-                  disabled={isTransforming}
-                  onClick={() => handleSelectedTextAction(btn.action)}
-                  className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:border-slate-300 text-[11px] font-bold text-slate-700 hover:text-[#274690] transition shadow-2xs"
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Category</label>
+                <select
+                  value={templateSaveCategory}
+                  onChange={(e) => setTemplateSaveCategory(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white"
                 >
-                  {btn.label}
+                  <option value="Sales">Sales & Commercial</option>
+                  <option value="Business">Business Documents</option>
+                  <option value="Legal">Legal & Agreements</option>
+                  <option value="HR">HR Documents</option>
+                  <option value="Operational">Operational Documents</option>
+                  <option value="Custom">Custom</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowTemplateModal(false)}
+                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl font-semibold"
+                >
+                  Cancel
                 </button>
-              ))}
-            </div>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-sm"
+                >
+                  Save Template
+                </button>
+              </div>
+            </form>
           </div>
+        </div>
+      )}
 
-          {/* AI Suggestion Diff Card (Accept / Reject) */}
-          {aiSuggestion && (
-            <div className="p-4 rounded-2xl bg-indigo-50/80 border border-indigo-200 space-y-3 animate-in fade-in">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-black uppercase text-indigo-900 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                  Suggested AI Revision ({aiSuggestion.action})
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <Button
-                    size="sm"
-                    onClick={handleAcceptSuggestion}
-                    className="h-7 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold gap-1"
-                  >
-                    <Check className="w-3 h-3" />
-                    Accept
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleRejectSuggestion}
-                    className="h-7 px-2.5 rounded-lg text-xs font-bold gap-1"
-                  >
-                    <X className="w-3 h-3" />
-                    Reject
-                  </Button>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                <div className="p-3 rounded-xl bg-white/80 border border-indigo-100 font-mono text-slate-600">
-                  <span className="block text-[10px] font-bold text-rose-600 mb-1">
-                    Original:
-                  </span>
-                  {aiSuggestion.original}
-                </div>
-                <div className="p-3 rounded-xl bg-white border border-emerald-200 font-mono text-slate-900 shadow-2xs">
-                  <span className="block text-[10px] font-bold text-emerald-600 mb-1">
-                    Suggested Revision:
-                  </span>
-                  {aiSuggestion.suggested}
-                </div>
-              </div>
+      {/* Send Email Modal */}
+      {showEmailModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="font-bold text-slate-900">Dispatch Document via Email</h3>
+              <button onClick={() => setShowEmailModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>
             </div>
-          )}
 
-          {/* Document Content Textarea */}
-          <Card className="p-6 rounded-3xl border-slate-200 shadow-sm">
-            <textarea
-              ref={textareaRef}
-              rows={22}
-              value={documentContent}
-              onChange={(e) => setDocumentContent(e.target.value)}
-              className="w-full bg-transparent text-xs md:text-sm font-mono text-slate-900 leading-relaxed focus:outline-none resize-y min-h-[480px]"
-            />
-          </Card>
+            <form onSubmit={handleSendEmail} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Recipient Email <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={emailRecipient}
+                  onChange={(e) => setEmailRecipient(e.target.value)}
+                  className="w-full px-3.5 py-2 border border-slate-300 rounded-xl"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Custom Message</label>
+                <textarea
+                  rows={3}
+                  value={emailMessage}
+                  onChange={(e) => setEmailMessage(e.target.value)}
+                  className="w-full px-3.5 py-2 border border-slate-300 rounded-xl"
+                />
+              </div>
+
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-slate-500 text-[11px]">
+                Attaches official print-ready PDF and includes direct client portal review link.
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowEmailModal(false)}
+                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={sendingEmail}
+                  className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-sm"
+                >
+                  {sendingEmail ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                  <span>{sendingEmail ? "Sending..." : "Dispatch Email"}</span>
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

@@ -61,7 +61,7 @@ export default function SuperAdminSettingsPage() {
   const [aiSettings, setAiSettings] = useState({
     defaultProvider: "Google Gemini",
     defaultModel: "gemini-1.5-flash",
-    fallbackStrategy: "Gemini -> OpenAI -> Anthropic",
+    fallbackStrategy: "Gemini -> OpenAI -> Heuristic Fallback",
     queueConcurrency: 10,
     maxTokenLimitPerReq: 8000,
   });
@@ -403,7 +403,6 @@ export default function SuperAdminSettingsPage() {
               >
                 <option value="Google Gemini">Google Gemini (Recommended / Free Tier)</option>
                 <option value="OpenAI">OpenAI (GPT-4o Mini)</option>
-                <option value="Anthropic">Anthropic (Claude 3.5)</option>
                 <option value="DeepSeek">DeepSeek (R1)</option>
               </select>
             </div>

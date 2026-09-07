@@ -65,6 +65,49 @@ const getSampleDocumentContent = (doc: DocumentItem): string => {
   const lowerName = doc.name.toLowerCase();
   const lowerCat = doc.category.toLowerCase();
   
+  if (lowerName.includes("300000") || lowerName.includes("300k")) {
+    return `DOCUCORE AUTOMATION SOLUTIONS PVT LTD
+Commercial Proposal & Quotation (₹3,00,000)
+Ref No: QT-2026-300K
+Date of Issue: 07 Sep 2026
+Validity: 30 Days from Issue
+
+----------------------------------------------------------------------
+BILL TO / CLIENT DETAILS:
+Client Company: Global Enterprises Ltd
+Attention: Procurement & Technical Operations Department
+Email: billing@globalenterprises.com
+Status: Active
+
+----------------------------------------------------------------------
+SERVICES & COMMERCIAL INVESTMENT BREAKDOWN:
+1. Enterprise Document Automation Core Platform License
+   Quantity: 1 System | Rate: ₹1,50,000.00 | Amount: ₹1,50,000.00
+
+2. Custom Multi-Level Approval Workflow & Cloud Integration
+   Quantity: 1 Project | Rate: ₹1,00,000.00 | Amount: ₹1,00,000.00
+
+3. Dedicated SLA Technical Support & Cloud Maintenance (1 Year)
+   Quantity: 12 Months | Rate: ₹50,000.00 | Amount: ₹50,000.00
+
+----------------------------------------------------------------------
+SUBTOTAL (NET INVESTMENT):  ₹3,00,000.00 INR
+APPLICABLE GST (18%):       ₹54,000.00 INR
+TOTAL AMOUNT PAYABLE:       ₹3,54,000.00 INR (Gross with GST)
+NET COMMERCIAL VALUE:       ₹3,00,000.00 INR
+----------------------------------------------------------------------
+
+COMMERCIAL TERMS & PAYMENT SCHEDULE:
+• 50% Advance (₹1,50,000) upon signing of quotation.
+• 40% (₹1,20,000) upon completion of system installation and UAT.
+• 10% (₹30,000) on final production sign-off.
+• Payment terms: Net 15 days from date of milestone invoice.
+
+Authorized Signatory:
+Organisation Administrator
+DocuCore Automation Solutions Pvt Ltd`;
+  }
+
   if (lowerName.includes("quotation") || lowerCat.includes("invoices") || lowerCat.includes("finance") || lowerCat.includes("sales")) {
     return `DOCUCORE AUTOMATION SOLUTIONS PVT LTD
 Enterprise Quotation & Price Estimate
@@ -149,6 +192,7 @@ Security Classification: Enterprise Internal`;
 };
 
 const initialDocuments: DocumentItem[] = [
+  { id: "9", name: "Quotation_TechServices_300000.pdf", type: "PDF", category: "Finance", owner: "Organisation Admin", department: "Operations", branch: "Headquarters", status: "Active", updated: "Just now", tags: ["Quotation", "₹3,00,000", "Enterprise"], ocrStatus: "Completed", size: "1.2 MB" },
   { id: "1", name: "Employment_Agreement_Rajesh.pdf", type: "PDF", category: "HR", owner: "Shikha Gour", department: "HR", branch: "Headquarters", status: "Active", updated: "10 Aug 2026", tags: ["Employment", "Urgent"], ocrStatus: "Completed", size: "2.4 MB" },
   { id: "2", name: "Vendor_Invoice_TechCorp_Q3.pdf", type: "PDF", category: "Invoices", owner: "Rajesh Kumar", department: "Finance", branch: "Mumbai", status: "Approved", updated: "10 Aug 2026", tags: ["Tax2026", "Vendor"], ocrStatus: "Completed", size: "1.1 MB" },
   { id: "3", name: "Master_Service_Agreement_2026.docx", type: "DOCX", category: "Contracts", owner: "Priya Sharma", department: "Legal", branch: "Headquarters", status: "Draft", updated: "09 Aug 2026", tags: ["Client", "Confidential"], ocrStatus: "N/A", size: "850 KB" },

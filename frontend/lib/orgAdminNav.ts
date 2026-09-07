@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Bell,
   Users2,
+  Receipt,
   type LucideIcon,
 } from "lucide-react";
 
@@ -38,6 +39,7 @@ export const orgAdminNavSections: OrgAdminNavSection[] = [
       { title: "Documents", href: "/org-admin/documents", icon: FileText },
       { title: "Governance", href: "/org-admin/governance", icon: ShieldCheck },
       { title: "Clients & CRM", href: "/org-admin/clients-crm", icon: Users2 },
+      { title: "Quotations", href: "/org-admin/quotations", icon: Receipt },
       { title: "E-Signatures", href: "/org-admin/e-signatures", icon: PenTool },
       { title: "AI Tools", href: "/org-admin/ai-tools", icon: Bot },
       { title: "AI Document Builder", href: "/org-admin/ai-builder", icon: Sparkles },

@@ -1,22 +1,23 @@
 const AIProviderAdapter = require("./AIProviderAdapter");
 
 const GEMINI_MODELS_POOL = [
+  "gemini-flash-lite-latest",
+  "gemini-3.5-flash-lite",
+  "gemini-3.1-flash-lite",
+  "gemini-flash-latest",
   "gemini-3.6-flash",
-  "gemini-3.5-flash",
-  "gemini-3.7-flash",
-  "gemini-2.5-pro",
 ];
 
 class GeminiAdapter extends AIProviderAdapter {
   constructor(config = {}) {
     super(config);
     this.baseUrl = config.baseUrl || "https://generativelanguage.googleapis.com/v1beta";
-    this.defaultModel = config.defaultModel || process.env.GEMINI_MODEL || "gemini-3.6-flash";
+    this.defaultModel = config.defaultModel || process.env.GEMINI_MODEL || "gemini-flash-lite-latest";
     this.apiKey = config.apiKey || process.env.GEMINI_API_KEY;
   }
 
   _normalizeModel(modelName) {
-    if (!modelName) return "gemini-3.6-flash";
+    if (!modelName) return "gemini-flash-lite-latest";
     const clean = modelName.replace(/^models\//, "").trim();
     if (
       clean === "gemini-1.5-flash" ||
@@ -27,7 +28,7 @@ class GeminiAdapter extends AIProviderAdapter {
       clean === "gpt-4o" ||
       clean === "gpt-4o-mini"
     ) {
-      return "gemini-3.6-flash";
+      return "gemini-flash-lite-latest";
     }
     return clean;
   }

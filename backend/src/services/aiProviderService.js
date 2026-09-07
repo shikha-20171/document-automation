@@ -86,22 +86,6 @@ const DEFAULT_PROVIDERS = [
       { modelName: "GPT-4o (Flagship)", modelCode: "gpt-4o", contextWindow: 128000, maxOutputTokens: 4096, inputCostPer1K: 0.20, outputCostPer1K: 0.80, isDefault: false },
     ],
   },
-  {
-    providerName: "Anthropic",
-    providerCode: "anthropic",
-    description: "Optional advanced reasoning provider for complex contract review and deep legal interpretation.",
-    baseUrl: "https://api.anthropic.com/v1",
-    apiVersion: "2023-06-01",
-    priority: 3,
-    isDefault: false,
-    supportsChat: true,
-    supportsVision: true,
-    supportsOCR: false,
-    supportsStreaming: true,
-    models: [
-      { modelName: "Claude 3.5 Sonnet", modelCode: "claude-3-5-sonnet-20241022", contextWindow: 200000, maxOutputTokens: 8192, inputCostPer1K: 0.25, outputCostPer1K: 1.20, isDefault: true },
-    ],
-  },
 ];
 
 let _aiProviderSeeded = false;

@@ -135,7 +135,7 @@ export default function SuperAdminHeader({ onMenuClick }: SuperAdminHeaderProps)
 
   const notifications = [
     { id: 1, title: "Storage Quota Warning", desc: "Organization Reliance Tech reached 84% quota", time: "10m ago", unread: true, type: "warning" },
-    { id: 2, title: "AI Model Latency Spike", desc: "Anthropic Claude 3.5 latency avg 1,420ms", time: "35m ago", unread: true, type: "alert" },
+    { id: 2, title: "AI Model Latency Optimized", desc: "Gemini Flash latency avg 240ms", time: "35m ago", unread: true, type: "success" },
     { id: 3, title: "Database Backup Completed", desc: "Automated snapshot verified in ap-south-1", time: "2h ago", unread: false, type: "success" },
   ];
 

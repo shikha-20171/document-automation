@@ -193,6 +193,13 @@ export default function TemplateTable({
 
         <div className="flex items-center gap-2">
           <Button
+            onClick={() => router.push("/org-admin/ai-builder")}
+            className="h-10 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 text-xs font-bold text-white shadow-md hover:from-indigo-700 hover:to-violet-700 flex items-center gap-1.5"
+          >
+            <Sparkles size={15} /> AI Document Studio
+          </Button>
+
+          <Button
             onClick={() => onOpenModal("quickCreate")}
             className="h-10 rounded-2xl bg-[#274690] px-4 text-xs font-bold text-white shadow-md transition hover:bg-[#1f3561] flex items-center gap-1.5"
           >

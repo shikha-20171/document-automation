@@ -312,6 +312,20 @@ app.use("/api/usage", require("./routes/usageRoutes"));
 app.use("/api/org-admin/usage", require("./routes/usageRoutes"));
 app.use("/api/super-admin/usage", require("./routes/usageRoutes"));
 
+/*  AI Quotation Builder & Reusable Template System  */
+app.use("/api/quotations", require("./routes/quotationRoutes"));
+app.use("/api/org-admin/quotations", require("./routes/quotationRoutes"));
+app.use("/api/quotation-templates", require("./routes/quotationTemplateRoutes"));
+app.use("/api/org-admin/quotation-templates", require("./routes/quotationTemplateRoutes"));
+app.use("/api/public/quotations", require("./routes/publicQuotationRoutes"));
+
+/*  Universal Enterprise AI Document Builder & Management Platform  */
+app.use("/api/unified-documents", require("./routes/unifiedDocumentRoutes"));
+app.use("/api/org-admin/unified-documents", require("./routes/unifiedDocumentRoutes"));
+app.use("/api/unified-templates", require("./routes/unifiedTemplateRoutes"));
+app.use("/api/org-admin/unified-templates", require("./routes/unifiedTemplateRoutes"));
+app.use("/api/public/documents", require("./routes/publicDocumentRoutes"));
+
 app.use("/api/documents/from-ai", async (req, res, next) => {
   try {
     const data = await require("./services/aiDocumentService").saveAiContentAsDocument(req);

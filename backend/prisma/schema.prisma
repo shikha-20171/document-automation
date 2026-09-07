@@ -57,6 +57,10 @@ model Organisation {
   departmentAiExtractedItems DepartmentAiExtractedRecord[]
   tasks                      Task[]
   notifications              Notification[]
+  quotations                 Quotation[]
+  quotationTemplates         QuotationTemplate[]
+  unifiedDocuments           UnifiedDocument[]
+  unifiedTemplates           UnifiedDocumentTemplate[]
 
   @@index([name])
   @@index([branch])
@@ -2812,6 +2816,326 @@ model RiskHistory {
   @@index([riskId])
   @@map("governance_risk_history")
 }
+
+// =====================================================
+// ENTERPRISE AI QUOTATION & TEMPLATE SYSTEM
+// =====================================================
+
+model Quotation {
+  id                    String                   @id @default(uuid())
+  organisationId        Int
+  quotationNumber       String
+  title                 String
+  status                String                   @default("DRAFT") // DRAFT, GENERATED, SENT, VIEWED, ACCEPTED, REJECTED, EXPIRED
+  clientId              String?
+  clientName            String
+  clientEmail           String?
+  clientPhone           String?
+  clientAddress         String?
+  clientContactPerson   String?
+  currency              String                   @default("INR")
+  subtotal              Float                    @default(0)
+  discountType          String?                  @default("PERCENTAGE") // PERCENTAGE or FIXED
+  discountValue         Float                    @default(0)
+  discountAmount        Float                    @default(0)
+  taxRate               Float                    @default(18) // GST / Tax %
+  taxAmount             Float                    @default(0)
+  total                 Float                    @default(0)
+  issueDate             DateTime                 @default(now())
+  expiryDate            DateTime?
+  notes                 String?
+  termsAndConditions    String?
+  paymentTerms          String?
+  bankDetails           Json?                    // bankName, accountName, accountNumber, ifscCode, branch, upiId
+  senderDetails         Json?                    // companyName, address, email, phone, gstNumber, panNumber, logoUrl
+  templateId            String?
+  pdfUrl                String?
+  publicShareToken      String                   @unique @default(uuid())
+  publicTokenExpiresAt  DateTime?
+  createdByUserId       Int?
+  createdByName         String?
+  aiPrompt              String?
+  metadata              Json?
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+
+  organisation          Organisation             @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  template              QuotationTemplate?       @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  items                 QuotationItem[]
+  statusHistory         QuotationStatusHistory[]
+  recipients            QuotationRecipient[]
+  views                 QuotationView[]
+  acceptance            QuotationAcceptance?
+
+  @@index([organisationId])
+  @@index([organisationId, status])
+  @@index([quotationNumber])
+  @@index([publicShareToken])
+  @@map("quotations")
+}
+
+model QuotationItem {
+  id              String        @id @default(uuid())
+  quotationId     String
+  title           String
+  description     String?
+  quantity        Float         @default(1)
+  unit            String?       @default("unit")
+  unitPrice       Float         @default(0)
+  discountPercent Float         @default(0)
+  taxPercent      Float         @default(0)
+  amount          Float         @default(0)
+  sortOrder       Int           @default(0)
+
+  quotation       Quotation     @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  @@index([quotationId])
+  @@map("quotation_items")
+}
+
+model QuotationTemplate {
+  id                  String        @id @default(uuid())
+  organisationId      Int
+  name                String
+  description         String?
+  category            String        @default("General") // IT Services, Software, Consulting, Marketing, Construction, General
+  currency            String        @default("INR")
+  defaultTaxRate      Float         @default(18)
+  defaultTerms        String?
+  defaultPaymentTerms String?
+  defaultNotes        String?
+  bankDetails         Json?
+  designTheme         Json?         // primaryColor, accentColor, headerStyle, layout
+  items               Json?         // standard line items: [{ title, description, quantity, unit, unitPrice }]
+  isStandard          Boolean       @default(false)
+  isArchived          Boolean       @default(false)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  organisation        Organisation  @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  quotations          Quotation[]
+
+  @@index([organisationId])
+  @@index([organisationId, category])
+  @@map("quotation_templates")
+}
+
+model QuotationRecipient {
+  id              String        @id @default(uuid())
+  quotationId     String
+  recipientEmail  String
+  recipientName   String?
+  sentAt          DateTime      @default(now())
+  sentByUserId    Int?
+  sentByName      String?
+  deliveryStatus  String        @default("SENT") // SENT, DELIVERED, FAILED
+  deliveryError   String?
+
+  quotation       Quotation     @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  @@index([quotationId])
+  @@map("quotation_recipients")
+}
+
+model QuotationStatusHistory {
+  id              String        @id @default(uuid())
+  quotationId     String
+  previousStatus  String?
+  newStatus       String
+  reason          String?
+  actorType       String        @default("USER") // USER, CLIENT, SYSTEM
+  actorId         String?
+  actorName       String?
+  metadata        Json?
+  createdAt       DateTime      @default(now())
+
+  quotation       Quotation     @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  @@index([quotationId])
+  @@map("quotation_status_history")
+}
+
+model QuotationView {
+  id              String        @id @default(uuid())
+  quotationId     String
+  viewerIp        String?
+  userAgent       String?
+  viewedAt        DateTime      @default(now())
+
+  quotation       Quotation     @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  @@index([quotationId])
+  @@map("quotation_views")
+}
+
+model QuotationAcceptance {
+  id                String        @id @default(uuid())
+  quotationId       String        @unique
+  decision          String        // ACCEPTED, REJECTED
+  signerName        String
+  signerEmail       String
+  signerDesignation String?
+  clientComments    String?
+  signatureData     String?       // signature data url or text
+  signerIp          String?
+  userAgent         String?
+  acceptedAt        DateTime      @default(now())
+
+  quotation         Quotation     @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  @@map("quotation_acceptances")
+}
+
+// =====================================================
+// UNIVERSAL ENTERPRISE AI DOCUMENT BUILDER & TEMPLATES
+// =====================================================
+
+model UnifiedDocument {
+  id                    String                         @id @default(uuid())
+  organisationId        Int
+  documentNumber        String
+  title                 String
+  documentType          String                         // Invoice, Quotation, Business Proposal, NDA, Offer Letter, Contract, etc.
+  category              String                         @default("General") // Sales, Business, Legal, HR, Operational, Custom
+  status                String                         @default("DRAFT") // DRAFT, GENERATED, UNDER_REVIEW, FINAL, SENT, VIEWED, ACCEPTED, REJECTED, EXPIRED, ARCHIVED
+  clientId              String?
+  clientName            String?
+  clientEmail           String?
+  clientPhone           String?
+  clientAddress         String?
+  clientContactPerson   String?
+  senderData            Json?                          // companyName, address, contact, tax/GST, logoUrl
+  recipientData         Json?                          // flexible recipient parameters
+  content               Json                           // structured sections: [{ id, type, title, body, tableData, pricingData, metadata }]
+  financialData         Json?                          // subtotal, discount, tax, total, currency
+  variables             Json?                          // placeholder map: { company_name, client_name, amount, etc. }
+  templateId            String?
+  templateSnapshot      Json?                          // IMMUTABLE snapshot of template structure used at creation time
+  currentVersion        Int                            @default(1)
+  publicShareToken      String                         @unique @default(uuid())
+  publicTokenExpiresAt  DateTime?
+  pdfUrl                String?
+  docxUrl               String?
+  createdByUserId       Int?
+  createdByName         String?
+  aiPrompt              String?
+  metadata              Json?
+  createdAt             DateTime                       @default(now())
+  updatedAt             DateTime                       @updatedAt
+
+  organisation          Organisation                   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  template              UnifiedDocumentTemplate?       @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  versions              UnifiedDocumentVersion[]
+  statusHistory         UnifiedDocumentStatusHistory[]
+  recipients            UnifiedDocumentRecipient[]
+  acceptance            UnifiedDocumentAcceptance?
+
+  @@index([organisationId])
+  @@index([organisationId, status])
+  @@index([organisationId, documentType])
+  @@index([organisationId, category])
+  @@index([documentNumber])
+  @@index([publicShareToken])
+  @@map("unified_documents")
+}
+
+model UnifiedDocumentVersion {
+  id               String          @id @default(uuid())
+  documentId       String
+  versionNumber    Int
+  title            String
+  content          Json
+  financialData    Json?
+  variables        Json?
+  templateSnapshot Json?
+  changeSummary    String?
+  createdById      Int?
+  createdByName    String?
+  createdAt        DateTime        @default(now())
+
+  document         UnifiedDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([documentId, versionNumber])
+  @@map("unified_document_versions")
+}
+
+model UnifiedDocumentTemplate {
+  id               String            @id @default(uuid())
+  organisationId   Int
+  name             String
+  category         String            @default("General") // Sales, Business, Legal, HR, Operational, Custom
+  documentType     String
+  description      String?
+  layoutConfig     Json?             // layout, theme, colors, fonts, margins, headerStyle
+  sections         Json              // default template sections
+  defaultVariables Json?             // placeholder token definitions
+  isStandard       Boolean           @default(false)
+  isArchived       Boolean           @default(false)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  organisation     Organisation      @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  documents        UnifiedDocument[]
+
+  @@index([organisationId])
+  @@index([organisationId, category])
+  @@index([organisationId, documentType])
+  @@map("unified_document_templates")
+}
+
+model UnifiedDocumentStatusHistory {
+  id             String          @id @default(uuid())
+  documentId     String
+  previousStatus String?
+  newStatus      String
+  reason         String?
+  actorType      String          @default("USER") // USER, CLIENT, SYSTEM
+  actorId        String?
+  actorName      String?
+  createdAt      DateTime        @default(now())
+
+  document       UnifiedDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@map("unified_document_status_history")
+}
+
+model UnifiedDocumentRecipient {
+  id             String          @id @default(uuid())
+  documentId     String
+  recipientEmail String
+  recipientName  String?
+  deliveryStatus String          @default("SENT") // SENT, DELIVERED, FAILED
+  deliveryError  String?
+  sentByUserId   Int?
+  sentByName     String?
+  sentAt         DateTime        @default(now())
+
+  document       UnifiedDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@map("unified_document_recipients")
+}
+
+model UnifiedDocumentAcceptance {
+  id                String          @id @default(uuid())
+  documentId        String          @unique
+  decision          String          // ACCEPTED, REJECTED
+  signerName        String
+  signerEmail       String
+  signerDesignation String?
+  clientComments    String?
+  signatureData     String?
+  signerIp          String?
+  userAgent         String?
+  acceptedAt        DateTime        @default(now())
+
+  document          UnifiedDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@map("unified_document_acceptances")
+}
+
 
 
 
