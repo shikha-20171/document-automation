@@ -12,8 +12,10 @@ const {
   getBillingSettings,
   updateBillingSettings,
 } = require("../controllers/superAdminBillingController");
+const verifyToken = require("../middleware/authMiddleware");
 const isSuperAdmin = require("../middleware/isSuperAdmin");
 
+router.use(verifyToken);
 router.use(isSuperAdmin);
 
 /**
