@@ -309,16 +309,24 @@ const generateDocumentAi = async (req, res) => {
           ...(crmCustomer.salary ? { compensation: crmCustomer.salary } : {}),
           ...(crmCustomer.address ? { recipient_address: crmCustomer.address } : {}),
         };
-      } else if (!isNaN(Number(crmCustomer))) {
+      } else if (crmCustomer) {
         try {
-          const clientRec = await prisma.client.findFirst({
-            where: { id: Number(crmCustomer), organisation_id: Number(orgId) },
+          const clientRec = await prisma.crmClient.findFirst({
+            where: {
+              OR: [
+                { id: String(crmCustomer) },
+                { name: { equals: String(crmCustomer), mode: "insensitive" } },
+              ],
+              organisationId: Number(orgId),
+            },
           });
           if (clientRec) {
             recipientData = {
               recipient_name: clientRec.name,
               ...(clientRec.company ? { recipient_company: clientRec.company } : {}),
               ...(clientRec.email ? { recipient_email: clientRec.email } : {}),
+              ...(clientRec.phone ? { recipient_phone: clientRec.phone } : {}),
+              ...(clientRec.address ? { recipient_address: clientRec.address } : {}),
             };
           }
         } catch (err) {

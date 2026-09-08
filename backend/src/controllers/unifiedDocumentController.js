@@ -10,7 +10,12 @@ const unifiedDocumentController = {
       const orgId = req.user.organisationId;
       if (!orgId) return res.status(400).json({ success: false, message: 'Organisation context required.' });
 
-      const result = await unifiedDocumentService.listDocuments(orgId, req.query);
+      const query = { ...req.query };
+      if (req.user.role === 'STAFF') {
+        query.createdByUserId = req.user.userId || req.user.id;
+      }
+
+      const result = await unifiedDocumentService.listDocuments(orgId, query);
       return res.json({ success: true, ...result });
     } catch (err) {
       console.error('[UnifiedDocumentController.listDocuments]', err);

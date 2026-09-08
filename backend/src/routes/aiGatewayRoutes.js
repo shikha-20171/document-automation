@@ -48,6 +48,49 @@ router.use((req, res, next) => {
   next();
 });
 
+const upload = require("../middleware/uploadMiddleware");
+const OCRService = require("../services/ocrService");
+
+/**
+ * POST /api/ai/ocr
+ * Automatic OCR extraction without exposing engine selection
+ */
+router.post("/ocr", upload.single("file"), async (req, res, next) => {
+  try {
+    let buffer = req.file?.buffer;
+    let mimeType = req.file?.mimetype;
+    let filePath = req.file?.path;
+    let imageBase64 = req.body?.imageBase64;
+    let documentText = req.body?.documentText;
+
+    if (!buffer && !imageBase64 && documentText) {
+      buffer = Buffer.from(documentText, "utf8");
+      mimeType = "text/plain";
+    }
+
+    if (!buffer && !imageBase64) {
+      return res.status(400).json({ success: false, message: "Please upload a document or image for extraction." });
+    }
+
+    const result = await OCRService.extractText({
+      buffer,
+      mimeType,
+      filePath,
+      imageBase64,
+    });
+
+    res.json({
+      success: true,
+      text: result.text || "",
+      extractedText: result.text || "",
+      confidence: result.confidence || 0.95,
+      pageCount: result.pageCount || 1,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 /**
  * GET /api/ai/available-models
  */

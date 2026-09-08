@@ -27,6 +27,7 @@ async function listDocuments(organisationId, query = {}) {
 
   const where = { organisationId };
 
+  if (query.createdByUserId) where.createdByUserId = parseInt(query.createdByUserId, 10);
   if (documentType && documentType !== 'All') where.documentType = documentType;
   if (category && category !== 'All') where.category = category;
   if (status && status !== 'ALL') where.status = status.toUpperCase();
