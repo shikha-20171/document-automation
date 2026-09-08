@@ -71,7 +71,7 @@ const DEZORYN_CORPORATE_PROFILE = {
 
 /**
  * Retrieve the saved organisation profile for document generation.
- * Guarantees that Dezoryn Technology identity is always returned with full branding.
+ * Dynamically uses the current tenant organisation's name and details.
  */
 async function getOrganisationCompanyProfile(organisationId) {
   let profile = { ...DEZORYN_CORPORATE_PROFILE };
@@ -83,37 +83,34 @@ async function getOrganisationCompanyProfile(organisationId) {
       });
 
       if (org) {
-        // If the org name was still a placeholder, update it in DB to Dezoryn Technology
-        if (org.name && ['sdfghjk', 'xyz', 'cvbnm', 'werty', 'dfghjk', 'xcvbnm', 'Enterprise Solutions'].includes(org.name)) {
-          await prisma.organisation.update({
-            where: { id: org.id },
-            data: {
-              name: 'Dezoryn Technology',
-              email: org.email || 'contact@dezoryn.com',
-              website: org.website || 'https://www.dezoryn.com',
-              address: org.address || profile.registeredAddress,
-              city: org.city || 'Pune',
-              state: org.state || 'Maharashtra',
-              country: org.country || 'India',
-              postal_code: org.postal_code || '411006',
-              currency: 'INR',
-            },
-          }).catch(() => {});
-        }
+        const orgName = org.name ? org.name.trim() : 'DocuCore Technologies';
+        const legalName = orgName.toLowerCase().includes('ltd') ? orgName : `${orgName} Pvt Ltd`;
+        const address = org.address || `${org.city || 'Mumbai'}, ${org.state || 'Maharashtra'}, ${org.country || 'India'}`;
 
         profile = {
           ...profile,
-          companyName: 'Dezoryn Technology',
-          legalName: 'Dezoryn Technology Pvt Ltd',
+          companyName: orgName,
+          legalName: legalName,
+          brandName: orgName,
           email: org.email || profile.email,
+          billingEmail: org.email || profile.billingEmail,
           phone: org.phone || profile.phone,
           website: org.website || profile.website,
-          registeredAddress: org.address || profile.registeredAddress,
-          city: org.city || profile.city,
-          state: org.state || profile.state,
-          country: org.country || profile.country,
-          postalCode: org.postal_code || profile.postalCode,
+          registeredAddress: address,
+          billingAddress: address,
+          city: org.city || 'Mumbai',
+          state: org.state || 'Maharashtra',
+          country: org.country || 'India',
+          postalCode: org.postal_code || '400001',
           logoUrl: org.logo || profile.logoUrl,
+          currency: org.currency || 'INR',
+          authorisedSignatory: {
+            name: 'Authorized Signatory',
+            designation: 'Director / Department Head',
+            email: org.email || profile.email,
+            phone: org.phone || profile.phone,
+            signatureText: `For ${legalName} (Authorised Signatory)`,
+          },
         };
       }
     } catch (err) {

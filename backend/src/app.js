@@ -341,6 +341,22 @@ app.use("/api/unified-templates", require("./routes/unifiedTemplateRoutes"));
 app.use("/api/org-admin/unified-templates", require("./routes/unifiedTemplateRoutes"));
 app.use("/api/public/documents", require("./routes/publicDocumentRoutes"));
 
+/*  Unified OCR & Extraction System  */
+app.use("/api/ocr", require("./routes/unifiedOcrRoutes"));
+app.use("/api/org-admin/ai-tools/ocr", require("./routes/unifiedOcrRoutes"));
+app.use("/api/department-manager/ai-tools/ocr", require("./routes/unifiedOcrRoutes"));
+app.use("/api/team-leader/ai-tools/ocr", require("./routes/unifiedOcrRoutes"));
+app.use("/api/employee/ai-tools/ocr", require("./routes/unifiedOcrRoutes"));
+
+/*  Unified Enterprise Approvals Workflow  */
+app.use("/api/approvals", require("./routes/unifiedApprovalRoutes"));
+app.use("/api/org-admin/approvals", require("./routes/unifiedApprovalRoutes"));
+app.use("/api/department-manager/unified-approvals", require("./routes/unifiedApprovalRoutes"));
+app.use("/api/team-leader/unified-approvals", require("./routes/unifiedApprovalRoutes"));
+app.use("/api/employee/unified-approvals", require("./routes/unifiedApprovalRoutes"));
+
+
+
 app.use("/api/documents/from-ai", async (req, res, next) => {
   try {
     const data = await require("./services/aiDocumentService").saveAiContentAsDocument(req);

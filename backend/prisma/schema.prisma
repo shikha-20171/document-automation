@@ -546,28 +546,37 @@ model WorkflowStep {
 // =====================================================
 
 model ApprovalRequest {
-  id                String           @id @default(uuid())
-  organisationId    Int
-  workflowId        String
-  documentId        Int?
-  documentName      String
-  requestedById     Int
-  currentStepOrder  Int?             @default(0)
-  status            ApprovalStatus   @default(PENDING)
-  dueAt             DateTime?
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  id                  String           @id @default(uuid())
+  organisationId      Int
+  workflowId          String?
+  documentId          Int?
+  unifiedDocumentId   String?
+  documentName        String
+  requestedById       Int
+  assignedApproverId  Int?
+  assignedApproverRole String?
+  currentStepOrder    Int?             @default(0)
+  status              ApprovalStatus   @default(PENDING)
+  stage               String?          @default("PENDING")
+  comments            String?
+  previousApproverName String?
+  currentApproverName String?
+  dueAt               DateTime?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
 
-  organisation      Organisation     @relation(fields: [organisationId], references: [id], onDelete: Cascade)
-  workflow          Workflow         @relation(fields: [workflowId], references: [id])
-  requestedBy       User             @relation(fields: [requestedById], references: [id])
-  document          Document?        @relation(fields: [documentId], references: [id])
-  actions           ApprovalAction[]
-  history           ApprovalHistoryItem[]
+  organisation        Organisation     @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  workflow            Workflow?        @relation(fields: [workflowId], references: [id])
+  requestedBy         User             @relation(fields: [requestedById], references: [id])
+  document            Document?        @relation(fields: [documentId], references: [id])
+  unifiedDocument     UnifiedDocument? @relation(fields: [unifiedDocumentId], references: [id], onDelete: Cascade)
+  actions             ApprovalAction[]
+  history             ApprovalHistoryItem[]
 
   @@index([organisationId])
   @@index([workflowId])
   @@index([documentId])
+  @@index([unifiedDocumentId])
   @@index([status])
   @@map("approval_requests")
 }
@@ -2487,22 +2496,26 @@ model DocumentExtraction {
 // =====================================================
 
 model SignatureEnvelope {
-  id              String               @id @default(uuid())
-  organisationId  Int
-  documentId      Int
-  title           String
-  status          String               @default("PENDING")
-  signingOrder    String               @default("SEQUENTIAL")
-  certificateHash String?
-  createdById     Int?
-  completedAt     DateTime?
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
+  id                String               @id @default(uuid())
+  organisationId    Int
+  documentId        Int?
+  unifiedDocumentId String?
+  title             String
+  status            String               @default("PENDING")
+  signingOrder      String               @default("SEQUENTIAL")
+  certificateHash   String?
+  createdById       Int?
+  completedAt       DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
 
-  signers         SignatureRecipient[]
+  signers           SignatureRecipient[]
+  fields            SignatureField[]
+  unifiedDocument   UnifiedDocument?     @relation(fields: [unifiedDocumentId], references: [id], onDelete: Cascade)
 
   @@index([organisationId])
   @@index([organisationId, status])
+  @@index([unifiedDocumentId])
   @@map("signature_envelopes")
 }
 
@@ -2524,6 +2537,27 @@ model SignatureRecipient {
 
   @@index([envelopeId])
   @@map("signature_recipients")
+}
+
+model SignatureField {
+  id             String            @id @default(uuid())
+  envelopeId     String
+  recipientEmail String?
+  type           String            @default("SIGNATURE") // SIGNATURE, DATE, NAME, INITIALS, TEXT
+  label          String?
+  page           Int               @default(1)
+  posX           Float             @default(100)
+  posY           Float             @default(100)
+  width          Float             @default(200)
+  height         Float             @default(60)
+  required       Boolean           @default(true)
+  value          String?
+  createdAt      DateTime          @default(now())
+
+  envelope       SignatureEnvelope @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
+
+  @@index([envelopeId])
+  @@map("signature_fields")
 }
 
 // =====================================================
@@ -3048,7 +3082,26 @@ model UnifiedDocument {
   title                 String
   documentType          String                         // Invoice, Quotation, Business Proposal, NDA, Offer Letter, Contract, etc.
   category              String                         @default("General") // Sales, Business, Legal, HR, Operational, Custom
-  status                String                         @default("DRAFT") // DRAFT, GENERATED, UNDER_REVIEW, FINAL, SENT, VIEWED, ACCEPTED, REJECTED, EXPIRED, ARCHIVED
+  status                String                         @default("DRAFT") // DRAFT, GENERATED, IN_REVIEW, PENDING_APPROVAL, APPROVED, PENDING_SIGNATURE, PARTIALLY_SIGNED, COMPLETED, REJECTED, CHANGES_REQUESTED, CANCELLED, ARCHIVED
+  departmentId          Int?
+  departmentName        String?
+  teamId                Int?
+  teamName              String?
+  ownerId               Int?
+  ownerName             String?
+  assignedToId          Int?
+  assignedToName        String?
+  assignedToEmail       String?
+  assignedAt            DateTime?
+  assignmentInstructions String?
+  dueDate               DateTime?
+  priority              String                         @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
+  approvalRequired      Boolean                        @default(false)
+  signatureRequired     Boolean                        @default(false)
+  approvalStatus        String                         @default("NONE") // NONE, DRAFT, PENDING_APPROVAL, APPROVED, REJECTED, CHANGES_REQUESTED
+  signatureStatus       String                         @default("NONE") // NONE, DRAFT, PENDING_SIGNATURE, PARTIALLY_SIGNED, COMPLETED, DECLINED, CANCELLED
+  isArchived            Boolean                        @default(false)
+  archivedAt            DateTime?
   clientId              String?
   clientName            String?
   clientEmail           String?
@@ -3080,11 +3133,22 @@ model UnifiedDocument {
   statusHistory         UnifiedDocumentStatusHistory[]
   recipients            UnifiedDocumentRecipient[]
   acceptance            UnifiedDocumentAcceptance?
+  approvalRequests      ApprovalRequest[]
+  signatureEnvelopes    SignatureEnvelope[]
+  shares                UnifiedDocumentShare[]
+  comments              UnifiedDocumentComment[]
+  auditLogs             UnifiedDocumentAuditLog[]
 
   @@index([organisationId])
   @@index([organisationId, status])
   @@index([organisationId, documentType])
   @@index([organisationId, category])
+  @@index([organisationId, departmentId])
+  @@index([organisationId, teamId])
+  @@index([assignedToId])
+  @@index([approvalStatus])
+  @@index([signatureStatus])
+  @@index([isArchived])
   @@index([documentNumber])
   @@index([publicShareToken])
   @@map("unified_documents")
@@ -3187,7 +3251,90 @@ model UnifiedDocumentAcceptance {
   @@map("unified_document_acceptances")
 }
 
+model UnifiedDocumentShare {
+  id                      String          @id @default(uuid())
+  documentId              String
+  organisationId          Int
+  sharedWithEmail         String?
+  sharedWithUserId        Int?
+  sharedWithDepartmentId  Int?
+  sharedWithTeamId        Int?
+  shareType               String          @default("USER") // USER, DEPARTMENT, TEAM, EXTERNAL
+  permissions             Json            // { view: true, comment: true, edit: false, download: true, approve: false, sign: false }
+  createdById             Int?
+  createdAt               DateTime        @default(now())
 
+  document                UnifiedDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
+  @@index([documentId])
+  @@index([organisationId])
+  @@index([sharedWithEmail])
+  @@index([sharedWithUserId])
+  @@map("unified_document_shares")
+}
 
+model UnifiedDocumentComment {
+  id              String          @id @default(uuid())
+  documentId      String
+  organisationId  Int
+  userId          Int?
+  userName        String
+  userRole        String
+  comment         String          @db.Text
+  sectionId       String?
+  createdAt       DateTime        @default(now())
 
+  document        UnifiedDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([organisationId])
+  @@map("unified_document_comments")
+}
+
+model UnifiedDocumentAuditLog {
+  id              String          @id @default(uuid())
+  organisationId  Int
+  documentId      String?
+  documentNumber  String?
+  documentTitle   String?
+  userId          Int?
+  userName        String?
+  userRole        String?
+  action          String          // CREATED, EDITED, UPLOADED, OCR_PROCESSED, AI_GENERATED, ASSIGNED, SHARED, SUBMITTED_FOR_APPROVAL, APPROVED, REJECTED, CHANGES_REQUESTED, SIGNATURE_REQUESTED, SIGNED, SIGNATURE_DECLINED, SENT_TO_CLIENT, DOWNLOADED, ARCHIVED, RESTORED, TEMPLATE_CREATED
+  previousStatus  String?
+  newStatus       String?
+  details         String?         @db.Text
+  ipAddress       String?
+  metadata        Json?
+  createdAt       DateTime        @default(now())
+
+  document        UnifiedDocument? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  @@index([organisationId])
+  @@index([documentId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("unified_document_audit_logs")
+}
+
+model OCRJobRecord {
+  id                String          @id @default(uuid())
+  organisationId    Int
+  userId            Int?
+  fileName          String
+  fileType          String
+  fileSize          Int             @default(0)
+  extractionAction  String          @default("extract_text")
+  status            String          @default("COMPLETED") // PROCESSING, COMPLETED, FAILED
+  extractedText     String?         @db.Text
+  extractedData     Json?
+  confidence        Float           @default(0.95)
+  detectedFields    Json?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([organisationId])
+  @@index([userId])
+  @@index([status])
+  @@map("ocr_job_records")
+}

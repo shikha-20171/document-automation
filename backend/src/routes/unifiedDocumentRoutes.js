@@ -28,4 +28,16 @@ router.post('/:id/send-email', unifiedDocumentController.sendEmail);
 router.get('/:id/download-pdf', unifiedDocumentController.downloadPdf);
 router.get('/:id/download-docx', unifiedDocumentController.downloadDocx);
 
+// Complete Document Lifecycle Actions
+router.post('/:id/assign', unifiedDocumentController.assignDocument);
+router.post('/:id/share', unifiedDocumentController.shareDocument);
+router.post('/:id/submit-approval', unifiedDocumentController.submitForApproval);
+router.post('/:id/approval-action', unifiedDocumentController.processApproval);
+router.post('/:id/send-for-signature', unifiedDocumentController.sendForSignature);
+router.post('/:id/sign', unifiedDocumentController.signDocument);
+router.post('/:id/archive', unifiedDocumentController.archiveDocument);
+router.post('/:id/restore', unifiedDocumentController.restoreDocument);
+router.post('/:id/comments', unifiedDocumentController.addComment);
+router.get('/:id/audit-logs', unifiedDocumentController.getAuditLogs);
+
 module.exports = router;

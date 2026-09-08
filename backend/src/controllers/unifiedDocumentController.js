@@ -7,15 +7,8 @@ const unifiedDocumentController = {
    */
   async listDocuments(req, res) {
     try {
-      const orgId = req.user.organisationId;
-      if (!orgId) return res.status(400).json({ success: false, message: 'Organisation context required.' });
-
-      const query = { ...req.query };
-      if (req.user.role === 'STAFF') {
-        query.createdByUserId = req.user.userId || req.user.id;
-      }
-
-      const result = await unifiedDocumentService.listDocuments(orgId, query);
+      const orgId = req.user.organisationId || req.user.organisation_id || req.user.organization_id || 1;
+      const result = await unifiedDocumentService.listDocuments(orgId, req.query, req.user);
       return res.json({ success: true, ...result });
     } catch (err) {
       console.error('[UnifiedDocumentController.listDocuments]', err);
@@ -322,6 +315,162 @@ const unifiedDocumentController = {
       return res.send(docxBuffer);
     } catch (err) {
       console.error('[UnifiedDocumentController.downloadDocx]', err);
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  /**
+   * POST /api/unified-documents/:id/assign
+   */
+  async assignDocument(req, res) {
+    try {
+      const orgId = req.user.organisationId || req.user.organisation_id || req.user.organization_id || 1;
+      const { id } = req.params;
+      const updated = await unifiedDocumentService.assignDocument(id, orgId, req.body, req.user, req);
+      return res.json({ success: true, message: 'Document assigned successfully.', data: updated });
+    } catch (err) {
+      console.error('[UnifiedDocumentController.assignDocument]', err);
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  /**
+   * POST /api/unified-documents/:id/share
+   */
+  async shareDocument(req, res) {
+    try {
+      const orgId = req.user.organisationId || req.user.organisation_id || req.user.organization_id || 1;
+      const { id } = req.params;
+      const share = await unifiedDocumentService.shareDocument(id, orgId, req.body, req.user, req);
+      return res.json({ success: true, message: 'Document shared successfully.', data: share });
+    } catch (err) {
+      console.error('[UnifiedDocumentController.shareDocument]', err);
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  /**
+   * POST /api/unified-documents/:id/submit-approval
+   */
+  async submitForApproval(req, res) {
+    try {
+      const orgId = req.user.organisationId || req.user.organisation_id || req.user.organization_id || 1;
+      const { id } = req.params;
+      const result = await unifiedDocumentService.submitForApproval(id, orgId, req.body, req.user, req);
+      return res.json({ success: true, message: 'Document submitted for approval.', data: result });
+    } catch (err) {
+      console.error('[UnifiedDocumentController.submitForApproval]', err);
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  /**
+   * POST /api/unified-documents/:id/approval-action
+   */
+  async processApproval(req, res) {
+    try {
+      const orgId = req.user.organisationId || req.user.organisation_id || req.user.organization_id || 1;
+      const { id } = req.params;
+      const result = await unifiedDocumentService.processApproval(id, orgId, req.body, req.user, req);
+      return res.json({ success: true, message: `Approval action processed: ${req.body.action}`, data: result });
+    } catch (err) {
+      console.error('[UnifiedDocumentController.processApproval]', err);
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  /**
+   * POST /api/unified-documents/:id/send-for-signature
+   */
+  async sendForSignature(req, res) {
+    try {
+      const orgId = req.user.organisationId || req.user.organisation_id || req.user.organization_id || 1;
+      const { id } = req.params;
+      const envelope = await unifiedDocumentService.sendForSignature(id, orgId, req.body, req.user, req);
+      return res.status(201).json({ success: true, message: 'Signature request dispatched.', data: envelope });
+    } catch (err) {
+      console.error('[UnifiedDocumentController.sendForSignature]', err);
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  /**
+   * POST /api/unified-documents/:id/sign
+   */
+  async signDocument(req, res) {
+    try {
+      const { id } = req.params;
+      const { envelopeId, recipientId, signatureData } = req.body;
+      const result = await unifiedDocumentService.signDocument(
+        envelopeId || id,
+        recipientId || req.body,
+        signatureData || req.body.signatureData,
+        req
+      );
+      return res.json(result);
+    } catch (err) {
+      console.error('[UnifiedDocumentController.signDocument]', err);
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+
+  /**
+   * POST /api/unified-documents/:id/archive
+   */
+  async archiveDocument(req, res) {
+    try {
+      const orgId = req.user.organisationId || req.user.organisation_id || req.user.organization_id || 1;
+      const { id } = req.params;
+      const updated = await unifiedDocumentService.archiveDocument(id, orgId, req.user, req);
+      return res.json({ success: true, message: 'Document archived.', data: updated });
+    } catch (err) {
+      console.error('[UnifiedDocumentController.archiveDocument]', err);
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  /**
+   * POST /api/unified-documents/:id/restore
+   */
+  async restoreDocument(req, res) {
+    try {
+      const orgId = req.user.organisationId || req.user.organisation_id || req.user.organization_id || 1;
+      const { id } = req.params;
+      const updated = await unifiedDocumentService.restoreDocument(id, orgId, req.user, req);
+      return res.json({ success: true, message: 'Document restored.', data: updated });
+    } catch (err) {
+      console.error('[UnifiedDocumentController.restoreDocument]', err);
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  /**
+   * POST /api/unified-documents/:id/comments
+   */
+  async addComment(req, res) {
+    try {
+      const orgId = req.user.organisationId || req.user.organisation_id || req.user.organization_id || 1;
+      const { id } = req.params;
+      const comment = await unifiedDocumentService.addComment(id, orgId, req.body, req.user, req);
+      return res.status(201).json({ success: true, message: 'Comment added.', data: comment });
+    } catch (err) {
+      console.error('[UnifiedDocumentController.addComment]', err);
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  /**
+   * GET /api/unified-documents/:id/audit-logs
+   */
+  async getAuditLogs(req, res) {
+    try {
+      const orgId = req.user.organisationId || req.user.organisation_id || req.user.organization_id || 1;
+      const { id } = req.params;
+      const logs = await unifiedDocumentService.getAuditLogs(id, orgId);
+      return res.json({ success: true, data: logs });
+    } catch (err) {
+      console.error('[UnifiedDocumentController.getAuditLogs]', err);
       return res.status(500).json({ success: false, message: err.message });
     }
   },

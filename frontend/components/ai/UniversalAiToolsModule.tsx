@@ -32,8 +32,10 @@ import {
   RefreshCw,
 } from "lucide-react";
 import apiClient from "@/lib/axios";
+import UnifiedOcrWorkspace from "@/components/ocr/UnifiedOcrWorkspace";
 
 export type RoleType = "ORGANISATION_ADMIN" | "DEPARTMENT_MANAGER" | "TEAM_LEADER" | "STAFF";
+
 
 interface UniversalAiToolsModuleProps {
   userRole: RoleType;
@@ -1094,16 +1096,23 @@ export default function UniversalAiToolsModule({
       )}
 
       {/* ────────────────────────────────────────────────────────────────────────── */}
-      {/* 2. EXTRACT / ANALYZE / SUMMARIZE / CUSTOM TAB CONTENT */}
+      {/* 2. OCR EXTRACTION WORKSPACE */}
       {/* ────────────────────────────────────────────────────────────────────────── */}
-      {activeTool !== "create" && (
+      {activeTool === "extract" && (
+        <UnifiedOcrWorkspace userRole={userRole} />
+      )}
+
+      {/* ────────────────────────────────────────────────────────────────────────── */}
+      {/* 3. ANALYZE / SUMMARIZE / CUSTOM TAB CONTENT */}
+      {/* ────────────────────────────────────────────────────────────────────────── */}
+      {activeTool !== "create" && activeTool !== "extract" && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
           {/* Input Form (Left) */}
           <div className="lg:col-span-6 space-y-6">
             <form onSubmit={handleRunSecondaryTool} className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-5">
               <div className="border-b border-slate-100 pb-3">
                 <h2 className="text-lg font-bold text-slate-900">
-                  {activeTool === "extract" && "Extract Structured Data"}
                   {activeTool === "analyze" && "Analyze Document"}
                   {activeTool === "summarize" && "Summarize Document"}
                   {activeTool === "custom" && "Custom AI Request"}

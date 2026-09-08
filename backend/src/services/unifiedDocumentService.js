@@ -7,15 +7,18 @@ const transporter = require('../config/mail');
 const AuditLogService = require('./auditLogService');
 
 /**
- * List documents for an organisation with search and filters
+ * List documents for an organisation with RBAC, tab filters, search, and relations
  */
-async function listDocuments(organisationId, query = {}) {
+async function listDocuments(organisationId, query = {}, user = {}) {
   const {
     documentType,
     category,
     status,
     clientId,
     search,
+    tab = 'ALL',
+    departmentId,
+    teamId,
     page = 1,
     limit = 25,
     sortBy = 'createdAt',
@@ -28,19 +31,99 @@ async function listDocuments(organisationId, query = {}) {
 
   const where = { organisationId };
 
-  if (query.createdByUserId) where.createdByUserId = parseInt(query.createdByUserId, 10);
+  // Tab Filtering
+  const upperTab = String(tab).toUpperCase();
+  if (upperTab === 'ARCHIVED') {
+    where.isArchived = true;
+  } else {
+    where.isArchived = false;
+  }
+
+  const userId = user?.id ? parseInt(user.id, 10) : null;
+  const userEmail = user?.email ? String(user.email).trim().toLowerCase() : '';
+  const userRole = (user?.role || '').toUpperCase();
+
+  // Role-Based Access Control (RBAC)
+  if (userRole === 'STAFF') {
+    // Employees only access documents created by them, assigned to them, or shared with them
+    where.OR = [
+      { createdByUserId: userId },
+      { assignedToId: userId },
+      { shares: { some: { OR: [{ sharedWithUserId: userId }, { sharedWithEmail: userEmail }] } } },
+    ];
+  } else if (userRole === 'TEAM_LEADER') {
+    // Team Leader accesses team documents, their own created/assigned, or shared
+    const conditions = [
+      { createdByUserId: userId },
+      { assignedToId: userId },
+      { shares: { some: { OR: [{ sharedWithUserId: userId }, { sharedWithEmail: userEmail }] } } },
+    ];
+    if (user.team_id) {
+      conditions.push({ teamId: parseInt(user.team_id, 10) });
+    }
+    where.OR = conditions;
+  } else if (userRole === 'DEPARTMENT_MANAGER') {
+    // Department Manager accesses department documents, their own created/assigned, or shared
+    const conditions = [
+      { createdByUserId: userId },
+      { assignedToId: userId },
+      { shares: { some: { OR: [{ sharedWithUserId: userId }, { sharedWithEmail: userEmail }] } } },
+    ];
+    if (user.department_id) {
+      conditions.push({ departmentId: parseInt(user.department_id, 10) });
+    }
+    where.OR = conditions;
+  }
+  // ORGANISATION_ADMIN has tenant-wide access (no additional where restriction)
+
+  // Specific Tab Constraints
+  if (upperTab === 'MY_DOCUMENTS' && userId) {
+    where.createdByUserId = userId;
+  } else if (upperTab === 'DRAFTS') {
+    where.status = 'DRAFT';
+  } else if (upperTab === 'ASSIGNED_TO_ME' && userId) {
+    where.assignedToId = userId;
+  } else if (upperTab === 'PENDING_APPROVAL') {
+    where.approvalStatus = 'PENDING_APPROVAL';
+  } else if (upperTab === 'PENDING_SIGNATURE') {
+    where.signatureStatus = 'PENDING_SIGNATURE';
+  } else if (upperTab === 'COMPLETED') {
+    where.status = 'COMPLETED';
+  } else if (upperTab === 'REJECTED') {
+    where.approvalStatus = 'REJECTED';
+  } else if (upperTab === 'SHARED') {
+    where.shares = {
+      some: {
+        OR: [
+          ...(userId ? [{ sharedWithUserId: userId }] : []),
+          ...(userEmail ? [{ sharedWithEmail: userEmail }] : []),
+        ],
+      },
+    };
+  }
+
   if (documentType && documentType !== 'All') where.documentType = documentType;
   if (category && category !== 'All') where.category = category;
   if (status && status !== 'ALL') where.status = status.toUpperCase();
   if (clientId) where.clientId = clientId;
+  if (departmentId) where.departmentId = parseInt(departmentId, 10);
+  if (teamId) where.teamId = parseInt(teamId, 10);
 
   if (search) {
-    where.OR = [
+    const searchCondition = [
       { documentNumber: { contains: search, mode: 'insensitive' } },
       { title: { contains: search, mode: 'insensitive' } },
       { clientName: { contains: search, mode: 'insensitive' } },
       { documentType: { contains: search, mode: 'insensitive' } },
+      { createdByName: { contains: search, mode: 'insensitive' } },
+      { assignedToName: { contains: search, mode: 'insensitive' } },
     ];
+    if (where.OR) {
+      where.AND = [{ OR: where.OR }, { OR: searchCondition }];
+      delete where.OR;
+    } else {
+      where.OR = searchCondition;
+    }
   }
 
   const [totalCount, documents] = await Promise.all([
@@ -53,7 +136,18 @@ async function listDocuments(organisationId, query = {}) {
       include: {
         template: { select: { id: true, name: true, category: true } },
         acceptance: true,
-        _count: { select: { versions: true, recipients: true } },
+        approvalRequests: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          include: { actions: { orderBy: { createdAt: 'desc' }, take: 1 } },
+        },
+        signatureEnvelopes: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          include: { signers: true, fields: true },
+        },
+        shares: true,
+        _count: { select: { versions: true, recipients: true, comments: true } },
       },
     }),
   ]);
@@ -75,13 +169,13 @@ async function listDocuments(organisationId, query = {}) {
 async function getDocumentMetrics(organisationId) {
   const [totalCount, draftCount, generatedCount, sentCount, viewedCount, acceptedCount, rejectedCount] =
     await Promise.all([
-      prisma.unifiedDocument.count({ where: { organisationId } }),
-      prisma.unifiedDocument.count({ where: { organisationId, status: 'DRAFT' } }),
-      prisma.unifiedDocument.count({ where: { organisationId, status: 'GENERATED' } }),
-      prisma.unifiedDocument.count({ where: { organisationId, status: 'SENT' } }),
-      prisma.unifiedDocument.count({ where: { organisationId, status: 'VIEWED' } }),
-      prisma.unifiedDocument.count({ where: { organisationId, status: 'ACCEPTED' } }),
-      prisma.unifiedDocument.count({ where: { organisationId, status: 'REJECTED' } }),
+      prisma.unifiedDocument.count({ where: { organisationId, isArchived: false } }),
+      prisma.unifiedDocument.count({ where: { organisationId, status: 'DRAFT', isArchived: false } }),
+      prisma.unifiedDocument.count({ where: { organisationId, status: 'GENERATED', isArchived: false } }),
+      prisma.unifiedDocument.count({ where: { organisationId, status: 'SENT', isArchived: false } }),
+      prisma.unifiedDocument.count({ where: { organisationId, status: 'VIEWED', isArchived: false } }),
+      prisma.unifiedDocument.count({ where: { organisationId, status: 'COMPLETED', isArchived: false } }),
+      prisma.unifiedDocument.count({ where: { organisationId, status: 'REJECTED', isArchived: false } }),
     ]);
 
   return {
@@ -107,12 +201,23 @@ async function getDocumentById(id, organisationId) {
       statusHistory: { orderBy: { createdAt: 'desc' } },
       recipients: { orderBy: { sentAt: 'desc' } },
       acceptance: true,
+      approvalRequests: {
+        orderBy: { createdAt: 'desc' },
+        include: { actions: true, history: true },
+      },
+      signatureEnvelopes: {
+        orderBy: { createdAt: 'desc' },
+        include: { signers: { orderBy: { order: 'asc' } }, fields: true },
+      },
+      shares: true,
+      comments: { orderBy: { createdAt: 'desc' } },
+      auditLogs: { orderBy: { createdAt: 'desc' }, take: 25 },
       organisation: { select: { id: true, name: true, branch: true, city: true } },
     },
   });
 
   if (!document) {
-    throw new Error('Document not found or access denied.');
+    throw new Error('Document not found.');
   }
 
   return document;
@@ -147,26 +252,25 @@ async function createDocument(organisationId, userId, userName, payload, req = n
   // Generate sequential document number
   const documentNumber = await generateDocumentNumber(organisationId, documentType);
 
-  // Ensure issuing party is ALWAYS Dezoryn Technology with corporate profile
+  // Dynamic tenant identity from current organization
   const orgProfile = await getOrganisationCompanyProfile(organisationId);
+  const orgCompanyName = senderData?.companyName || orgProfile.companyName || 'DocuCore Technologies';
+  const orgLegalName = senderData?.legalName || orgProfile.legalName || `${orgCompanyName} Pvt Ltd`;
   let finalSenderData = {
-    companyName: 'Dezoryn Technology',
-    legalName: orgProfile.legalName,
-    registeredAddress: orgProfile.registeredAddress,
-    billingAddress: orgProfile.billingAddress,
-    email: orgProfile.email,
-    phone: orgProfile.phone,
-    website: orgProfile.website,
-    gstin: orgProfile.gstin,
-    pan: orgProfile.pan,
-    cin: orgProfile.cin,
-    authorisedSignatory: orgProfile.authorisedSignatory,
-    paymentDetails: orgProfile.paymentDetails,
+    companyName: orgCompanyName,
+    legalName: orgLegalName,
+    registeredAddress: senderData?.registeredAddress || orgProfile.registeredAddress,
+    billingAddress: senderData?.billingAddress || orgProfile.billingAddress,
+    email: senderData?.email || orgProfile.email,
+    phone: senderData?.phone || orgProfile.phone,
+    website: senderData?.website || orgProfile.website,
+    gstin: senderData?.gstin || orgProfile.gstin,
+    pan: senderData?.pan || orgProfile.pan,
+    cin: senderData?.cin || orgProfile.cin,
+    authorisedSignatory: senderData?.authorisedSignatory || orgProfile.authorisedSignatory,
+    paymentDetails: senderData?.paymentDetails || orgProfile.paymentDetails,
     ...(senderData || {}),
   };
-  // Ensure companyName is never overwritten by client name
-  finalSenderData.companyName = 'Dezoryn Technology';
-  finalSenderData.legalName = orgProfile.legalName;
 
   // Template Independence Guarantee:
   // Capture immutable snapshot of template structure used at creation time
@@ -182,6 +286,8 @@ async function createDocument(organisationId, userId, userName, payload, req = n
   }
 
   const initialSections = Array.isArray(content) ? content : [];
+  const finalStatus = payload.submitApproval ? 'PENDING_APPROVAL' : status.toUpperCase();
+  const initialApprovalStatus = payload.submitApproval ? 'PENDING_APPROVAL' : (payload.approvalStatus || 'NONE');
 
   const newDoc = await prisma.unifiedDocument.create({
     data: {
@@ -190,7 +296,24 @@ async function createDocument(organisationId, userId, userName, payload, req = n
       title: title.trim(),
       documentType: documentType.trim(),
       category: category.trim(),
-      status: status.toUpperCase(),
+      status: finalStatus,
+      departmentId: payload.departmentId ? parseInt(payload.departmentId, 10) : null,
+      departmentName: payload.departmentName || null,
+      teamId: payload.teamId ? parseInt(payload.teamId, 10) : null,
+      teamName: payload.teamName || null,
+      ownerId: payload.ownerId ? parseInt(payload.ownerId, 10) : (userId ? parseInt(userId, 10) : null),
+      ownerName: payload.ownerName || userName || null,
+      assignedToId: payload.assignedToId ? parseInt(payload.assignedToId, 10) : null,
+      assignedToName: payload.assignedToName || null,
+      assignedToEmail: payload.assignedToEmail || null,
+      assignedAt: payload.assignedToId ? new Date() : null,
+      assignmentInstructions: payload.assignmentInstructions || null,
+      dueDate: payload.dueDate ? new Date(payload.dueDate) : null,
+      priority: payload.priority || 'NORMAL',
+      approvalRequired: Boolean(payload.approvalRequired || payload.submitApproval),
+      signatureRequired: Boolean(payload.signatureRequired),
+      approvalStatus: initialApprovalStatus,
+      signatureStatus: payload.signatureStatus || 'NONE',
       clientId: clientId || null,
       clientName: clientName?.trim() || null,
       clientEmail: clientEmail?.trim() || null,
@@ -224,7 +347,7 @@ async function createDocument(organisationId, userId, userName, payload, req = n
       statusHistory: {
         create: {
           previousStatus: null,
-          newStatus: status.toUpperCase(),
+          newStatus: finalStatus,
           reason: aiPrompt ? 'Generated via AI Natural-Language Prompt' : 'Initial draft created',
           actorType: 'USER',
           actorId: String(userId || '0'),
@@ -237,6 +360,21 @@ async function createDocument(organisationId, userId, userName, payload, req = n
       template: true,
     },
   });
+
+  // Write to dedicated audit log table
+  await prisma.unifiedDocumentAuditLog.create({
+    data: {
+      organisationId,
+      documentId: newDoc.id,
+      documentNumber: newDoc.documentNumber,
+      documentTitle: newDoc.title,
+      userId: userId ? parseInt(userId, 10) : null,
+      userName: userName || 'System User',
+      action: 'CREATED',
+      newStatus: newDoc.status,
+      details: aiPrompt ? 'Created via AI Universal Document Builder' : 'Document created',
+    },
+  }).catch(() => {});
 
   try {
     await AuditLogService.log({
@@ -787,6 +925,738 @@ async function generatePublicDocx(token) {
   return generateUnifiedDocumentDocx(document);
 }
 
+/**
+ * Assign document to department, team, or user
+ */
+async function assignDocument(id, organisationId, payload, user, req = null) {
+  const doc = await getDocumentById(id, organisationId);
+  const {
+    departmentId,
+    departmentName,
+    teamId,
+    teamName,
+    assignedToId,
+    assignedToName,
+    assignedToEmail,
+    instructions,
+    dueDate,
+    priority = 'NORMAL',
+    approvalRequired,
+    signatureRequired,
+  } = payload;
+
+  const targetUserId = assignedToId ? parseInt(assignedToId, 10) : null;
+  const updated = await prisma.unifiedDocument.update({
+    where: { id },
+    data: {
+      departmentId: departmentId ? parseInt(departmentId, 10) : doc.departmentId,
+      departmentName: departmentName || doc.departmentName,
+      teamId: teamId ? parseInt(teamId, 10) : doc.teamId,
+      teamName: teamName || doc.teamName,
+      assignedToId: targetUserId,
+      assignedToName: assignedToName || doc.assignedToName,
+      assignedToEmail: assignedToEmail || doc.assignedToEmail,
+      assignedAt: targetUserId ? new Date() : doc.assignedAt,
+      assignmentInstructions: instructions || doc.assignmentInstructions,
+      dueDate: dueDate ? new Date(dueDate) : doc.dueDate,
+      priority: priority || doc.priority,
+      approvalRequired: approvalRequired !== undefined ? Boolean(approvalRequired) : doc.approvalRequired,
+      signatureRequired: signatureRequired !== undefined ? Boolean(signatureRequired) : doc.signatureRequired,
+    },
+  });
+
+  // Create In-App Notification for Assignee
+  if (targetUserId) {
+    await prisma.notification.create({
+      data: {
+        organisation_id: organisationId,
+        user_id: targetUserId,
+        title: `Document Assigned: ${doc.title}`,
+        message: `You have been assigned "${doc.title}" by ${user.name || user.full_name || 'Administrator'}. Priority: ${priority}.`,
+        type: 'ASSIGNMENT',
+        link: `/documents/view?id=${doc.id}`,
+      },
+    }).catch(() => {});
+  }
+
+  // Record in Audit Log
+  await prisma.unifiedDocumentAuditLog.create({
+    data: {
+      organisationId,
+      documentId: id,
+      documentNumber: doc.documentNumber,
+      documentTitle: doc.title,
+      userId: user.id ? parseInt(user.id, 10) : null,
+      userName: user.name || user.full_name || 'System User',
+      userRole: user.role || 'STAFF',
+      action: 'ASSIGNED',
+      details: `Assigned to ${assignedToName || 'User ID ' + targetUserId}. Priority: ${priority}`,
+      metadata: { departmentName, teamName, dueDate, priority, instructions },
+    },
+  }).catch(() => {});
+
+  return updated;
+}
+
+/**
+ * Share document with internal users, department, team, or external party
+ */
+async function shareDocument(id, organisationId, payload, user, req = null) {
+  const doc = await getDocumentById(id, organisationId);
+  const {
+    sharedWithEmail,
+    sharedWithUserId,
+    sharedWithDepartmentId,
+    sharedWithTeamId,
+    shareType = 'USER',
+    permissions = { view: true, comment: true, edit: false, download: true, approve: false, sign: false },
+  } = payload;
+
+  const targetUserId = sharedWithUserId ? parseInt(sharedWithUserId, 10) : null;
+  const cleanEmail = sharedWithEmail ? String(sharedWithEmail).trim().toLowerCase() : null;
+
+  const shareRecord = await prisma.unifiedDocumentShare.create({
+    data: {
+      documentId: id,
+      organisationId,
+      sharedWithEmail: cleanEmail,
+      sharedWithUserId: targetUserId,
+      sharedWithDepartmentId: sharedWithDepartmentId ? parseInt(sharedWithDepartmentId, 10) : null,
+      sharedWithTeamId: sharedWithTeamId ? parseInt(sharedWithTeamId, 10) : null,
+      shareType,
+      permissions,
+      createdById: user.id ? parseInt(user.id, 10) : null,
+    },
+  });
+
+  // Notify recipient
+  if (targetUserId) {
+    await prisma.notification.create({
+      data: {
+        organisation_id: organisationId,
+        user_id: targetUserId,
+        title: `Document Shared: ${doc.title}`,
+        message: `${user.name || user.full_name || 'A team member'} shared "${doc.title}" with you.`,
+        type: 'DOCUMENT_SHARED',
+        link: `/documents/view?id=${doc.id}`,
+      },
+    }).catch(() => {});
+  }
+
+  // Audit log
+  await prisma.unifiedDocumentAuditLog.create({
+    data: {
+      organisationId,
+      documentId: id,
+      documentNumber: doc.documentNumber,
+      documentTitle: doc.title,
+      userId: user.id ? parseInt(user.id, 10) : null,
+      userName: user.name || user.full_name || 'System User',
+      userRole: user.role || 'STAFF',
+      action: 'SHARED',
+      details: `Shared with ${cleanEmail || 'User ID ' + targetUserId} (${shareType})`,
+      metadata: { permissions },
+    },
+  }).catch(() => {});
+
+  return shareRecord;
+}
+
+/**
+ * Submit document for approval
+ */
+async function submitForApproval(id, organisationId, payload, user, req = null) {
+  const doc = await getDocumentById(id, organisationId);
+  const { approverId, approverRole = 'TEAM_LEADER', comments = 'Submitted for formal review' } = payload || {};
+
+  const approverUserId = approverId ? parseInt(approverId, 10) : null;
+
+  // 1. Update Document Status
+  const updated = await prisma.unifiedDocument.update({
+    where: { id },
+    data: {
+      status: 'PENDING_APPROVAL',
+      approvalStatus: 'PENDING_APPROVAL',
+      approvalRequired: true,
+    },
+  });
+
+  // 2. Create Approval Request
+  const approvalReq = await prisma.approvalRequest.create({
+    data: {
+      organisationId,
+      unifiedDocumentId: id,
+      documentName: doc.title,
+      requestedById: user.id ? parseInt(user.id, 10) : 1,
+      assignedApproverId: approverUserId,
+      assignedApproverRole: approverRole,
+      status: 'PENDING',
+      stage: 'PENDING_APPROVAL',
+      comments,
+      history: {
+        create: {
+          userId: user.id ? parseInt(user.id, 10) : null,
+          userRole: user.role || 'STAFF',
+          action: 'SUBMITTED',
+          comment: comments,
+        },
+      },
+    },
+  });
+
+  // 3. Status history entry
+  await prisma.unifiedDocumentStatusHistory.create({
+    data: {
+      documentId: id,
+      previousStatus: doc.status,
+      newStatus: 'PENDING_APPROVAL',
+      reason: comments,
+      actorType: 'USER',
+      actorId: String(user.id || '0'),
+      actorName: user.name || user.full_name || 'System User',
+    },
+  }).catch(() => {});
+
+  // 4. Send Notification to Approver
+  if (approverUserId) {
+    await prisma.notification.create({
+      data: {
+        organisation_id: organisationId,
+        user_id: approverUserId,
+        title: `Approval Required: ${doc.title}`,
+        message: `"${doc.title}" requires your approval. Submitted by ${user.name || user.full_name}.`,
+        type: 'APPROVAL_REQUEST',
+        link: `/approvals?id=${approvalReq.id}&docId=${doc.id}`,
+      },
+    }).catch(() => {});
+  }
+
+  // 5. Audit log
+  await prisma.unifiedDocumentAuditLog.create({
+    data: {
+      organisationId,
+      documentId: id,
+      documentNumber: doc.documentNumber,
+      documentTitle: doc.title,
+      userId: user.id ? parseInt(user.id, 10) : null,
+      userName: user.name || user.full_name || 'System User',
+      userRole: user.role || 'STAFF',
+      action: 'SUBMITTED_FOR_APPROVAL',
+      previousStatus: doc.status,
+      newStatus: 'PENDING_APPROVAL',
+      details: comments,
+      metadata: { approverRole, approverUserId },
+    },
+  }).catch(() => {});
+
+  return { document: updated, approvalRequest: approvalReq };
+}
+
+/**
+ * Process Approval Action (Approve, Reject, Request Changes)
+ */
+async function processApproval(id, organisationId, payload, user, req = null) {
+  const doc = await getDocumentById(id, organisationId);
+  const { action, comments = '' } = payload;
+  const upperAction = String(action).toUpperCase();
+
+  // Find latest pending approval request
+  const approvalReq = await prisma.approvalRequest.findFirst({
+    where: { unifiedDocumentId: id, organisationId, status: 'PENDING' },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  let newDocStatus = doc.status;
+  let newApprovalStatus = 'PENDING_APPROVAL';
+
+  if (upperAction === 'APPROVE' || upperAction === 'APPROVED') {
+    newApprovalStatus = 'APPROVED';
+    newDocStatus = doc.signatureRequired ? 'PENDING_SIGNATURE' : 'APPROVED';
+  } else if (upperAction === 'REJECT' || upperAction === 'REJECTED') {
+    newApprovalStatus = 'REJECTED';
+    newDocStatus = 'REJECTED';
+  } else if (upperAction === 'REQUEST_CHANGES' || upperAction === 'CHANGES_REQUESTED') {
+    newApprovalStatus = 'CHANGES_REQUESTED';
+    newDocStatus = 'CHANGES_REQUESTED';
+  }
+
+  // Update document
+  const updatedDoc = await prisma.unifiedDocument.update({
+    where: { id },
+    data: {
+      status: newDocStatus,
+      approvalStatus: newApprovalStatus,
+    },
+  });
+
+  // Update approval request and record action + history
+  if (approvalReq) {
+    const finalReqStatus = upperAction.includes('APPROV')
+      ? 'APPROVED'
+      : upperAction.includes('REJECT')
+      ? 'REJECTED'
+      : 'PENDING';
+
+    await prisma.approvalRequest.update({
+      where: { id: approvalReq.id },
+      data: {
+        status: finalReqStatus,
+        stage: newApprovalStatus,
+        currentApproverName: user.name || user.full_name,
+        comments,
+      },
+    });
+
+    await prisma.approvalAction.create({
+      data: {
+        approvalRequestId: approvalReq.id,
+        performedById: user.id ? parseInt(user.id, 10) : null,
+        action: upperAction,
+        comment: comments,
+      },
+    });
+
+    await prisma.approvalHistoryItem.create({
+      data: {
+        approvalRequestId: approvalReq.id,
+        userId: user.id ? parseInt(user.id, 10) : null,
+        userRole: user.role || 'APPROVER',
+        action: upperAction,
+        comment: comments,
+      },
+    });
+  }
+
+  // Status history
+  await prisma.unifiedDocumentStatusHistory.create({
+    data: {
+      documentId: id,
+      previousStatus: doc.status,
+      newStatus: newDocStatus,
+      reason: `Approval decision: ${upperAction}. ${comments}`,
+      actorType: 'USER',
+      actorId: String(user.id || '0'),
+      actorName: user.name || user.full_name || 'Reviewer',
+    },
+  }).catch(() => {});
+
+  // Notify document creator
+  if (doc.createdByUserId) {
+    await prisma.notification.create({
+      data: {
+        organisation_id: organisationId,
+        user_id: doc.createdByUserId,
+        title: `Document ${upperAction}: ${doc.title}`,
+        message: `Your document "${doc.title}" has been marked ${newApprovalStatus} by ${user.name || user.full_name}. ${comments ? 'Remarks: ' + comments : ''}`,
+        type: `APPROVAL_${upperAction}`,
+        link: `/documents/view?id=${doc.id}`,
+      },
+    }).catch(() => {});
+  }
+
+  // Audit log
+  await prisma.unifiedDocumentAuditLog.create({
+    data: {
+      organisationId,
+      documentId: id,
+      documentNumber: doc.documentNumber,
+      documentTitle: doc.title,
+      userId: user.id ? parseInt(user.id, 10) : null,
+      userName: user.name || user.full_name || 'Approver',
+      userRole: user.role || 'APPROVER',
+      action: upperAction,
+      previousStatus: doc.status,
+      newStatus: newDocStatus,
+      details: comments || `Approval decision: ${upperAction}`,
+    },
+  }).catch(() => {});
+
+  return {
+    document: updatedDoc,
+    approvalStatus: newApprovalStatus,
+    canSendForSignature: newApprovalStatus === 'APPROVED',
+  };
+}
+
+/**
+ * Send document for E-Signature
+ */
+async function sendForSignature(id, organisationId, payload, user, req = null) {
+  const doc = await getDocumentById(id, organisationId);
+  let { title, signingOrder = 'SEQUENTIAL', signers = [], fields = [] } = payload || {};
+
+  if ((!signers || signers.length === 0) && (payload?.signerEmail || doc.clientEmail)) {
+    signers = [
+      {
+        name: payload?.signerName || doc.clientName || payload?.signerEmail || 'Authorized Signatory',
+        email: payload?.signerEmail || doc.clientEmail,
+        role: 'SIGNER',
+        order: 1,
+      },
+    ];
+  }
+
+  if (!signers || signers.length === 0) {
+    throw new Error('At least one signer is required.');
+  }
+
+  // 1. Create Signature Envelope with signers and fields
+  const envelope = await prisma.signatureEnvelope.create({
+    data: {
+      organisationId,
+      unifiedDocumentId: id,
+      title: title || `E-Signature: ${doc.title}`,
+      signingOrder,
+      status: 'PENDING',
+      createdById: user?.id ? parseInt(user.id, 10) : null,
+      signers: {
+        create: signers.map((s, idx) => ({
+          name: s.name.trim(),
+          email: s.email.trim().toLowerCase(),
+          role: s.role || 'SIGNER',
+          order: s.order || idx + 1,
+          status: 'PENDING',
+        })),
+      },
+      fields: {
+        create: (fields || []).map((f) => ({
+          recipientEmail: f.recipientEmail?.trim().toLowerCase() || signers[0]?.email?.trim().toLowerCase(),
+          type: f.type || 'SIGNATURE',
+          label: f.label || 'Signature',
+          page: f.page || 1,
+          posX: f.posX || 100,
+          posY: f.posY || 100,
+          width: f.width || 200,
+          height: f.height || 60,
+          required: f.required !== false,
+        })),
+      },
+    },
+    include: { signers: true, fields: true },
+  });
+
+  // 2. Update Unified Document Status
+  await prisma.unifiedDocument.update({
+    where: { id },
+    data: {
+      status: 'PENDING_SIGNATURE',
+      signatureStatus: 'PENDING_SIGNATURE',
+      signatureRequired: true,
+    },
+  });
+
+  // 3. Status History
+  await prisma.unifiedDocumentStatusHistory.create({
+    data: {
+      documentId: id,
+      previousStatus: doc.status,
+      newStatus: 'PENDING_SIGNATURE',
+      reason: `Signature request initiated for ${signers.map((s) => s.email).join(', ')}`,
+      actorType: 'USER',
+      actorId: String(user?.id || '0'),
+      actorName: user?.name || user?.full_name || 'System User',
+    },
+  }).catch(() => {});
+
+  // 4. Audit Log
+  await prisma.unifiedDocumentAuditLog.create({
+    data: {
+      organisationId,
+      documentId: id,
+      documentNumber: doc.documentNumber,
+      documentTitle: doc.title,
+      userId: user?.id ? parseInt(user.id, 10) : null,
+      userName: user?.name || user?.full_name || 'System User',
+      userRole: user?.role || 'STAFF',
+      action: 'SIGNATURE_REQUESTED',
+      previousStatus: doc.status,
+      newStatus: 'PENDING_SIGNATURE',
+      details: `Dispatched to ${signers.length} signers: ${signers.map((s) => s.email).join(', ')}`,
+      metadata: { envelopeId: envelope.id, signersCount: signers.length },
+    },
+  }).catch(() => {});
+
+  return envelope;
+}
+
+/**
+ * Sign Document Recipient Step
+ */
+async function signDocument(envelopeIdOrDocId, recipientIdOrPayload, signatureData, req = null) {
+  const crypto = require('crypto');
+
+  let signer = null;
+  let envelope = null;
+  let envelopeId = envelopeIdOrDocId;
+
+  if (typeof recipientIdOrPayload === 'object' || !recipientIdOrPayload || typeof recipientIdOrPayload === 'string' && recipientIdOrPayload.length > 20) {
+    const payload = typeof recipientIdOrPayload === 'object' ? recipientIdOrPayload : (req?.body || {});
+    // Check if envelope exists for this unified document
+    envelope = await prisma.signatureEnvelope.findFirst({
+      where: {
+        OR: [
+          { id: envelopeIdOrDocId },
+          { unifiedDocumentId: envelopeIdOrDocId },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      include: { signers: true, unifiedDocument: true },
+    });
+
+    if (envelope) {
+      envelopeId = envelope.id;
+      signer = envelope.signers?.[0];
+      signatureData = payload?.signatureData || signatureData || 'DIGITALLY_EXECUTED_SIGNATURE';
+    } else {
+      const doc = await prisma.unifiedDocument.findUnique({ where: { id: envelopeIdOrDocId } });
+      if (!doc) throw new Error('Document not found for signing.');
+      const newEnvelope = await prisma.signatureEnvelope.create({
+        data: {
+          organisationId: doc.organisationId,
+          unifiedDocumentId: doc.id,
+          title: `E-Signature: ${doc.title}`,
+          status: 'PENDING',
+          signers: {
+            create: [
+              {
+                name: payload?.signerName || doc.clientName || 'Authorized Signatory',
+                email: payload?.signerEmail || doc.clientEmail || 'signer@client.com',
+                role: 'SIGNER',
+                order: 1,
+                status: 'PENDING',
+              },
+            ],
+          },
+        },
+        include: { signers: true, unifiedDocument: true },
+      });
+      envelopeId = newEnvelope.id;
+      signer = newEnvelope.signers[0];
+      signatureData = payload?.signatureData || signatureData || 'DIGITALLY_EXECUTED_SIGNATURE';
+    }
+  } else {
+    signer = await prisma.signatureRecipient.findFirst({
+      where: { id: recipientIdOrPayload, envelopeId },
+      include: { envelope: { include: { unifiedDocument: true } } },
+    });
+  }
+
+  if (!signer) {
+    throw new Error('Signature recipient record not found.');
+  }
+
+  if (signer.status === 'SIGNED') {
+    return { success: true, message: 'Already signed.', signer };
+  }
+
+  const ipAddress = req?.ip || req?.headers?.['x-forwarded-for'] || '127.0.0.1';
+  const userAgent = req?.headers?.['user-agent'] || 'DocuCore Digital Signature Engine';
+
+  // 1. Mark signer as signed
+  const updatedSigner = await prisma.signatureRecipient.update({
+    where: { id: signer.id },
+    data: {
+      status: 'SIGNED',
+      signedAt: new Date(),
+      signatureData: signatureData || 'DIGITALLY_EXECUTED_SIGNATURE',
+      ipAddress: String(ipAddress).substring(0, 50),
+      userAgent: String(userAgent).substring(0, 255),
+    },
+  });
+
+  // 2. Check remaining signers
+  const pendingCount = await prisma.signatureRecipient.count({
+    where: { envelopeId, status: 'PENDING' },
+  });
+
+  let envelopeCompleted = false;
+  let certHash = null;
+
+  if (pendingCount === 0) {
+    envelopeCompleted = true;
+    const resolvedDocId = signer.envelope?.unifiedDocumentId || signer.envelope?.documentId || envelope?.unifiedDocumentId || envelopeIdOrDocId;
+    const certString = `DOCUCORE-CERT-${envelopeId}-${resolvedDocId}-${Date.now()}`;
+    certHash = `SHA256:${crypto.createHash('sha256').update(certString).digest('hex')}`;
+
+    await prisma.signatureEnvelope.update({
+      where: { id: envelopeId },
+      data: {
+        status: 'COMPLETED',
+        completedAt: new Date(),
+        certificateHash: certHash,
+      },
+    });
+
+    // Mark Unified Document COMPLETED
+    const targetDocId = signer.envelope?.unifiedDocumentId || envelope?.unifiedDocumentId || (resolvedDocId && resolvedDocId.includes('-') ? resolvedDocId : null);
+    if (targetDocId) {
+      const doc = await prisma.unifiedDocument.update({
+        where: { id: targetDocId },
+        data: {
+          status: 'COMPLETED',
+          signatureStatus: 'COMPLETED',
+        },
+      });
+
+
+      // Immutable version snapshot of final completed document
+      await prisma.unifiedDocumentVersion.create({
+        data: {
+          documentId: doc.id,
+          versionNumber: (doc.currentVersion || 1) + 1,
+          title: `${doc.title} (Final Signed)`,
+          content: doc.content,
+          financialData: doc.financialData,
+          variables: doc.variables,
+          templateSnapshot: doc.templateSnapshot,
+          changeSummary: `Final signed document certified (${certHash})`,
+          createdByName: signer.name,
+        },
+      }).catch(() => {});
+
+      // Notify owner / creator
+      if (doc.createdByUserId) {
+        await prisma.notification.create({
+          data: {
+            organisation_id: doc.organisationId,
+            user_id: doc.createdByUserId,
+            title: `Document Fully Signed: ${doc.title}`,
+            message: `All parties have completed digital signatures for "${doc.title}". Certificate: ${certHash.substring(0, 16)}...`,
+            type: 'SIGNATURE_COMPLETED',
+            link: `/documents/final/${doc.id}`,
+          },
+        }).catch(() => {});
+      }
+
+      // Audit log
+      await prisma.unifiedDocumentAuditLog.create({
+        data: {
+          organisationId: doc.organisationId,
+          documentId: doc.id,
+          documentNumber: doc.documentNumber,
+          documentTitle: doc.title,
+          userName: signer.name,
+          action: 'SIGNED',
+          previousStatus: 'PENDING_SIGNATURE',
+          newStatus: 'COMPLETED',
+          details: `Executed by ${signer.name} (${signer.email}). Certificate: ${certHash}`,
+          ipAddress: String(ipAddress),
+          metadata: { certHash },
+        },
+      }).catch(() => {});
+    }
+  } else {
+    // Partially signed
+    if (signer.envelope.unifiedDocumentId) {
+      await prisma.unifiedDocument.update({
+        where: { id: signer.envelope.unifiedDocumentId },
+        data: { signatureStatus: 'PARTIALLY_SIGNED' },
+      });
+    }
+  }
+
+  return {
+    success: true,
+    message: envelopeCompleted ? 'All signatures completed! Document finalized.' : 'Signature recorded.',
+    signer: updatedSigner,
+    completed: envelopeCompleted,
+    certificateHash: certHash,
+  };
+}
+
+/**
+ * Archive document
+ */
+async function archiveDocument(id, organisationId, user, req = null) {
+  const doc = await getDocumentById(id, organisationId);
+  const updated = await prisma.unifiedDocument.update({
+    where: { id },
+    data: {
+      isArchived: true,
+      archivedAt: new Date(),
+    },
+  });
+
+  await prisma.unifiedDocumentAuditLog.create({
+    data: {
+      organisationId,
+      documentId: id,
+      documentNumber: doc.documentNumber,
+      documentTitle: doc.title,
+      userId: user.id ? parseInt(user.id, 10) : null,
+      userName: user.name || user.full_name || 'System User',
+      userRole: user.role || 'STAFF',
+      action: 'ARCHIVED',
+      details: 'Document moved to archive',
+    },
+  }).catch(() => {});
+
+  return updated;
+}
+
+/**
+ * Restore archived document
+ */
+async function restoreDocument(id, organisationId, user, req = null) {
+  const doc = await getDocumentById(id, organisationId);
+  const updated = await prisma.unifiedDocument.update({
+    where: { id },
+    data: {
+      isArchived: false,
+      archivedAt: null,
+    },
+  });
+
+  await prisma.unifiedDocumentAuditLog.create({
+    data: {
+      organisationId,
+      documentId: id,
+      documentNumber: doc.documentNumber,
+      documentTitle: doc.title,
+      userId: user.id ? parseInt(user.id, 10) : null,
+      userName: user.name || user.full_name || 'System User',
+      userRole: user.role || 'STAFF',
+      action: 'RESTORED',
+      details: 'Document restored from archive',
+    },
+  }).catch(() => {});
+
+  return updated;
+}
+
+/**
+ * Add comment to document
+ */
+async function addComment(id, organisationId, payload, user, req = null) {
+  const doc = await getDocumentById(id, organisationId);
+  const { comment, sectionId } = payload;
+  if (!comment || !comment.trim()) throw new Error('Comment text is required.');
+
+  const commentRecord = await prisma.unifiedDocumentComment.create({
+    data: {
+      documentId: id,
+      organisationId,
+      userId: user.id ? parseInt(user.id, 10) : null,
+      userName: user.name || user.full_name || 'System User',
+      userRole: user.role || 'STAFF',
+      comment: comment.trim(),
+      sectionId: sectionId || null,
+    },
+  });
+
+  return commentRecord;
+}
+
+/**
+ * Get audit logs for document
+ */
+async function getAuditLogs(id, organisationId) {
+  return prisma.unifiedDocumentAuditLog.findMany({
+    where: { documentId: id, organisationId },
+    orderBy: { createdAt: 'desc' },
+  });
+}
+
 module.exports = {
   listDocuments,
   getDocumentMetrics,
@@ -804,4 +1674,15 @@ module.exports = {
   generateDocxForDocument,
   generatePublicPdf,
   generatePublicDocx,
+  assignDocument,
+  shareDocument,
+  submitForApproval,
+  processApproval,
+  sendForSignature,
+  signDocument,
+  archiveDocument,
+  restoreDocument,
+  addComment,
+  getAuditLogs,
 };
+
