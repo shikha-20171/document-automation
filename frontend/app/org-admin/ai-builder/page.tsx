@@ -7,7 +7,8 @@ import {
   Sparkles, Save, Eye, CheckCircle2, History, Plus, Trash2,
   Download, Send, Building2, Layers, AlertCircle, RefreshCw,
   FileText, ArrowLeft, MoreVertical, FileCode, Check, Copy,
-  ExternalLink, ArrowUpRight, ShieldCheck, ChevronDown, PenTool
+  ExternalLink, ArrowUpRight, ShieldCheck, ChevronDown, PenTool,
+  Printer, Wand2, DollarSign, Edit3, UserCheck, Clock, CheckCircle
 } from "lucide-react";
 import apiClient from "@/lib/axios";
 
@@ -53,7 +54,13 @@ interface UnifiedDocument {
     discountAmount?: number;
     taxRate?: number;
     taxAmount?: number;
+    cgstRate?: number;
+    cgstAmount?: number;
+    sgstRate?: number;
+    sgstAmount?: number;
     total?: number;
+    amountInWords?: string;
+    subtotalInWords?: string;
   } | null;
   variables: Record<string, string>;
   templateId?: string | null;
@@ -84,17 +91,35 @@ interface TemplateOption {
   defaultVariables?: Record<string, string> | null;
 }
 
+// Master corporate profile for Dezoryn Technology
+const DEZORYN_PROFILE = {
+  companyName: "Dezoryn Technology",
+  legalName: "Dezoryn Technology Pvt Ltd",
+  address: "Level 5, Tech Park One, Airport Road, Yerwada, Pune, Maharashtra 411006",
+  city: "Pune",
+  state: "Maharashtra",
+  country: "India",
+  postalCode: "411006",
+  email: "contact@dezoryn.com",
+  phone: "+91 98765 43210",
+  website: "https://www.dezoryn.com",
+  gstin: "27AAACD1234E1Z5",
+  pan: "AAACD1234E",
+  cin: "U72900PN2023PTC123456",
+  signatory: "Aditya Sharma, Director & VP Enterprise Solutions",
+  bankName: "HDFC Bank",
+  bankAccount: "50200012345678",
+  bankIfsc: "HDFC0000123",
+  bankBranch: "Yerwada Branch, Pune",
+};
+
 const PROMPT_SUGGESTIONS = [
-  "Create a professional quotation for ABC Technologies for ₹3,00,000 website development.",
-  "Create an invoice for ABC Technologies for website development worth ₹3,00,000.",
-  "Create a professional business proposal for an e-commerce website project.",
-  "Create a service agreement between my company and ABC Technologies.",
-  "Create an employment offer letter for a frontend developer.",
-  "Create an NDA between my company and XYZ Pvt Ltd.",
-  "Create a project completion certificate.",
-  "Create a purchase order for 50 laptops.",
-  "Create a sales contract for software development services.",
-  "Create a custom document explaining our company's software development services, pricing model, implementation process and support.",
+  "Create a quotation for ABC Pvt Ltd for ₹5,00,000 for AI Document Automation",
+  "Create a professional bid document for XYZ Ltd for our software development project",
+  "Create a commercial proposal for Reliance Retail for Cloud Modernization worth ₹12 lakh",
+  "Create an NDA between Dezoryn Technology and Global Tech Partners",
+  "Create an invoice for ABC Pvt Ltd for AI Document Automation worth ₹5,00,000",
+  "Create a Statement of Work (SOW) for XYZ Ltd for enterprise workflow automation",
 ];
 
 function UniversalAiDocumentBuilderContent() {
@@ -106,82 +131,109 @@ function UniversalAiDocumentBuilderContent() {
   // Document State
   const [documentId, setDocumentId] = useState<string | null>(docIdParam);
   const [documentNumber, setDocumentNumber] = useState<string>("");
-  const [title, setTitle] = useState<string>("Professional Business Document");
-  const [documentType, setDocumentType] = useState<string>("Business Proposal");
-  const [category, setCategory] = useState<string>("Business");
-  const [status, setStatus] = useState<string>("DRAFT");
+  const [title, setTitle] = useState<string>("Quotation for ABC Pvt Ltd - AI Document Automation Solution");
+  const [documentType, setDocumentType] = useState<string>("Quotation");
+  const [category, setCategory] = useState<string>("Sales");
+  const [status, setStatus] = useState<string>("AI GENERATED");
   const [currentVersion, setCurrentVersion] = useState<number>(1);
   const [publicShareToken, setPublicShareToken] = useState<string>("");
 
-  // Issuing Company & Counterparty Details
-  const [companyName, setCompanyName] = useState<string>("Enterprise Solutions Tech Pvt Ltd");
+  // Issuing Company: Locked to Dezoryn Technology
+  const companyName = DEZORYN_PROFILE.companyName;
+  const legalName = DEZORYN_PROFILE.legalName;
 
   // Client Details
   const [clientId, setClientId] = useState<string>("");
-  const [clientName, setClientName] = useState<string>("");
-  const [clientContactPerson, setClientContactPerson] = useState<string>("");
-  const [clientEmail, setClientEmail] = useState<string>("");
-  const [clientPhone, setClientPhone] = useState<string>("");
-  const [clientAddress, setClientAddress] = useState<string>("");
+  const [clientName, setClientName] = useState<string>("ABC Pvt Ltd");
+  const [clientContactPerson, setClientContactPerson] = useState<string>("Procurement & IT Head");
+  const [clientEmail, setClientEmail] = useState<string>("procurement@abcpvtltd.com");
+  const [clientPhone, setClientPhone] = useState<string>("+91 98230 11223");
+  const [clientAddress, setClientAddress] = useState<string>("Tower B, Commercial IT Park, Bangalore, Karnataka 560100");
 
   // Content Sections
   const [sections, setSections] = useState<DocumentSection[]>([
     {
-      id: "sec_1",
+      id: "sec_overview",
       type: "header",
-      title: "Document Heading & Overview",
-      body: "This document outlines the commercial objectives, scope of deliverables, and service level commitments.",
+      title: "Official Quotation & Commercial Estimate",
+      body: `QUOTATION NUMBER: DT-QT-${new Date().getFullYear()}-1042\nDATE OF ISSUE: ${new Date().toLocaleDateString('en-GB')}\nVALIDITY: 30 Calendar Days\n\nISSUED BY (SERVICE PROVIDER):\nDezoryn Technology (Dezoryn Technology Pvt Ltd)\n${DEZORYN_PROFILE.address}\nGSTIN: ${DEZORYN_PROFILE.gstin} | PAN: ${DEZORYN_PROFILE.pan} | CIN: ${DEZORYN_PROFILE.cin}\nEmail: ${DEZORYN_PROFILE.email} | Web: ${DEZORYN_PROFILE.website}\n\nISSUED TO (CLIENT):\nABC Pvt Ltd\nAttention: Procurement & IT Head\nSubject: Commercial Quotation for AI Document Automation Solution`,
     },
     {
-      id: "sec_2",
+      id: "sec_scope",
       type: "text",
-      title: "1. Scope of Deliverables & Requirements",
-      body: "• Implementation of scalable cloud architectures and authenticated API endpoints.\n• Responsive user interface engineering adhering to design tokens.\n• Quality assurance, end-to-end testing, and production deployment pipeline.",
+      title: "1. Project Scope & Technical Capabilities",
+      body: "• Implementation of intelligent OCR pipeline and natural-language document drafting engine.\n• Integration of multi-tenant PostgreSQL database, RBAC security matrices, and automated PDF export.\n• Comprehensive UAT testing, cloud infrastructure deployment, and administrator training.",
     },
     {
-      id: "sec_3",
+      id: "sec_table",
       type: "table",
-      title: "2. Deliverable Milestones & Investment",
+      title: "2. Itemized Pricing & Deliverables Schedule",
       tableData: {
-        headers: ["Milestone / Item", "Scope Description", "Qty", "Unit", "Rate (INR)", "Amount (INR)"],
+        headers: ["Deliverable / Item", "Scope Description", "Qty", "Unit", "Unit Rate (INR)", "Total Amount (INR)"],
         rows: [
-          ["Sprint 1: Architecture & Prototyping", "Design tokens, Figma system & DB schema", "1", "milestone", "50000", "50000"],
-          ["Sprint 2: Full-Stack Engineering", "Core microservices and frontend application", "1", "milestone", "150000", "150000"],
-          ["Sprint 3: QA & Cloud Go-Live", "Penetration testing and production launch", "1", "milestone", "50000", "50000"],
+          ["AI Document Automation - Core Engine", "Cognitive extraction, OCR orchestration & API endpoints", "1", "system", "₹2,50,000.00", "₹2,50,000.00"],
+          ["Management Console & Workflow Portals", "Responsive web editor, template builders & live preview", "1", "package", "₹1,50,000.00", "₹1,50,000.00"],
+          ["QA Hardening, Cloud Deployment & Hypercare", "Security compliance, production rollout & 30-day warranty", "1", "service", "₹1,00,000.00", "₹1,00,000.00"],
         ],
       },
     },
     {
-      id: "sec_4",
+      id: "sec_financial_summary",
       type: "terms",
-      title: "3. Terms, Payment Schedule & IP Ownership",
-      body: "• Payment Terms: 50% advance on execution, 50% upon final production handover.\n• Validity: Valid for 30 calendar days from the date of issuance.\n• Complete intellectual property and source code transferred upon final invoice settlement.",
+      title: "3. Financial Summary & Statutory Taxes",
+      body: "• Base Project Value (Taxable Amount): ₹5,00,000.00 (Rupees Five Lakh Only)\n• Central GST (CGST @ 9%): ₹45,000.00\n• State GST (SGST @ 9%): ₹45,000.00\n• Total Applicable Tax (GST 18%): ₹90,000.00\n• Grand Total (Tax Inclusive): ₹5,90,000.00\n• Amount in Words: Rupees Five Lakh Ninety Thousand Only",
     },
     {
-      id: "sec_5",
+      id: "sec_payment_terms",
+      type: "terms",
+      title: "4. Payment Schedule & Bank Information",
+      body: `Payment Schedule:\n• 50% Advance upon quotation acceptance and project kickoff.\n• 50% upon milestone completion, UAT approval, and delivery.\n\nBank Account Details for Remittance:\nAccount Name: Dezoryn Technology Pvt Ltd\nBank: HDFC Bank\nAccount Number: ${DEZORYN_PROFILE.bankAccount}\nIFSC Code: ${DEZORYN_PROFILE.bankIfsc}\nBranch: ${DEZORYN_PROFILE.bankBranch}`,
+    },
+    {
+      id: "sec_signature",
       type: "signature",
-      title: "4. Execution & Authorization",
-      body: "Signed by authorized representatives of both parties.",
+      title: "5. Authorized Signatures & Client Acceptance",
+      body: "Issued by Dezoryn Technology Pvt Ltd (Authorized Signatory: Aditya Sharma, Director). Accepted by ABC Pvt Ltd.",
     },
   ]);
 
   // Variables & Financials
   const [variables, setVariables] = useState<Record<string, string>>({
-    company_name: "Enterprise Solutions Tech Pvt Ltd",
-    client_name: "ABC Technologies",
+    company_name: "Dezoryn Technology",
+    legal_name: "Dezoryn Technology Pvt Ltd",
+    client_name: "ABC Pvt Ltd",
+    project_name: "AI Document Automation Solution",
+    amount: "₹5,90,000.00",
+    subtotal: "₹5,00,000.00",
+    amount_in_words: "Rupees Five Lakh Ninety Thousand Only",
   });
+
   const [financialData, setFinancialData] = useState<any>({
     currency: "INR",
-    subtotal: 250000,
+    subtotal: 500000,
+    discountValue: 0,
+    discountAmount: 0,
     taxRate: 18,
-    taxAmount: 45000,
-    total: 295000,
+    taxAmount: 90000,
+    cgstRate: 9,
+    cgstAmount: 45000,
+    sgstRate: 9,
+    sgstAmount: 45000,
+    total: 590000,
+    amountInWords: "Rupees Five Lakh Ninety Thousand Only",
+    subtotalInWords: "Rupees Five Lakh Only",
   });
 
   // AI & Detection State
-  const [aiPrompt, setAiPrompt] = useState<string>("");
-  const [detectedType, setDetectedType] = useState<{ type: string; category: string; confidence: number } | null>(null);
+  const [aiPrompt, setAiPrompt] = useState<string>("Create a quotation for ABC Pvt Ltd for ₹5,00,000 for AI Document Automation");
+  const [detectedType, setDetectedType] = useState<{ type: string; category: string; confidence: number } | null>({
+    type: "Quotation",
+    category: "Sales",
+    confidence: 0.95,
+  });
   const [generatingAi, setGeneratingAi] = useState<boolean>(false);
+  const [customAiInstruction, setCustomAiInstruction] = useState<string>("");
+  const [showAiToolbar, setShowAiToolbar] = useState<boolean>(false);
 
   // CRM & Template Data
   const [crmClients, setCrmClients] = useState<CrmClient[]>([]);
@@ -189,14 +241,15 @@ function UniversalAiDocumentBuilderContent() {
   const [versions, setVersions] = useState<DocumentVersion[]>([]);
 
   // UI Modes
-  const [activeTab, setActiveTab] = useState<"editor" | "preview">("editor");
+  const [activeTab, setActiveTab] = useState<"preview" | "editor">("preview");
   const [saving, setSaving] = useState<boolean>(false);
   const [showVersionsDrawer, setShowVersionsDrawer] = useState<boolean>(false);
   const [showTemplateModal, setShowTemplateModal] = useState<boolean>(false);
   const [templateSaveName, setTemplateSaveName] = useState<string>("");
-  const [templateSaveCategory, setTemplateSaveCategory] = useState<string>("General");
+  const [templateSaveCategory, setTemplateSaveCategory] = useState<string>("Sales");
   const [showEmailModal, setShowEmailModal] = useState<boolean>(false);
   const [emailRecipient, setEmailRecipient] = useState<string>("");
+  const [emailSubject, setEmailSubject] = useState<string>("");
   const [emailMessage, setEmailMessage] = useState<string>("");
   const [sendingEmail, setSendingEmail] = useState<boolean>(false);
 
@@ -208,21 +261,15 @@ function UniversalAiDocumentBuilderContent() {
     setTimeout(() => setToastMessage(null), 4500);
   };
 
-  // Load CRM Clients, Templates & Organisation Info
+  // Load CRM Clients & Templates
   useEffect(() => {
     async function fetchCatalogs() {
       try {
-        const [clientRes, tplRes, meRes] = await Promise.all([
+        const [clientRes, tplRes] = await Promise.all([
           apiClient.get("/api/crm/clients").catch(() => ({ data: { data: [] } })),
           apiClient.get("/api/unified-templates").catch(() => ({ data: { data: [] } })),
-          apiClient.get("/api/auth/me").catch(() => ({ data: null })),
         ]);
         if (clientRes.data?.data) setCrmClients(clientRes.data.data);
-        const userOrg = meRes.data?.data?.organisation || meRes.data?.organisation;
-        if (userOrg?.name) {
-          setCompanyName(userOrg.name);
-          setVariables((prev) => ({ ...prev, company_name: userOrg.name }));
-        }
         if (tplRes.data?.data) {
           setTemplates(tplRes.data.data);
           if (templateIdParam) {
@@ -268,7 +315,6 @@ function UniversalAiDocumentBuilderContent() {
     setClientEmail(doc.clientEmail || "");
     setClientPhone(doc.clientPhone || "");
     setClientAddress(doc.clientAddress || "");
-    if (doc.variables?.company_name) setCompanyName(doc.variables.company_name);
     if (Array.isArray(doc.content)) setSections(doc.content);
     if (doc.financialData) setFinancialData(doc.financialData);
     if (doc.variables) setVariables(doc.variables);
@@ -294,7 +340,7 @@ function UniversalAiDocumentBuilderContent() {
       } catch {
         // quiet fallback
       }
-    }, 400);
+    }, 350);
     return () => clearTimeout(timer);
   }, [aiPrompt]);
 
@@ -322,7 +368,7 @@ function UniversalAiDocumentBuilderContent() {
   const applyTemplate = (tpl: TemplateOption) => {
     setDocumentType(tpl.documentType);
     setCategory(tpl.category);
-    setTitle(`${tpl.documentType} - ${clientName || "Valued Client"}`);
+    setTitle(`${tpl.documentType} for ${clientName || "Valued Client"}`);
     if (Array.isArray(tpl.sections) && tpl.sections.length > 0) {
       setSections(tpl.sections);
     }
@@ -343,10 +389,10 @@ function UniversalAiDocumentBuilderContent() {
       setGeneratingAi(true);
       const res = await apiClient.post("/api/unified-documents/ai-generate", {
         prompt: aiPrompt.trim(),
-        companyName: companyName.trim(),
+        companyName: DEZORYN_PROFILE.companyName,
         clientContext: clientId ? crmClients.find((c) => c.id === clientId) : null,
-        documentTypeOverride: detectedType?.type || documentType,
-        categoryOverride: detectedType?.category || category,
+        documentTypeOverride: detectedType?.type || null,
+        categoryOverride: detectedType?.category || null,
       });
 
       if (res.data?.success && res.data.data) {
@@ -354,34 +400,78 @@ function UniversalAiDocumentBuilderContent() {
         setTitle(gen.title);
         setDocumentType(gen.documentType);
         setCategory(gen.category);
+        setStatus("AI GENERATED");
 
-        // Dynamic Entity Resolution: Always update company name and client name from AI
-        const resolvedCompany = gen.companyName || gen.variables?.company_name || companyName;
+        // Issuing company is ALWAYS Dezoryn Technology
         const resolvedClient = gen.clientName || gen.variables?.client_name || clientName;
-
-        setCompanyName(resolvedCompany);
         setClientName(resolvedClient);
 
         if (gen.clientEmail) setClientEmail(gen.clientEmail);
         if (gen.clientContactPerson) setClientContactPerson(gen.clientContactPerson);
+        if (gen.clientPhone) setClientPhone(gen.clientPhone);
+        if (gen.clientAddress) setClientAddress(gen.clientAddress);
         if (Array.isArray(gen.content) && gen.content.length > 0) setSections(gen.content);
         if (gen.financialData) setFinancialData(gen.financialData);
         if (gen.variables) {
           setVariables((prev) => ({
             ...prev,
             ...gen.variables,
-            company_name: resolvedCompany,
+            company_name: DEZORYN_PROFILE.companyName,
             client_name: resolvedClient,
           }));
         }
 
+        // Switch to Live Preview immediately for client-ready view
+        setActiveTab("preview");
+
         showToast(
           "Document Generated!",
-          `AI created ${gen.documentType} by ${resolvedCompany} for ${resolvedClient || "Client"}.`
+          `AI created complete ${gen.documentType} from Dezoryn Technology to ${resolvedClient}.`
         );
       }
     } catch (err: any) {
-      showToast("AI Generation Failed", err.response?.data?.message || err.message, "error");
+      showToast("AI Generation Notice", err.response?.data?.message || err.message, "error");
+    } finally {
+      setGeneratingAi(false);
+    }
+  };
+
+  // AI Refinement & Editing Engine
+  const handleAiEdit = async (action: string, instruction?: string, sectionId?: string) => {
+    try {
+      setGeneratingAi(true);
+      const docData = {
+        title,
+        documentType,
+        category,
+        companyName: DEZORYN_PROFILE.companyName,
+        clientName,
+        clientEmail,
+        clientPhone,
+        clientAddress,
+        clientContactPerson,
+        variables,
+        financialData,
+        content: sections,
+      };
+
+      const res = await apiClient.post("/api/unified-documents/ai-edit", {
+        document: docData,
+        instruction: instruction || action,
+        sectionId: sectionId || null,
+        action,
+      });
+
+      if (res.data?.success && res.data.data) {
+        const updated = res.data.data;
+        if (Array.isArray(updated.content)) setSections(updated.content);
+        if (updated.financialData) setFinancialData(updated.financialData);
+        if (updated.variables) setVariables(updated.variables);
+        if (updated.title) setTitle(updated.title);
+        showToast("AI Refined!", `Applied ${action.replace('_', ' ')} successfully.`);
+      }
+    } catch (err: any) {
+      showToast("AI Edit Notice", err.response?.data?.message || err.message, "error");
     } finally {
       setGeneratingAi(false);
     }
@@ -399,103 +489,67 @@ function UniversalAiDocumentBuilderContent() {
 
     if (type === "table") {
       newSec.tableData = {
-        headers: ["Item", "Specification", "Qty", "Amount"],
-        rows: [["Component A", "Standard scope", "1", "10000"]],
+        headers: ["Item / Milestone", "Description", "Qty", "Unit", "Rate", "Amount"],
+        rows: [["Deliverable 1", "Implementation details", "1", "unit", "50000", "50000"]],
       };
     }
 
     setSections([...sections, newSec]);
+    showToast("Section Added", `Added new ${type} block to the document.`);
   };
 
-  const handleUpdateSection = (id: string, field: keyof DocumentSection, val: any) => {
-    setSections(sections.map((s) => (s.id === id ? { ...s, [field]: val } : s)));
+  const handleUpdateSection = (id: string, field: "title" | "body", value: string) => {
+    setSections((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, [field]: value } : s))
+    );
   };
 
   const handleRemoveSection = (id: string) => {
-    if (sections.length <= 1) {
-      showToast("Notice", "Document must maintain at least one section.", "error");
-      return;
-    }
-    setSections(sections.filter((s) => s.id !== id));
+    setSections((prev) => prev.filter((s) => s.id !== id));
   };
 
-  // Table Row Add/Remove
-  const handleAddTableRow = (secId: string) => {
-    setSections(
-      sections.map((s) => {
-        if (s.id !== secId || !s.tableData) return s;
-        const colCount = s.tableData.headers.length;
-        const newRow = Array(colCount).fill("New item");
-        return {
-          ...s,
-          tableData: {
-            ...s.tableData,
-            rows: [...s.tableData.rows, newRow],
-          },
-        };
-      })
-    );
-  };
-
-  const handleUpdateTableCell = (secId: string, rowIdx: number, colIdx: number, val: string) => {
-    setSections(
-      sections.map((s) => {
-        if (s.id !== secId || !s.tableData) return s;
-        const newRows = [...s.tableData.rows];
-        const updatedRow = [...newRows[rowIdx]];
-        updatedRow[colIdx] = val;
-        newRows[rowIdx] = updatedRow;
-        return {
-          ...s,
-          tableData: {
-            ...s.tableData,
-            rows: newRows,
-          },
-        };
-      })
-    );
-  };
-
-  const handleRemoveTableRow = (secId: string, rowIdx: number) => {
-    setSections(
-      sections.map((s) => {
-        if (s.id !== secId || !s.tableData) return s;
-        if (s.tableData.rows.length <= 1) return s;
-        return {
-          ...s,
-          tableData: {
-            ...s.tableData,
-            rows: s.tableData.rows.filter((_, i) => i !== rowIdx),
-          },
-        };
-      })
-    );
-  };
-
-  // Save / Versioning
-  const handleSave = async (targetStatus: string = "DRAFT") => {
-    if (!title.trim()) {
-      showToast("Missing Title", "Please provide a document title.", "error");
-      return;
-    }
-
+  // Save Document to Database
+  const handleSave = async (statusOverride?: string) => {
     try {
       setSaving(true);
+      const targetStatus = statusOverride || status;
       const payload = {
         title: title.trim(),
-        documentType,
-        category,
+        documentType: documentType.trim(),
+        category: category.trim(),
+        status: targetStatus,
         clientId: clientId || null,
         clientName: clientName?.trim() || null,
         clientEmail: clientEmail?.trim() || null,
         clientPhone: clientPhone?.trim() || null,
         clientAddress: clientAddress?.trim() || null,
         clientContactPerson: clientContactPerson?.trim() || null,
+        senderData: {
+          companyName: DEZORYN_PROFILE.companyName,
+          legalName: DEZORYN_PROFILE.legalName,
+          address: DEZORYN_PROFILE.address,
+          email: DEZORYN_PROFILE.email,
+          phone: DEZORYN_PROFILE.phone,
+          website: DEZORYN_PROFILE.website,
+          gstin: DEZORYN_PROFILE.gstin,
+          pan: DEZORYN_PROFILE.pan,
+          cin: DEZORYN_PROFILE.cin,
+          signatory: DEZORYN_PROFILE.signatory,
+          bankDetails: {
+            bankName: DEZORYN_PROFILE.bankName,
+            accountNumber: DEZORYN_PROFILE.bankAccount,
+            ifsc: DEZORYN_PROFILE.bankIfsc,
+            branch: DEZORYN_PROFILE.bankBranch,
+          },
+        },
         content: sections,
         financialData,
-        variables,
-        status: targetStatus,
-        aiPrompt: aiPrompt || null,
+        variables: {
+          ...variables,
+          company_name: DEZORYN_PROFILE.companyName,
+          client_name: clientName,
+        },
+        aiPrompt,
       };
 
       let res;
@@ -507,7 +561,7 @@ function UniversalAiDocumentBuilderContent() {
 
       if (res.data?.success && res.data.data) {
         populateDocument(res.data.data);
-        showToast("Document Saved!", `Version ${res.data.data.currentVersion} saved successfully.`);
+        showToast("Document Saved!", `Document ${res.data.data.documentNumber} saved as ${targetStatus}.`);
         if (!documentId) {
           router.replace(`/org-admin/ai-builder?id=${res.data.data.id}`);
         }
@@ -528,7 +582,7 @@ function UniversalAiDocumentBuilderContent() {
       if (res.data?.success && res.data.data) {
         populateDocument(res.data.data);
         setShowVersionsDrawer(false);
-        showToast("Version Restored", `Document restored to version ${versionNum}. Now at version ${res.data.data.currentVersion}.`);
+        showToast("Version Restored", `Document restored to version ${versionNum}.`);
       }
     } catch (err: any) {
       showToast("Restore Failed", err.response?.data?.message || err.message, "error");
@@ -537,7 +591,7 @@ function UniversalAiDocumentBuilderContent() {
     }
   };
 
-  // Save as Template (directly available for re-use on Templates page)
+  // Save as Template
   const handleSaveAsTemplate = async (e?: React.FormEvent, redirectToTemplates: boolean = false) => {
     if (e) e.preventDefault();
     if (!templateSaveName.trim()) {
@@ -561,7 +615,6 @@ function UniversalAiDocumentBuilderContent() {
         })
         .join("\n\n---\n\n");
 
-      // 1. Try unified-documents save-as-template if doc exists, or unified-templates
       if (documentId) {
         try {
           const res = await apiClient.post(`/api/unified-documents/${documentId}/save-as-template`, {
@@ -572,9 +625,7 @@ function UniversalAiDocumentBuilderContent() {
           if (res.data?.success && res.data.data) {
             createdTemplateId = res.data.data.id;
           }
-        } catch {
-          // fallback to unified-templates direct creation
-        }
+        } catch {}
       }
 
       if (!createdTemplateId) {
@@ -591,12 +642,10 @@ function UniversalAiDocumentBuilderContent() {
           if (res.data?.success && res.data.data) {
             createdTemplateId = res.data.data.id;
           }
-        } catch {
-          // quiet fallback to local storage
-        }
+        } catch {}
       }
 
-      // 2. Always persist into local custom templates for 100% instant display on Templates page
+      // Persist in local storage for instant template page visibility
       const localTplItem = {
         id: createdTemplateId || `tmpl-${Date.now()}`,
         name: templateSaveName.trim(),
@@ -604,8 +653,8 @@ function UniversalAiDocumentBuilderContent() {
         category: templateSaveCategory,
         status: "Active",
         usage: 0,
-        createdBy: "Org Admin",
-        owner: "Org Admin",
+        createdBy: "Dezoryn Technology",
+        owner: "Dezoryn Technology",
         updated: "Just now",
         department: "All",
         documentType: documentType || "Document",
@@ -614,8 +663,7 @@ function UniversalAiDocumentBuilderContent() {
         isShared: true,
         content: formattedContent,
         sections: sections,
-        defaultVariables: { ...variables, company_name: companyName, client_name: clientName },
-        activities: [{ time: "Just now", event: "Created via AI Document Builder" }],
+        defaultVariables: { ...variables, company_name: DEZORYN_PROFILE.companyName, client_name: clientName },
       };
 
       if (typeof window !== "undefined") {
@@ -638,7 +686,7 @@ function UniversalAiDocumentBuilderContent() {
         }, 500);
       }
     } catch (err: any) {
-      showToast("Template Saved Locally", `"${templateSaveName}" saved for your organisation.`, "success");
+      showToast("Template Saved", `"${templateSaveName}" saved for your organisation.`, "success");
       setShowTemplateModal(false);
       if (redirectToTemplates) {
         setTimeout(() => {
@@ -653,22 +701,30 @@ function UniversalAiDocumentBuilderContent() {
   // Email Dispatch
   const handleSendEmail = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!documentId || !emailRecipient.trim()) return;
+    if (!documentId) {
+      showToast("Save First", "Please save the document before sending to the client.", "error");
+      return;
+    }
+    if (!emailRecipient.trim()) {
+      showToast("Recipient Required", "Please provide the recipient's email address.", "error");
+      return;
+    }
 
     try {
       setSendingEmail(true);
       const res = await apiClient.post(`/api/unified-documents/${documentId}/send-email`, {
         recipientEmail: emailRecipient.trim(),
         recipientName: clientContactPerson || clientName,
+        subject: emailSubject.trim() || `${documentType} from Dezoryn Technology: ${title}`,
         customMessage: emailMessage.trim(),
       });
       if (res.data?.success) {
-        showToast("Email Dispatched!", `Document sent successfully to ${emailRecipient}`);
+        showToast("Document Sent!", `Successfully transmitted to ${emailRecipient} with PDF attachment.`);
         setShowEmailModal(false);
-        setStatus("SENT");
+        setStatus("SENT TO CLIENT");
       }
     } catch (err: any) {
-      showToast("Dispatch Failed", err.response?.data?.message || err.message, "error");
+      showToast("Dispatch Notice", err.response?.data?.message || err.message, "error");
     } finally {
       setSendingEmail(false);
     }
@@ -682,28 +738,24 @@ function UniversalAiDocumentBuilderContent() {
     window.open(`/api/unified-documents/${documentId}/download-pdf`, "_blank");
   };
 
-  const handleDownloadDocx = () => {
-    if (!documentId) {
-      showToast("Save First", "Please save the document before downloading DOCX.", "error");
-      return;
-    }
-    window.open(`/api/unified-documents/${documentId}/download-docx`, "_blank");
+  const handlePrint = () => {
+    window.print();
   };
 
   const handleCopyLink = () => {
     if (!publicShareToken) {
-      showToast("Save First", "Save document to generate secure share link.", "error");
+      showToast("Save First", "Save document to generate secure client portal link.", "error");
       return;
     }
     const origin = typeof window !== "undefined" ? window.location.origin : "";
     const url = `${origin}/documents/view/${publicShareToken}`;
     navigator.clipboard.writeText(url);
-    showToast("Link Copied!", "Client portal view link copied to clipboard.");
+    showToast("Link Copied!", "Client portal link copied to clipboard.");
   };
 
   return (
-    <div className="min-h-screen bg-slate-50/60 p-6 space-y-6">
-      {/* Toast */}
+    <div className="min-h-screen bg-slate-50/70 p-4 md:p-6 space-y-6">
+      {/* Toast Notification */}
       {toastMessage && (
         <div
           className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-2xl border backdrop-blur-md transition-all ${
@@ -720,33 +772,49 @@ function UniversalAiDocumentBuilderContent() {
         </div>
       )}
 
-      {/* Top Navigation & Action Bar */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+      {/* Top Corporate Identity & Action Bar */}
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
           <Link
             href="/org-admin/documents"
-            className="p-2 text-slate-500 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition"
+            className="p-2.5 text-slate-500 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition"
           >
             <ArrowLeft className="w-4 h-4" />
           </Link>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-slate-900">AI Document Builder Studio</h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl font-bold text-slate-900">AI Document Builder</h1>
               {documentNumber && (
-                <span className="font-mono text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
+                <span className="font-mono text-xs font-bold text-[#274690] bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
                   {documentNumber}
                 </span>
               )}
-              <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full">
+              <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+                status === "APPROVED" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                status === "SENT TO CLIENT" ? "bg-blue-50 text-blue-700 border-blue-200" :
+                "bg-amber-50 text-amber-700 border-amber-200"
+              }`}>
+                {status}
+              </span>
+              <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
                 v{currentVersion}.0
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Natural language generation • Multi-category document structuring • Reusable template engine
-            </p>
+            {/* Locked Issuing Party Indicator */}
+            <div className="flex items-center gap-2 mt-1 text-xs">
+              <span className="text-slate-500">Issuer:</span>
+              <span className="font-bold text-[#274690] flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                {DEZORYN_PROFILE.companyName}
+              </span>
+              <span className="text-slate-400">•</span>
+              <span className="text-slate-500">To Client:</span>
+              <span className="font-semibold text-slate-800">{clientName || "Recipient Client"}</span>
+            </div>
           </div>
         </div>
 
+        {/* Action Controls */}
         <div className="flex flex-wrap items-center gap-2">
           {documentId && (
             <>
@@ -761,17 +829,19 @@ function UniversalAiDocumentBuilderContent() {
               <button
                 onClick={handleDownloadPdf}
                 className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 rounded-xl border border-slate-200 transition"
+                title="Export Official PDF"
               >
-                <Download className="w-3.5 h-3.5 text-blue-600" />
+                <Download className="w-3.5 h-3.5 text-[#274690]" />
                 <span>PDF</span>
               </button>
 
               <button
-                onClick={handleDownloadDocx}
+                onClick={handlePrint}
                 className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 rounded-xl border border-slate-200 transition"
+                title="Print Preview"
               >
-                <Download className="w-3.5 h-3.5 text-indigo-600" />
-                <span>DOCX</span>
+                <Printer className="w-3.5 h-3.5 text-slate-600" />
+                <span>Print</span>
               </button>
 
               <button
@@ -779,21 +849,36 @@ function UniversalAiDocumentBuilderContent() {
                 className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 rounded-xl border border-slate-200 transition"
               >
                 <Copy className="w-3.5 h-3.5" />
-                <span>Share Link</span>
+                <span>Share</span>
               </button>
 
               <button
                 onClick={() => {
                   setEmailRecipient(clientEmail || "");
-                  setEmailMessage(`Please find attached your document for ${title}.`);
+                  setEmailSubject(`${documentType} from Dezoryn Technology: ${title}`);
+                  setEmailMessage(`Dear ${clientContactPerson || clientName},\n\nPlease find attached the official ${documentType} from Dezoryn Technology regarding ${variables.project_name || title}.\n\nBest regards,\nAditya Sharma\nDezoryn Technology Pvt Ltd`);
                   setShowEmailModal(true);
                 }}
-                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 rounded-xl border border-slate-200 transition"
+                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-xs transition"
               >
-                <Send className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Send</span>
+                <Send className="w-3.5 h-3.5" />
+                <span>Send to Client</span>
               </button>
             </>
+          )}
+
+          {status !== "APPROVED" && (
+            <button
+              onClick={() => {
+                setStatus("APPROVED");
+                handleSave("APPROVED");
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-xl border border-emerald-300 transition"
+              title="Approve document for client transmission"
+            >
+              <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Approve</span>
+            </button>
           )}
 
           <button
@@ -801,8 +886,7 @@ function UniversalAiDocumentBuilderContent() {
               setTemplateSaveName(`${title} Template`);
               setShowTemplateModal(true);
             }}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-[#274690] bg-blue-50 hover:bg-blue-100 rounded-xl border border-blue-200 transition shadow-xs"
-            title="Save as Reusable Template for Clients"
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-[#274690] bg-blue-50 hover:bg-blue-100 rounded-xl border border-blue-200 transition"
           >
             <Layers className="w-3.5 h-3.5 text-[#274690]" />
             <span>Save as Template</span>
@@ -811,7 +895,7 @@ function UniversalAiDocumentBuilderContent() {
           <button
             onClick={() => handleSave("DRAFT")}
             disabled={saving}
-            className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 rounded-xl border border-slate-200 transition disabled:opacity-50"
+            className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 rounded-xl border border-slate-200 transition disabled:opacity-50"
           >
             <Save className="w-3.5 h-3.5" />
             <span>Save Draft</span>
@@ -820,584 +904,611 @@ function UniversalAiDocumentBuilderContent() {
           <button
             onClick={() => handleSave("FINAL")}
             disabled={saving}
-            className="flex items-center gap-2 px-5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md shadow-blue-600/20 transition disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-[#274690] hover:bg-[#1f3561] rounded-xl shadow-md shadow-blue-900/20 transition disabled:opacity-50"
           >
             {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-            <span>Finalize Document</span>
+            <span>Finalize</span>
           </button>
         </div>
       </div>
 
-      {/* AI Assistant Banner */}
-      <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2 text-blue-300 text-xs font-bold uppercase tracking-wider">
-            <Sparkles className="w-4 h-4" />
-            <span>AI Universal Document Architect</span>
+      {/* Hero Natural-Language AI Prompt Box */}
+      <div className="bg-gradient-to-br from-[#001b2e] via-[#102a43] to-[#274690] rounded-2xl p-6 text-white shadow-xl relative overflow-hidden border border-blue-900">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-3">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-blue-500/20 rounded-lg text-blue-300">
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <span className="text-xs font-bold uppercase tracking-wider text-blue-200">
+              Organisation Natural-Language Builder
+            </span>
           </div>
 
-          {detectedType && (
-            <div className="flex items-center gap-2 bg-white/10 px-3 py-1 rounded-full text-xs border border-white/10">
-              <span className="text-blue-300 font-semibold">Detected Intent:</span>
-              <strong className="text-white">{detectedType.type}</strong>
-              <span className="text-blue-200/70">({detectedType.category})</span>
-            </div>
-          )}
+          <div className="flex items-center gap-2 text-xs bg-white/10 px-3 py-1 rounded-full border border-white/15">
+            <span className="text-blue-300">Issuer Identity:</span>
+            <strong className="text-white">Dezoryn Technology</strong>
+            {detectedType && (
+              <>
+                <span className="text-blue-300/50">•</span>
+                <span className="text-amber-300 font-semibold">{detectedType.type}</span>
+              </>
+            )}
+          </div>
         </div>
 
-        <h2 className="text-lg font-bold mb-1">Generate Any Commercial, Legal, HR, or Operational Document</h2>
-        <p className="text-xs text-blue-200/80 mb-4 max-w-2xl">
-          Enter what you need in plain English. The AI will classify intent, structure deliverables or legal clauses, calculate values, and apply dynamic templates.
+        <p className="text-xs text-blue-100/80 mb-3">
+          Enter a simple request in plain English. The AI understands intent, populates client & CRM data, enforces Dezoryn Technology branding, calculates taxes and line items, and generates client-ready documents automatically.
         </p>
 
-        <div className="flex flex-col md:flex-row gap-3">
+        {/* Large Prominent Prompt Input Box */}
+        <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <textarea
               rows={2}
               value={aiPrompt}
               onChange={(e) => setAiPrompt(e.target.value)}
-              placeholder="e.g. Create an NDA between my company and XYZ Pvt Ltd with a 3-year term..."
-              className="w-full px-4 py-2.5 bg-white/10 hover:bg-white/15 focus:bg-white/20 border border-white/20 focus:border-blue-400 rounded-xl text-xs text-white placeholder-blue-200/50 focus:outline-none transition resize-none"
+              placeholder="e.g. “Create a quotation for ABC Pvt Ltd for ₹5,00,000 for AI Document Automation” or “Create a professional bid document for XYZ Ltd for our software development project”"
+              className="w-full px-4 py-3 bg-white/10 hover:bg-white/15 focus:bg-white/20 border border-white/25 focus:border-blue-400 rounded-xl text-sm text-white placeholder-blue-200/50 focus:outline-none transition resize-none leading-relaxed shadow-inner"
             />
           </div>
           <button
             type="button"
             onClick={handleGenerateAI}
             disabled={generatingAi || !aiPrompt.trim()}
-            className="md:self-start flex items-center justify-center gap-2 px-6 py-3 bg-blue-500 hover:bg-blue-400 text-white text-xs font-bold rounded-xl shadow-lg shadow-blue-500/30 transition disabled:opacity-50 whitespace-nowrap"
+            className="sm:self-stretch flex items-center justify-center gap-2 px-7 py-3 bg-blue-500 hover:bg-blue-400 active:scale-[0.99] text-white text-sm font-bold rounded-xl shadow-lg shadow-blue-500/30 transition disabled:opacity-50 whitespace-nowrap"
           >
             {generatingAi ? (
               <>
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Structuring Document...</span>
+                <span>Generating Document...</span>
               </>
             ) : (
               <>
                 <Sparkles className="w-4 h-4" />
-                <span>Generate with AI</span>
+                <span>Generate Document</span>
               </>
             )}
           </button>
         </div>
 
-        {/* Suggestion Chips */}
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="text-[10px] text-blue-300/80 uppercase font-semibold">Try Prompts:</span>
-          {PROMPT_SUGGESTIONS.slice(0, 4).map((s, idx) => (
+        {/* Example Prompt Chips */}
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <span className="text-[11px] text-blue-200/70 font-semibold">Quick Prompts:</span>
+          {PROMPT_SUGGESTIONS.map((s, idx) => (
             <button
               key={idx}
               type="button"
-              onClick={() => setAiPrompt(s)}
-              className="text-[11px] bg-white/10 hover:bg-white/20 text-blue-100 px-3 py-1 rounded-lg border border-white/10 transition truncate max-w-xs"
+              onClick={() => {
+                setAiPrompt(s);
+              }}
+              className="text-[11px] bg-white/10 hover:bg-white/20 active:bg-white/25 text-blue-100 px-3 py-1 rounded-lg border border-white/10 transition truncate max-w-sm"
+              title={s}
             >
-              {s}
+              ⚡ {s}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Quick Template Save Banner */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-blue-100 text-[#274690] flex items-center justify-center font-bold">
-            <Layers className="w-5 h-5" />
-          </div>
-          <div>
-            <h4 className="text-xs font-bold text-slate-900">Want to use this document format for other clients?</h4>
-            <p className="text-[11px] text-slate-600">Save as a reusable template to open, edit client name & details, and send in seconds from your Templates page.</p>
-          </div>
+      {/* Post-Generation AI Refinement Toolbar */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Wand2 className="w-4 h-4 text-[#274690]" />
+          <span className="text-xs font-bold text-slate-800">AI Document Assistant:</span>
+          <span className="text-xs text-slate-500">Refine generated content without destroying existing sections</span>
         </div>
-        <button
-          onClick={() => {
-            setTemplateSaveName(`${title} Template`);
-            setShowTemplateModal(true);
-          }}
-          className="px-4 py-2 bg-[#274690] hover:bg-[#1f3561] text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 whitespace-nowrap"
-        >
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>Save as Reusable Template</span>
-        </button>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => handleAiEdit("make_professional")}
+            disabled={generatingAi}
+            className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition disabled:opacity-50"
+          >
+            👔 Make More Professional
+          </button>
+
+          <button
+            onClick={() => handleAiEdit("expand")}
+            disabled={generatingAi}
+            className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition disabled:opacity-50"
+          >
+            📈 Expand Scope & Details
+          </button>
+
+          <button
+            onClick={() => handleAiEdit("shorten")}
+            disabled={generatingAi}
+            className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition disabled:opacity-50"
+          >
+            ✂️ Shorten / Concise
+          </button>
+
+          <button
+            onClick={() => {
+              const amountPrompt = prompt("Enter new base amount in INR (e.g. 500000 or 750000):", "500000");
+              if (amountPrompt) {
+                handleAiEdit("update_pricing", `Update base price to ₹${amountPrompt}`);
+              }
+            }}
+            disabled={generatingAi}
+            className="px-3 py-1.5 text-xs font-semibold text-[#274690] bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition disabled:opacity-50"
+          >
+            💰 Recalculate Pricing
+          </button>
+
+          <button
+            onClick={() => {
+              const titlePrompt = prompt("Enter section title to add:", "Project Governance & Review Cadence");
+              if (titlePrompt) {
+                handleAiEdit("add_section", `Add section ${titlePrompt}`);
+              }
+            }}
+            disabled={generatingAi}
+            className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition disabled:opacity-50"
+          >
+            ➕ Add Section
+          </button>
+
+          <button
+            onClick={handleGenerateAI}
+            disabled={generatingAi}
+            className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition disabled:opacity-50"
+          >
+            🔄 Regenerate
+          </button>
+        </div>
       </div>
 
-      {/* Editor / Preview Switcher for Small Screens */}
-      <div className="flex items-center justify-between bg-white p-3 rounded-2xl border border-slate-200 shadow-sm">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setActiveTab("editor")}
-            className={`px-4 py-2 text-xs font-bold rounded-xl transition ${
-              activeTab === "editor" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"
-            }`}
-          >
-            Structure & Section Editor
-          </button>
+      {/* Tab Switcher: Preview (Default) vs Interactive Editor */}
+      <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+        <div className="flex items-center gap-3">
           <button
             onClick={() => setActiveTab("preview")}
-            className={`px-4 py-2 text-xs font-bold rounded-xl transition ${
-              activeTab === "preview" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition ${
+              activeTab === "preview"
+                ? "bg-[#274690] text-white shadow-sm"
+                : "text-slate-600 hover:bg-slate-100"
             }`}
           >
-            Live Document Preview
+            <Eye className="w-3.5 h-3.5" />
+            <span>Client Live Preview</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("editor")}
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition ${
+              activeTab === "editor"
+                ? "bg-[#274690] text-white shadow-sm"
+                : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            <Edit3 className="w-3.5 h-3.5" />
+            <span>Section Content Editor</span>
           </button>
         </div>
 
-        <div className="text-xs text-slate-500">
-          Template Independence Active: <span className="text-emerald-600 font-semibold">Immutable Snapshot Guaranteed</span>
+        <div className="text-xs text-slate-500 font-medium">
+          {sections.length} document sections • All fields 100% editable
         </div>
       </div>
 
-      {/* Main Studio Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: Metadata & Config (3 cols) */}
-        <div className="lg:col-span-3 space-y-6">
-          {/* Metadata Card */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2">
-              Document Properties
+      {/* Main Workspace: Live Preview OR Structured Editor */}
+      {activeTab === "preview" ? (
+        /* LIVE CLIENT PREVIEW - HIGH FIDELITY OFFICIAL DOCUMENT */
+        <div className="bg-white p-8 md:p-12 rounded-2xl border border-slate-200 shadow-md max-w-5xl mx-auto space-y-8 text-slate-800">
+          {/* Corporate Header Bar */}
+          <div className="border-t-4 border-[#274690] pt-6 flex flex-col sm:flex-row sm:items-start justify-between gap-6">
+            <div>
+              <div className="text-2xl font-black text-[#274690] tracking-tight">
+                {DEZORYN_PROFILE.companyName}
+              </div>
+              <div className="text-xs font-semibold text-slate-600 mt-0.5">
+                {DEZORYN_PROFILE.legalName}
+              </div>
+              <div className="text-xs text-slate-500 mt-1 max-w-sm leading-relaxed">
+                {DEZORYN_PROFILE.address}
+              </div>
+              <div className="text-[11px] font-mono text-slate-500 mt-2 space-x-2">
+                <span>GSTIN: <strong>{DEZORYN_PROFILE.gstin}</strong></span>
+                <span>•</span>
+                <span>PAN: <strong>{DEZORYN_PROFILE.pan}</strong></span>
+                <span>•</span>
+                <span>CIN: <strong>{DEZORYN_PROFILE.cin}</strong></span>
+              </div>
+              <div className="text-xs text-slate-500 mt-1">
+                Email: {DEZORYN_PROFILE.email} | Web: {DEZORYN_PROFILE.website}
+              </div>
+            </div>
+
+            <div className="sm:text-right">
+              <span className="text-xs font-bold uppercase tracking-widest text-[#274690] bg-blue-50 px-3 py-1 rounded-lg border border-blue-200 inline-block">
+                {documentType.toUpperCase()}
+              </span>
+              <div className="text-lg font-mono font-bold text-slate-900 mt-2">
+                {documentNumber || `DT-${documentType.slice(0, 3).toUpperCase()}-DRAFT`}
+              </div>
+              <div className="text-xs text-slate-500 mt-1">
+                Date: <strong>{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</strong>
+              </div>
+              <div className="text-xs text-slate-500">
+                Validity: <strong>30 Calendar Days</strong>
+              </div>
+              <div className="text-xs text-slate-500">
+                Status: <span className="font-semibold text-emerald-600">{status}</span>
+              </div>
+            </div>
+          </div>
+
+          <hr className="border-slate-200" />
+
+          {/* Client Recipient Card */}
+          <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 text-xs">
+            <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1">
+              PREPARED FOR / RECIPIENT
+            </div>
+            <div className="text-base font-bold text-slate-900">{clientName || "Valued Client"}</div>
+            {clientContactPerson && (
+              <div className="text-slate-600 mt-0.5">Attn: <strong>{clientContactPerson}</strong></div>
+            )}
+            <div className="text-slate-500 mt-1 flex flex-wrap gap-x-4 gap-y-1">
+              {clientEmail && <span>Email: {clientEmail}</span>}
+              {clientPhone && <span>Phone: {clientPhone}</span>}
+            </div>
+            {clientAddress && <div className="text-slate-500 mt-1">Address: {clientAddress}</div>}
+          </div>
+
+          {/* Document Title */}
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 border-l-4 border-[#274690] pl-3">
+              {title}
+            </h2>
+          </div>
+
+          {/* Dynamic Content Sections */}
+          {sections.map((sec, idx) => (
+            <div key={sec.id} className="space-y-3 text-xs">
+              {sec.title && sec.type !== "header" && (
+                <h3 className="text-sm font-bold text-[#274690] border-b border-slate-100 pb-1">
+                  {sec.title}
+                </h3>
+              )}
+
+              {sec.body && (
+                <div
+                  className={`leading-relaxed whitespace-pre-line ${
+                    sec.type === "terms"
+                      ? "bg-slate-50 p-4 rounded-xl border border-slate-200 text-slate-600 font-sans"
+                      : "text-slate-700 text-[13px]"
+                  }`}
+                >
+                  {sec.body}
+                </div>
+              )}
+
+              {/* Table rendering with rich headers & rows */}
+              {sec.type === "table" && sec.tableData && (
+                <div className="overflow-x-auto border border-slate-200 rounded-xl my-4">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#274690] text-white uppercase text-[10px] tracking-wider">
+                      <tr>
+                        {sec.tableData.headers.map((h, i) => (
+                          <th key={i} className="py-3 px-4 font-bold">
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-700">
+                      {sec.tableData.rows.map((row, rI) => (
+                        <tr key={rI} className={rI % 2 === 0 ? "bg-white" : "bg-slate-50/60"}>
+                          {row.map((cell, cI) => (
+                            <td key={cI} className={`py-3 px-4 ${cI >= row.length - 2 ? "font-semibold" : ""}`}>
+                              {cell}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Signature Block */}
+              {sec.type === "signature" && (
+                <div className="pt-8 grid grid-cols-1 sm:grid-cols-2 gap-8">
+                  <div className="border-t-2 border-slate-300 pt-3">
+                    <div className="font-bold text-slate-900">
+                      For {DEZORYN_PROFILE.companyName} ({DEZORYN_PROFILE.legalName})
+                    </div>
+                    <div className="text-slate-600 text-xs font-semibold mt-0.5">{DEZORYN_PROFILE.signatory}</div>
+                    <div className="text-slate-400 text-[11px] mt-0.5">Authorised Signatory</div>
+                  </div>
+
+                  <div className="border-t-2 border-slate-300 pt-3">
+                    <div className="font-bold text-slate-900">
+                      Accepted by: {clientName || "Recipient Client"}
+                    </div>
+                    <div className="text-slate-600 text-xs font-semibold mt-0.5">
+                      {clientContactPerson || "Authorized Representative"}
+                    </div>
+                    <div className="text-slate-400 text-[11px] mt-0.5">Signature & Seal</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Official Bank Remittance Block */}
+          <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-200/80 text-xs text-slate-700 space-y-1">
+            <div className="font-bold text-[#274690]">NEFT / RTGS Bank Remittance Details:</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+              <div>Beneficiary: <strong>{DEZORYN_PROFILE.legalName}</strong></div>
+              <div>Bank: <strong>{DEZORYN_PROFILE.bankName}</strong></div>
+              <div>Account No: <strong>{DEZORYN_PROFILE.bankAccount}</strong></div>
+              <div>IFSC Code: <strong>{DEZORYN_PROFILE.bankIfsc}</strong> ({DEZORYN_PROFILE.bankBranch})</div>
+            </div>
+          </div>
+
+          {/* Footer watermark */}
+          <div className="border-t border-slate-200 pt-4 text-center text-[10px] text-slate-400">
+            {documentNumber || "DOC-DRAFT"} • Issued by {DEZORYN_PROFILE.legalName} • Confidential Business Document
+          </div>
+        </div>
+      ) : (
+        /* INTERACTIVE EDITOR VIEW */
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column: Metadata & Client Information */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-5">
+            <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-[#274690]" />
+              <span>Document & Client Metadata</span>
             </h3>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                Document Title <span className="text-rose-500">*</span>
-              </label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Document Title</label>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:border-[#274690]"
               />
             </div>
 
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                Document Type
-              </label>
-              <input
-                type="text"
-                value={documentType}
-                onChange={(e) => setDocumentType(e.target.value)}
-                className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Document Type</label>
+                <input
+                  type="text"
+                  value={documentType}
+                  onChange={(e) => setDocumentType(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Category</label>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl bg-white"
+                >
+                  <option value="Sales">Sales</option>
+                  <option value="Business">Business</option>
+                  <option value="Legal">Legal</option>
+                  <option value="HR">HR</option>
+                  <option value="Operational">Operational</option>
+                </select>
+              </div>
             </div>
 
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                Category
-              </label>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white"
-              >
-                <option value="Sales">Sales & Commercial</option>
-                <option value="Business">Business Documents</option>
-                <option value="Legal">Legal & Agreements</option>
-                <option value="HR">HR Documents</option>
-                <option value="Operational">Operational Documents</option>
-                <option value="Custom">Custom Document</option>
-              </select>
+            {/* Issuing Organisation (Locked) */}
+            <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-xs space-y-1">
+              <div className="text-[10px] uppercase font-bold text-[#274690]">Issuing Organisation (Fixed)</div>
+              <div className="font-bold text-slate-900">{DEZORYN_PROFILE.companyName}</div>
+              <div className="text-[11px] text-slate-600">{DEZORYN_PROFILE.address}</div>
+              <div className="text-[10px] font-mono text-slate-500">GSTIN: {DEZORYN_PROFILE.gstin}</div>
             </div>
 
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                Lifecycle Status
-              </label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white font-semibold text-slate-800"
-              >
-                <option value="DRAFT">Draft</option>
-                <option value="GENERATED">Generated</option>
-                <option value="UNDER_REVIEW">Under Review</option>
-                <option value="FINAL">Final</option>
-                <option value="SENT">Sent</option>
-                <option value="ACCEPTED">Accepted</option>
-                <option value="REJECTED">Rejected</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Issuing Organisation / Company Details */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2 flex items-center justify-between">
-              <span>Issuing Company (Top Header)</span>
-              <Building2 className="w-3.5 h-3.5 text-blue-600" />
-            </h3>
-
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                Company Name (Document Creator)
-              </label>
-              <input
-                type="text"
-                value={companyName}
-                onChange={(e) => {
-                  setCompanyName(e.target.value);
-                  setVariables((prev) => ({ ...prev, company_name: e.target.value }));
-                }}
-                placeholder="e.g. Acme Corp Tech Pvt Ltd"
-                className="w-full px-3 py-1.5 text-xs font-semibold text-slate-900 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-              <p className="text-[10px] text-slate-400 mt-1 leading-tight">
-                Appears prominently in the top header and authorized signature block.
-              </p>
-            </div>
-          </div>
-
-          {/* CRM Client Picker */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2 flex items-center justify-between">
-              <span>Recipient / Counterparty</span>
-              <Building2 className="w-3.5 h-3.5 text-slate-400" />
-            </h3>
-
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                Load from CRM Directory
-              </label>
-              <select
-                value={clientId}
-                onChange={(e) => handleSelectClient(e.target.value)}
-                className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white"
-              >
-                <option value="">-- Manual Entry or Select Client --</option>
-                {crmClients.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} {c.contactPerson ? `(${c.contactPerson})` : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                Client / Counterparty / Candidate Name
-              </label>
-              <input
-                type="text"
-                value={clientName}
-                onChange={(e) => {
-                  setClientName(e.target.value);
-                  setVariables((prev) => ({ ...prev, client_name: e.target.value }));
-                }}
-                placeholder="e.g. Tata Motors / ABC Tech"
-                className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg font-semibold text-slate-900"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                Contact Person
-              </label>
-              <input
-                type="text"
-                value={clientContactPerson}
-                onChange={(e) => setClientContactPerson(e.target.value)}
-                placeholder="e.g. John Doe"
-                className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                Email Address
-              </label>
-              <input
-                type="email"
-                value={clientEmail}
-                onChange={(e) => setClientEmail(e.target.value)}
-                placeholder="client@company.com"
-                className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg"
-              />
-            </div>
-          </div>
-
-          {/* Template Quick Loader */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2 flex items-center justify-between">
-              <span>Apply Template</span>
-              <Layers className="w-3.5 h-3.5 text-blue-600" />
-            </h3>
-
-            <select
-              onChange={(e) => {
-                const found = templates.find((t) => t.id === e.target.value);
-                if (found) applyTemplate(found);
-              }}
-              defaultValue=""
-              className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white"
-            >
-              <option value="" disabled>
-                -- Choose from Template Catalog --
-              </option>
-              {templates.map((tpl) => (
-                <option key={tpl.id} value={tpl.id}>
-                  {tpl.name} ({tpl.category})
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Center/Right: Active View (Editor or Preview) (9 cols) */}
-        <div className="lg:col-span-9 space-y-6">
-          {activeTab === "editor" ? (
-            /* SECTION EDITOR */
-            <div className="space-y-4">
-              <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">Document Sections & Clauses</h3>
-                  <p className="text-xs text-slate-500">Add, edit, or customize any structural component.</p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleAddSection("text")}
-                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition"
+            {/* Client CRM Selection & Fields */}
+            <div className="space-y-3 pt-2 border-t border-slate-100">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-900">Client / Recipient</label>
+                {crmClients.length > 0 && (
+                  <select
+                    value={clientId}
+                    onChange={(e) => handleSelectClient(e.target.value)}
+                    className="text-[11px] text-blue-600 bg-blue-50 border border-blue-200 rounded-lg px-2 py-1"
                   >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Text Clause</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleAddSection("table")}
-                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Data Table</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleAddSection("terms")}
-                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg transition"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Terms Box</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleAddSection("signature")}
-                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Signatures</span>
-                  </button>
-                </div>
+                    <option value="">Choose from CRM...</option>
+                    {crmClients.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
-              {sections.map((sec, idx) => (
-                <div
-                  key={sec.id}
-                  className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3 hover:border-blue-200 transition"
-                >
-                  <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-600 text-xs font-bold flex items-center justify-center">
-                        {idx + 1}
-                      </span>
-                      <input
-                        type="text"
-                        value={sec.title}
-                        onChange={(e) => handleUpdateSection(sec.id, "title", e.target.value)}
-                        className="font-bold text-slate-900 text-xs border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none px-1"
-                      />
-                    </div>
+              <div>
+                <label className="block text-[11px] text-slate-500 mb-0.5">Company Name</label>
+                <input
+                  type="text"
+                  value={clientName}
+                  onChange={(e) => setClientName(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl"
+                  placeholder="e.g. ABC Pvt Ltd"
+                />
+              </div>
 
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 text-slate-600">
-                        {sec.type}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveSection(sec.id)}
-                        className="p-1 text-slate-400 hover:text-rose-600 rounded"
-                        title="Remove Section"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+              <div>
+                <label className="block text-[11px] text-slate-500 mb-0.5">Contact Person</label>
+                <input
+                  type="text"
+                  value={clientContactPerson}
+                  onChange={(e) => setClientContactPerson(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl"
+                  placeholder="e.g. Rahul Verma"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] text-slate-500 mb-0.5">Client Email</label>
+                <input
+                  type="email"
+                  value={clientEmail}
+                  onChange={(e) => setClientEmail(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl"
+                  placeholder="client@example.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] text-slate-500 mb-0.5">Client Address</label>
+                <input
+                  type="text"
+                  value={clientAddress}
+                  onChange={(e) => setClientAddress(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl"
+                  placeholder="City, State"
+                />
+              </div>
+            </div>
+
+            {/* Quick Add Section Buttons */}
+            <div className="pt-3 border-t border-slate-100 space-y-2">
+              <label className="block text-xs font-bold text-slate-900">Add Content Block</label>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => handleAddSection("text")}
+                  className="p-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl font-medium text-slate-700 text-left"
+                >
+                  + Text Section
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAddSection("table")}
+                  className="p-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl font-medium text-slate-700 text-left"
+                >
+                  + Pricing Table
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAddSection("terms")}
+                  className="p-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl font-medium text-slate-700 text-left"
+                >
+                  + Terms Box
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAddSection("signature")}
+                  className="p-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl font-medium text-slate-700 text-left"
+                >
+                  + Signatures
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Columns: Structured Sections Editor */}
+          <div className="lg:col-span-2 space-y-4">
+            {sections.map((sec, idx) => (
+              <div key={sec.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-400">#{idx + 1}</span>
+                    <span className="text-[10px] uppercase font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                      {sec.type}
+                    </span>
                   </div>
 
-                  {/* Body for Text / Terms / Header */}
-                  {sec.type !== "table" && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleAiEdit("rewrite_section", undefined, sec.id)}
+                      className="text-[11px] text-[#274690] hover:underline font-semibold"
+                    >
+                      Refine with AI
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSection(sec.id)}
+                      className="text-slate-400 hover:text-rose-600 p-1"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <input
+                    type="text"
+                    value={sec.title}
+                    onChange={(e) => handleUpdateSection(sec.id, "title", e.target.value)}
+                    className="w-full font-bold text-sm text-slate-900 border-b border-transparent focus:border-blue-500 pb-1 focus:outline-none"
+                    placeholder="Section Title"
+                  />
+                </div>
+
+                {sec.type !== "table" && (
+                  <div>
                     <textarea
                       rows={sec.type === "terms" ? 4 : 3}
                       value={sec.body || ""}
                       onChange={(e) => handleUpdateSection(sec.id, "body", e.target.value)}
-                      className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500 leading-relaxed"
+                      className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-[#274690]"
+                      placeholder="Section content..."
                     />
-                  )}
-
-                  {/* Table Component Editor */}
-                  {sec.type === "table" && sec.tableData && (
-                    <div className="space-y-2">
-                      <div className="flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => handleAddTableRow(sec.id)}
-                          className="text-xs font-semibold text-blue-600 hover:underline flex items-center gap-1"
-                        >
-                          <Plus className="w-3 h-3" /> Add Row
-                        </button>
-                      </div>
-
-                      <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                        <table className="w-full text-xs text-left">
-                          <thead className="bg-slate-900 text-white uppercase text-[10px]">
-                            <tr>
-                              {sec.tableData.headers.map((h, hIdx) => (
-                                <th key={hIdx} className="py-2.5 px-3">
-                                  {h}
-                                </th>
-                              ))}
-                              <th className="py-2.5 px-2 w-10 text-center">✕</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {sec.tableData.rows.map((row, rIdx) => (
-                              <tr key={rIdx} className="hover:bg-slate-50">
-                                {row.map((cell, cIdx) => (
-                                  <td key={cIdx} className="p-1.5">
-                                    <input
-                                      type="text"
-                                      value={cell}
-                                      onChange={(e) =>
-                                        handleUpdateTableCell(sec.id, rIdx, cIdx, e.target.value)
-                                      }
-                                      className="w-full px-2 py-1 text-xs border border-slate-200 rounded bg-white"
-                                    />
-                                  </td>
-                                ))}
-                                <td className="p-1.5 text-center">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveTableRow(sec.id, rIdx)}
-                                    className="text-slate-400 hover:text-rose-600"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : (
-            /* LIVE DOCUMENT PREVIEW */
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 md:p-12 space-y-8 max-w-4xl mx-auto">
-              <div className="flex justify-between items-start border-b border-slate-200 pb-6">
-                <div>
-                  <div className="text-2xl font-bold text-slate-900">
-                    {companyName || variables.company_name || "Your Company Name"}
                   </div>
-                  <div className="text-xs text-slate-500 mt-0.5">Corporate Headquarters • Official Business Document</div>
-                </div>
+                )}
 
-                <div className="text-right">
-                  <div className="text-2xl font-bold font-mono text-blue-600">
-                    {documentType.toUpperCase()}
-                  </div>
-                  <div className="text-xs font-mono font-bold text-slate-700 mt-1">
-                    {documentNumber || "DOC-DRAFT"}
-                  </div>
-                  <div className="text-xs text-slate-400 mt-1">
-                    v{currentVersion}.0 • Status: {status}
-                  </div>
-                </div>
-              </div>
-
-              {clientName && (
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
-                  <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">PREPARED FOR</div>
-                  <div className="text-sm font-bold text-slate-900">{clientName}</div>
-                  {clientContactPerson && <div className="text-slate-600">Attn: {clientContactPerson}</div>}
-                  {clientEmail && <div className="text-slate-400">{clientEmail}</div>}
-                </div>
-              )}
-
-              <div>
-                <div className="text-base font-bold text-slate-900">{title}</div>
-              </div>
-
-              {/* Render Sections */}
-              {sections.map((sec) => (
-                <div key={sec.id} className="space-y-2 text-xs">
-                  {sec.title && sec.type !== "header" && (
-                    <h4 className="font-bold text-slate-900 text-sm text-blue-900">{sec.title}</h4>
-                  )}
-
-                  {sec.body && (
-                    <div
-                      className={`leading-relaxed ${
-                        sec.type === "terms"
-                          ? "bg-slate-50 p-4 rounded-xl border border-slate-200 text-slate-600 whitespace-pre-line"
-                          : "text-slate-700 whitespace-pre-line"
-                      }`}
-                    >
-                      {sec.body}
-                    </div>
-                  )}
-
-                  {sec.type === "table" && sec.tableData && (
-                    <div className="overflow-x-auto border border-slate-200 rounded-xl my-3">
-                      <table className="w-full text-left text-xs">
-                        <thead className="bg-slate-900 text-white uppercase text-[10px]">
-                          <tr>
-                            {sec.tableData.headers.map((h, i) => (
-                              <th key={i} className="py-2.5 px-3">
-                                {h}
-                              </th>
+                {sec.type === "table" && sec.tableData && (
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table className="w-full text-xs">
+                      <thead className="bg-slate-100 text-slate-700">
+                        <tr>
+                          {sec.tableData.headers.map((h, hIdx) => (
+                            <th key={hIdx} className="p-2 text-left font-semibold">
+                              {h}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {sec.tableData.rows.map((row, rIdx) => (
+                          <tr key={rIdx}>
+                            {row.map((cell, cIdx) => (
+                              <td key={cIdx} className="p-2">
+                                <input
+                                  type="text"
+                                  value={cell}
+                                  onChange={(e) => {
+                                    const updatedRows = [...sec.tableData!.rows];
+                                    updatedRows[rIdx][cIdx] = e.target.value;
+                                    setSections((prev) =>
+                                      prev.map((s) =>
+                                        s.id === sec.id
+                                          ? { ...s, tableData: { ...s.tableData!, rows: updatedRows } }
+                                          : s
+                                      )
+                                    );
+                                  }}
+                                  className="w-full px-1.5 py-1 text-xs border border-transparent hover:border-slate-200 focus:border-blue-500 rounded"
+                                />
+                              </td>
                             ))}
                           </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {sec.tableData.rows.map((row, rI) => (
-                            <tr key={rI} className={rI % 2 === 0 ? "bg-white" : "bg-slate-50/50"}>
-                              {row.map((cell, cI) => (
-                                <td key={cI} className="py-2.5 px-3 text-slate-700">
-                                  {cell}
-                                </td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
-                  {sec.type === "signature" && (
-                    <div className="pt-6 grid grid-cols-2 gap-8">
-                      <div className="border-t border-slate-300 pt-2">
-                        <div className="font-bold text-slate-900">
-                          For {companyName || variables.company_name || "Authorized Company"}
-                        </div>
-                        <div className="text-slate-400 text-[11px]">Authorized Signatory</div>
-                      </div>
-                      <div className="border-t border-slate-300 pt-2">
-                        <div className="font-bold text-slate-900">
-                          Accepted by: {clientName || variables.client_name || "Counterparty"}
-                        </div>
-                        <div className="text-slate-400 text-[11px]">Authorized Signatory</div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Version History Drawer / Modal */}
+      {/* Version History Drawer */}
       {showVersionsDrawer && (
         <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white w-full max-w-md h-full p-6 shadow-2xl overflow-y-auto space-y-4">
@@ -1453,14 +1564,14 @@ function UniversalAiDocumentBuilderContent() {
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-900">Save as Reusable Template</h3>
-                  <p className="text-[11px] text-slate-500">Add to your organization template blueprints</p>
+                  <p className="text-[11px] text-slate-500">Add to organization template blueprints</p>
                 </div>
               </div>
               <button onClick={() => setShowTemplateModal(false)} className="text-slate-400 hover:text-slate-600 font-bold p-1">✕</button>
             </div>
 
             <div className="mt-3 p-3 bg-blue-50/70 border border-blue-100 rounded-xl text-[11px] text-slate-600 leading-relaxed">
-              ✨ <strong>Reuse anytime:</strong> Once saved, this template will show up on your <strong>Document Templates</strong> page. You can generate custom versions for any client simply by editing their name & details.
+              ✨ <strong>Reuse anytime:</strong> Once saved, this template will show up on your <strong>Document Templates</strong> page. You can generate custom versions for any client simply by editing their details.
             </div>
 
             <form onSubmit={(e) => handleSaveAsTemplate(e, false)} className="mt-4 space-y-4 text-xs">
@@ -1474,7 +1585,7 @@ function UniversalAiDocumentBuilderContent() {
                   value={templateSaveName}
                   onChange={(e) => setTemplateSaveName(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:border-[#274690]"
-                  placeholder="e.g. Website Development Quotation"
+                  placeholder="e.g. AI Automation Quotation Template"
                 />
               </div>
 
@@ -1489,9 +1600,7 @@ function UniversalAiDocumentBuilderContent() {
                   <option value="Business">Business Proposals</option>
                   <option value="Legal">Legal & Agreements</option>
                   <option value="HR">HR & Recruitment</option>
-                  <option value="Finance">Finance & Invoices</option>
                   <option value="Operational">Operational Documents</option>
-                  <option value="Custom">Custom</option>
                 </select>
               </div>
 
@@ -1525,16 +1634,19 @@ function UniversalAiDocumentBuilderContent() {
         </div>
       )}
 
-      {/* Send Email Modal */}
+      {/* Send Email Modal with Client CRM auto-fill */}
       {showEmailModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-bold text-slate-900">Dispatch Document via Email</h3>
+              <div className="flex items-center gap-2">
+                <Send className="w-4 h-4 text-emerald-600" />
+                <h3 className="font-bold text-slate-900">Send Document to Client</h3>
+              </div>
               <button onClick={() => setShowEmailModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>
             </div>
 
-            <form onSubmit={handleSendEmail} className="space-y-4 text-xs">
+            <form onSubmit={handleSendEmail} className="space-y-3.5 text-xs">
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
                   Recipient Email <span className="text-rose-500">*</span>
@@ -1544,22 +1656,34 @@ function UniversalAiDocumentBuilderContent() {
                   required
                   value={emailRecipient}
                   onChange={(e) => setEmailRecipient(e.target.value)}
-                  className="w-full px-3.5 py-2 border border-slate-300 rounded-xl"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl"
+                  placeholder="client@company.com"
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Custom Message</label>
-                <textarea
-                  rows={3}
-                  value={emailMessage}
-                  onChange={(e) => setEmailMessage(e.target.value)}
-                  className="w-full px-3.5 py-2 border border-slate-300 rounded-xl"
+                <label className="block font-semibold text-slate-700 mb-1">Email Subject</label>
+                <input
+                  type="text"
+                  value={emailSubject}
+                  onChange={(e) => setEmailSubject(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl"
                 />
               </div>
 
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-slate-500 text-[11px]">
-                Attaches official print-ready PDF and includes direct client portal review link.
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Cover Note / Message</label>
+                <textarea
+                  rows={4}
+                  value={emailMessage}
+                  onChange={(e) => setEmailMessage(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl resize-none"
+                />
+              </div>
+
+              <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl flex items-center gap-2 text-[11px] text-emerald-800">
+                <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>An official PDF copy from <strong>Dezoryn Technology</strong> will be attached automatically.</span>
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
@@ -1573,10 +1697,10 @@ function UniversalAiDocumentBuilderContent() {
                 <button
                   type="submit"
                   disabled={sendingEmail}
-                  className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-sm"
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-md transition disabled:opacity-50 flex items-center gap-1.5"
                 >
                   {sendingEmail ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                  <span>{sendingEmail ? "Sending..." : "Dispatch Email"}</span>
+                  <span>Send to Client</span>
                 </button>
               </div>
             </form>
@@ -1591,9 +1715,9 @@ export default function UniversalAiDocumentBuilderPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-slate-300">
-          <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4" />
-          <p className="font-medium text-slate-400">Loading AI Document Studio...</p>
+        <div className="p-12 flex flex-col items-center justify-center space-y-3">
+          <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+          <p className="text-xs text-slate-500 font-medium">Loading AI Document Builder Studio...</p>
         </div>
       }
     >

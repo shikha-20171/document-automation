@@ -1,13 +1,53 @@
 const AIGateway = require('./aiGateway/AIGateway');
 const prisma = require('../config/prismaClient');
-const { calculateQuotationFinancials, round2 } = require('../utils/pricingCalculator');
+const { calculateQuotationFinancials, round2, formatCurrencyINR, numberToIndianWords } = require('../utils/pricingCalculator');
+const { getOrganisationCompanyProfile, DEZORYN_CORPORATE_PROFILE } = require('./organisationProfileService');
+
+function withTimeout(promise, ms = 5000) {
+  let timer;
+  const timeoutPromise = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`AI Gateway request timed out after ${ms}ms`)), ms);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
+}
 
 /**
  * Universal Intent Classifier & Document Type Registry
  */
 const DOCUMENT_TYPE_REGISTRY = [
   // Sales & Commercial
-  { type: 'Quotation', category: 'Sales', keywords: ['quotation', 'quote', 'pricing', 'commercial estimate', 'cost estimate'] },
+  {
+    type: 'Quotation',
+    category: 'Sales',
+    keywords: [
+      'quotation',
+      'quote',
+      'create a quotation',
+      'pricing quotation',
+      'commercial quotation',
+      'cost quote',
+      'rate quote',
+      'price quote',
+      'quotation for',
+    ],
+  },
+  {
+    type: 'Bid Document',
+    category: 'Business',
+    keywords: [
+      'bid document',
+      'bid for',
+      'create a bid',
+      'bidding document',
+      'commercial bid',
+      'technical bid',
+      'tender bid',
+      'rfp bid',
+      'bid proposal',
+      'submit a bid',
+      'professional bid',
+    ],
+  },
   { type: 'Estimate', category: 'Sales', keywords: ['estimate', 'estimation', 'rough quote'] },
   { type: 'Invoice', category: 'Sales', keywords: ['invoice', 'bill', 'tax invoice', 'billing', 'payment due'] },
   { type: 'Proforma Invoice', category: 'Sales', keywords: ['proforma', 'pro-forma', 'advance bill'] },
@@ -16,26 +56,28 @@ const DOCUMENT_TYPE_REGISTRY = [
   { type: 'Credit Note', category: 'Sales', keywords: ['credit note', 'refund note'] },
   { type: 'Receipt', category: 'Sales', keywords: ['receipt', 'payment receipt', 'acknowledgement of payment'] },
 
-  // Business Documents
-  { type: 'Business Proposal', category: 'Business', keywords: ['business proposal', 'proposal', 'pitch', 'client pitch', 'bidding'] },
-  { type: 'Project Proposal', category: 'Business', keywords: ['project proposal', 'technical proposal', 'solution proposal'] },
-  { type: 'Business Letter', category: 'Business', keywords: ['business letter', 'formal letter', 'official letter'] },
+  // Business Documents & Proposals
+  {
+    type: 'Business Proposal',
+    category: 'Business',
+    keywords: ['business proposal', 'proposal', 'pitch', 'client pitch', 'project proposal', 'solution proposal', 'commercial proposal'],
+  },
+  { type: 'Statement of Work', category: 'Business', keywords: ['statement of work', 'sow', 'scope of work', 'project scope', 'deliverables agreement'] },
+  { type: 'Business Letter', category: 'Business', keywords: ['business letter', 'formal letter', 'official letter', 'client letter'] },
   { type: 'Cover Letter', category: 'Business', keywords: ['cover letter', 'transmittal letter'] },
-  { type: 'Statement of Work', category: 'Business', keywords: ['statement of work', 'sow', 'scope of work', 'project scope'] },
   { type: 'Project Brief', category: 'Business', keywords: ['project brief', 'creative brief', 'kickoff brief'] },
-  { type: 'Project Report', category: 'Business', keywords: ['project report', 'status report', 'progress report', 'monthly report'] },
+  { type: 'Project Report', category: 'Business', keywords: ['project report', 'status report', 'progress report', 'monthly report', 'quarterly report'] },
   { type: 'Meeting Minutes', category: 'Business', keywords: ['meeting minutes', 'mom', 'minutes of meeting', 'board minutes'] },
   { type: 'Business Plan', category: 'Business', keywords: ['business plan', 'executive summary', 'go to market'] },
 
   // Legal & Agreements
   { type: 'NDA', category: 'Legal', keywords: ['nda', 'non-disclosure', 'confidentiality agreement', 'secret agreement'] },
   { type: 'Service Agreement', category: 'Legal', keywords: ['service agreement', 'master service agreement', 'msa', 'services agreement'] },
+  { type: 'Contract', category: 'Legal', keywords: ['contract', 'sales contract', 'legal contract', 'agreement between'] },
   { type: 'Consultancy Agreement', category: 'Legal', keywords: ['consultancy agreement', 'consulting contract', 'advisor agreement'] },
   { type: 'Vendor Agreement', category: 'Legal', keywords: ['vendor agreement', 'supplier agreement', 'procurement contract'] },
   { type: 'Partnership Agreement', category: 'Legal', keywords: ['partnership agreement', 'cooperation agreement', 'joint venture'] },
-  { type: 'Contract', category: 'Legal', keywords: ['contract', 'sales contract', 'legal contract', 'agreement between'] },
   { type: 'Terms & Conditions', category: 'Legal', keywords: ['terms and conditions', 'terms of service', 'tos', 'website terms'] },
-  { type: 'Privacy Policy', category: 'Legal', keywords: ['privacy policy', 'gdpr policy', 'data protection'] },
   { type: 'Memorandum of Understanding', category: 'Legal', keywords: ['mou', 'memorandum of understanding'] },
 
   // HR Documents
@@ -59,15 +101,13 @@ const DOCUMENT_TYPE_REGISTRY = [
 
 /**
  * Detect Document Intent & Classify from user's natural language input
- * @param {string} prompt User's natural language instruction
- * @returns {Object} { documentType, category, confidence, extractedEntities }
  */
 function detectDocumentIntent(prompt) {
   const text = (prompt || '').trim().toLowerCase();
   if (!text) {
     return {
-      documentType: 'Custom Document',
-      category: 'Custom',
+      documentType: 'Quotation',
+      category: 'Sales',
       confidence: 0.5,
       extractedEntities: {},
     };
@@ -101,7 +141,14 @@ function detectDocumentIntent(prompt) {
     };
   }
 
-  // Fallback to custom
+  // Default heuristic fallback
+  if (text.includes('bid') || text.includes('tender')) {
+    return { documentType: 'Bid Document', category: 'Business', confidence: 0.9, extractedEntities: extracted };
+  }
+  if (text.includes('quot') || text.includes('pricing') || text.includes('₹') || text.includes('rs')) {
+    return { documentType: 'Quotation', category: 'Sales', confidence: 0.9, extractedEntities: extracted };
+  }
+
   return {
     documentType: 'Custom Document',
     category: 'Custom',
@@ -111,12 +158,17 @@ function detectDocumentIntent(prompt) {
 }
 
 /**
- * Extract entities from raw text (Company, Client/Person names, Amounts, Dates, Roles)
+ * Extract entities from raw text:
+ * - Client Name
+ * - Project / Solution Name
+ * - Amount & Currency
+ * - Dates & Roles
  */
 function extractCommonEntities(text) {
   const res = {
-    companyName: null,
+    companyName: 'Dezoryn Technology', // Issuing party is ALWAYS Dezoryn Technology
     clientName: null,
+    projectName: null,
     amount: null,
     currency: 'INR',
     dates: null,
@@ -126,125 +178,99 @@ function extractCommonEntities(text) {
   const clean = (text || '').trim();
   if (!clean) return res;
 
-  // Currency
+  // 1. Currency
   if (/\$|usd|dollar/i.test(clean)) res.currency = 'USD';
   else if (/€|eur|euro/i.test(clean)) res.currency = 'EUR';
   else if (/£|gbp/i.test(clean)) res.currency = 'GBP';
 
-  // Amount
-  const lakhMatch = clean.match(/(?:₹|rs\.?|inr)?\s*(\d+(?:\.\d+)?)\s*(?:lakh|lakhs|lac|lacs)/i);
-  const rawNumMatch = clean.match(/(?:₹|rs\.?|\$|€|£)?\s*([\d,]+(?:\.\d+)?)/i);
+  // 2. Amount Extraction (supports "5,00,000", "5 lakh", "₹5 lakh", "500000", "5 lacs")
+  const lakhMatch = clean.match(/(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d+)?)\s*(?:lakh|lakhs|lac|lacs)/i);
+  const rawNumMatch = clean.match(/(?:₹|rs\.?|\$|€|£)?\s*([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]+)?|[0-9]{4,10})/i);
+
   if (lakhMatch && lakhMatch[1]) {
-    res.amount = parseFloat(lakhMatch[1]) * 100000;
+    const num = parseFloat(lakhMatch[1].replace(/,/g, ''));
+    if (!isNaN(num)) res.amount = Math.round(num * 100000);
   } else if (rawNumMatch && rawNumMatch[1]) {
     const num = parseFloat(rawNumMatch[1].replace(/,/g, ''));
-    if (!isNaN(num) && num > 50) res.amount = num;
+    if (!isNaN(num) && num >= 100) res.amount = Math.round(num);
   }
 
-  // 1. Hindi Pairwise: "X ki taraf se Y ke liye"
-  const hindiTarafLiye = clean.match(/([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,4})\s+ki\s+taraf\s+se\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,4})\s+ke\s+liye/i);
-  if (hindiTarafLiye) {
-    res.companyName = hindiTarafLiye[1].trim();
-    res.clientName = hindiTarafLiye[2].trim();
-  }
-
-  // 2. Hindi Pairwise: "Y ke liye X ki taraf se"
-  if (!res.companyName || !res.clientName) {
-    const hindiLiyeTaraf = clean.match(/([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,4})\s+ke\s+liye\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,4})\s+ki\s+taraf\s+se/i);
-    if (hindiLiyeTaraf) {
-      if (!res.clientName) res.clientName = hindiLiyeTaraf[1].trim();
-      if (!res.companyName) res.companyName = hindiLiyeTaraf[2].trim();
+  // 3. Client Name Extraction
+  // Pattern A: "Create a quotation for ABC Pvt Ltd for ₹5,00,000 for AI Document Automation"
+  const quotationForPattern = clean.match(/(?:quotation|bid|proposal|estimate|invoice|document|agreement)\s+(?:for|to)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,4}?)(?:\s+(?:for\s+(?:₹|rs|[\d,]+|our)|worth|costing|with|dated|\.|$))/i);
+  if (quotationForPattern && quotationForPattern[1]) {
+    const candidate = quotationForPattern[1].trim();
+    if (!['our', 'the', 'a', 'an', 'ai', 'software', 'project'].includes(candidate.toLowerCase())) {
+      res.clientName = candidate;
     }
   }
 
-  // 3. English Pairwise: "between X and Y"
-  if (!res.companyName || !res.clientName) {
-    const betweenMatch = clean.match(/between\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,4})\s+(?:and|&)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,4})/i);
-    if (betweenMatch) {
-      const c1 = betweenMatch[1].trim();
-      const c2 = betweenMatch[2].trim();
-      const blacklist = ['a', 'an', 'the', 'us', 'them', 'both'];
-      if (!blacklist.includes(c1.toLowerCase()) && !res.companyName) res.companyName = c1;
-      if (!blacklist.includes(c2.toLowerCase()) && !res.clientName) res.clientName = c2;
-    }
-  }
-
-  // 4. English Pairwise: "from/by X for/to Y"
-  if (!res.companyName || !res.clientName) {
-    const mFromFor = clean.match(/(?:from|by)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,4})\s+(?:for|to)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,4})/i);
-    if (mFromFor) {
-      if (!res.companyName) res.companyName = mFromFor[1].trim();
-      if (!res.clientName) res.clientName = mFromFor[2].trim();
-    }
-  }
-
-  // 5. English Pairwise: "for/to Y from/by X"
-  if (!res.companyName || !res.clientName) {
-    const mForFrom = clean.match(/(?:for|to)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,4})\s+(?:from|by)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,4})/i);
-    if (mForFrom) {
-      if (!res.clientName) res.clientName = mForFrom[1].trim();
-      if (!res.companyName) res.companyName = mForFrom[2].trim();
-    }
-  }
-
-  // 6. Standalone Company patterns
-  if (!res.companyName) {
-    const standaloneFrom = clean.match(/(?:from|by|on\s+behalf\s+of|issued\s+by|company[:\s]+|disclosing\s+party[:\s]+)\s+([A-Za-z0-9\s&.,'-]+?)(?:\s+(?:for|to|ke\s+liye|regarding|worth|with|dated|\.|$))/i);
-    if (standaloneFrom && standaloneFrom[1]) {
-      const rawComp = standaloneFrom[1].trim();
-      const blacklist = ['a', 'an', 'the', 'website', 'app', 'software', 'project', 'company', 'scratch', 'template', 'ai'];
-      if (!blacklist.includes(rawComp.toLowerCase())) {
-        res.companyName = rawComp;
-      }
-    }
-  }
-
-  if (!res.companyName) {
-    const standaloneTaraf = clean.match(/([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,4})\s+ki\s+taraf\s+se/i);
-    if (standaloneTaraf && standaloneTaraf[1]) {
-      const rawComp = standaloneTaraf[1].trim();
-      const blacklist = ['a', 'an', 'the', 'website', 'app', 'software', 'project', 'company'];
-      if (!blacklist.includes(rawComp.toLowerCase())) {
-        res.companyName = rawComp;
-      }
-    }
-  }
-
-  // 7. Standalone Client patterns
+  // Pattern B: "for XYZ Ltd for our software development project"
   if (!res.clientName) {
-    const standaloneClient = clean.match(/(?:for|to|client[:\s]+|customer[:\s]+|recipient[:\s]+|candidate[:\s]+)\s+([A-Za-z0-9\s&.,'-]+?)(?:\s+(?:from|by|ki\s+taraf\s+se|worth|regarding|with|at|amount|dated|\.|$))/i);
-    if (standaloneClient && standaloneClient[1]) {
-      const raw = standaloneClient[1].trim();
-      const blacklist = ['a', 'an', 'the', 'website', 'app', 'software', 'project', 'company', 'client', 'employee', 'candidate', 'developer'];
-      if (!blacklist.includes(raw.toLowerCase())) {
-        res.clientName = raw;
-      }
+    const clientForMatch = clean.match(/(?:for|to|client[:\s]+|customer[:\s]+)\s+([A-Za-z0-9&.,'-]+(?:\s+(?:Pvt|Private|Ltd|Limited|Inc|Corporation|Corp|LLC|LLP|Technologies|Services|Solutions|Enterprise)){1,2})/i);
+    if (clientForMatch && clientForMatch[1]) {
+      res.clientName = clientForMatch[1].trim();
     }
   }
 
+  // Pattern C: General "for <Company Name>"
   if (!res.clientName) {
-    const standaloneLiye = clean.match(/([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,4})\s+ke\s+liye/i);
-    if (standaloneLiye && standaloneLiye[1]) {
-      const raw = standaloneLiye[1].trim();
-      const blacklist = ['a', 'an', 'the', 'website', 'app', 'software', 'project', 'company', 'document', 'quotation'];
-      if (!blacklist.includes(raw.toLowerCase())) {
-        res.clientName = raw;
+    const generalFor = clean.match(/(?:for|to|client[:\s]+|customer[:\s]+)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,3}?)(?:\s+(?:for|worth|costing|at|regarding|dated|\.|$))/i);
+    if (generalFor && generalFor[1]) {
+      const candidate = generalFor[1].trim();
+      const blacklist = ['a', 'an', 'the', 'our', 'my', 'new', 'quotation', 'bid', 'proposal', 'project', 'solution', 'software', 'service'];
+      if (!blacklist.includes(candidate.toLowerCase()) && candidate.length > 2) {
+        res.clientName = candidate;
       }
     }
   }
 
-  // Role / Position (for HR)
-  const roleMatch = clean.match(/(?:for\s+(?:a|an)?\s*)(frontend developer|backend developer|full stack developer|software engineer|product manager|ui\/ux designer|sales manager|marketing specialist|accountant|consultant)/i);
-  if (roleMatch && roleMatch[1]) {
-    res.role = roleMatch[1].trim();
+  // 4. Project / Solution Name Extraction
+  // Examples:
+  // "...for ₹5,00,000 for AI Document Automation" -> "AI Document Automation"
+  // "...for our software development project" -> "Software Development Project"
+  // "...for our AI Document Automation solution worth ₹5 lakh" -> "AI Document Automation Solution"
+  const projectPattern1 = clean.match(/(?:for\s+(?:our\s+)?|regarding\s+|project[:\s]+|solution[:\s]+)([A-Za-z0-9\s&.,'-]+?)(?:\s+(?:worth|costing|at\s+(?:₹|rs)|amount|\.|$))/i);
+  const projectPattern2 = clean.match(/(?:₹|rs\.?|[\d,]+\s*(?:lakh|lac)?)\s+for\s+(?:our\s+)?([A-Za-z0-9\s&.,'-]+?)(?:\s+(?:project|solution|system|implementation|\.|$))/i);
+  const projectPattern3 = clean.match(/(?:for\s+our\s+)([A-Za-z0-9\s&.,'-]+?)(?:\s+(?:project|solution|system|worth|\.|$))/i);
+
+  if (projectPattern2 && projectPattern2[1]) {
+    res.projectName = projectPattern2[1].trim();
+  } else if (projectPattern3 && projectPattern3[1]) {
+    res.projectName = projectPattern3[1].trim();
+  } else if (projectPattern1 && projectPattern1[1]) {
+    const candidate = projectPattern1[1].trim();
+    if (candidate !== res.clientName && candidate.length > 3) {
+      res.projectName = candidate;
+    }
   }
 
+  // Fallback project name formatting
+  if (res.projectName) {
+    // Capitalize cleanly
+    res.projectName = res.projectName.replace(/^our\s+/i, '').trim();
+    res.projectName = res.projectName.charAt(0).toUpperCase() + res.projectName.slice(1);
+  } else if (clean.toLowerCase().includes('document automation')) {
+    res.projectName = 'AI Document Automation Solution';
+  } else if (clean.toLowerCase().includes('software development')) {
+    res.projectName = 'Software Development Project';
+  }
+
+  // Clean trailing commas/periods from clientName
+  if (res.clientName) {
+    res.clientName = res.clientName.replace(/[.,]+$/, '').trim();
+  }
 
   return res;
 }
 
 /**
  * AI Service to generate a complete, structured document based on natural language prompt
+ * Rules:
+ * 1. Issuing company is ALWAYS Dezoryn Technology with corporate branding, tax registrations, and bank details.
+ * 2. Counterparty is the client extracted from prompt or CRM.
+ * 3. Base amount for Quotations must be exact base value before taxes.
+ * 4. Bid documents include comprehensive 18-section architecture.
  */
 async function generateStructuredDocumentFromAI({
   prompt,
@@ -261,236 +287,990 @@ async function generateStructuredDocumentFromAI({
     throw new Error('Prompt is required to generate document.');
   }
 
-  // 1. Fetch user's organisation name if available
-  let defaultOrgName = 'Enterprise Solutions Tech Pvt Ltd';
-  if (organisationId) {
-    try {
-      const org = await prisma.organisation.findUnique({
-        where: { id: parseInt(organisationId, 10) },
-        select: { name: true },
-      });
-      if (org && org.name) {
-        defaultOrgName = org.name;
-      }
-    } catch (e) {
-      // quiet fallback
-    }
-  }
+  // 1. Fetch Dezoryn Technology Corporate Profile
+  const orgProfile = await getOrganisationCompanyProfile(organisationId);
+  const issuingCompanyName = 'Dezoryn Technology';
+  const issuingLegalName = orgProfile.legalName || 'Dezoryn Technology Pvt Ltd';
 
   // 2. Detect Intent & Extract Entities
   const detected = detectDocumentIntent(cleanPrompt);
   const entities = extractCommonEntities(cleanPrompt);
 
-  const effectiveCompanyName = (companyName || entities.companyName || defaultOrgName).trim();
-  const effectiveClientName = (clientContext?.name || entities.clientName || 'Valued Client').trim();
-
   const documentType = documentTypeOverride || templateContext?.documentType || detected.documentType;
   const category = categoryOverride || templateContext?.category || detected.category;
 
+  let effectiveClientName = (clientContext?.name || entities.clientName || 'Valued Client').trim();
+  let clientEmail = clientContext?.email || null;
+  let clientPhone = clientContext?.phone || null;
+  let clientAddress = clientContext?.address || null;
+  let clientContactPerson = clientContext?.contactPerson || null;
+  let clientGstin = null;
+  let clientPan = null;
+  let crmClientId = clientContext?.id || null;
+
+  // 3. CRM Automatic Lookup for Client
+  if (organisationId && effectiveClientName && effectiveClientName !== 'Valued Client') {
+    try {
+      const searchTerms = effectiveClientName.split(' ')[0];
+      const matchedClient = await prisma.crmClient.findFirst({
+        where: {
+          organisationId: parseInt(organisationId, 10),
+          OR: [
+            { name: { contains: effectiveClientName, mode: 'insensitive' } },
+            { name: { contains: searchTerms, mode: 'insensitive' } },
+          ],
+        },
+        include: {
+          contacts: true,
+        },
+      });
+
+      if (matchedClient) {
+        crmClientId = matchedClient.id;
+        effectiveClientName = matchedClient.name;
+        if (!clientEmail) clientEmail = matchedClient.email || matchedClient.contacts?.[0]?.email || null;
+        if (!clientPhone) clientPhone = matchedClient.phone || matchedClient.contacts?.[0]?.phone || null;
+        if (!clientContactPerson) {
+          clientContactPerson = matchedClient.contactPerson ||
+            (matchedClient.contacts?.[0] ? `${matchedClient.contacts[0].firstName} ${matchedClient.contacts[0].lastName || ''}`.trim() : null);
+        }
+        if (!clientAddress) {
+          const parts = [matchedClient.address, matchedClient.city, matchedClient.state, matchedClient.postalCode, matchedClient.country].filter(Boolean);
+          if (parts.length > 0) clientAddress = parts.join(', ');
+        }
+      }
+    } catch (crmErr) {
+      console.warn('[AIDocumentBuilderService] CRM lookup note:', crmErr.message);
+    }
+  }
+
+  // Determine Project Title
+  const projectName = entities.projectName || (documentType === 'Quotation' ? 'AI Document Automation Solution' : 'Enterprise Engineering Project');
+  const baseAmount = entities.amount || (documentType === 'Quotation' ? 500000 : 500000);
+  const currency = entities.currency || 'INR';
+
+  // Format dates
+  const today = new Date();
+  const todayStr = today.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const validUntil = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  // 4. Try AI Generation via AI Gateway
+  let parsed = null;
+  const isBid = documentType.toLowerCase().includes('bid');
+  const isQuotation = documentType.toLowerCase().includes('quotation') || documentType.toLowerCase().includes('quote');
+
   const systemPrompt = `
-You are an Enterprise AI Document Architect.
-Your task is to take a natural language instruction and generate a complete, professional, highly-structured business document.
+You are the Enterprise AI Document Architect for Dezoryn Technology.
+CRITICAL CORPORATE IDENTITY RULE:
+Every document generated is ALWAYS issued FROM Dezoryn Technology (Dezoryn Technology Pvt Ltd) as the seller, bidder, service provider, or contracting authority.
+The client company (${effectiveClientName}) is ALWAYS the recipient/client/buyer.
+Under NO circumstances should Dezoryn Technology be replaced by the client name.
 
-The requested document type is: "${documentType}" (Category: "${category}").
-Issuing Company (Party Creating Document): "${effectiveCompanyName}"
-Client / Counterparty (Recipient Party): "${effectiveClientName}"
+Document Type: "${documentType}"
+Category: "${category}"
+Issuer: "${issuingCompanyName}" (${issuingLegalName})
+Recipient / Client: "${effectiveClientName}"
+Project / Service: "${projectName}"
+Base Amount: ${baseAmount ? formatCurrencyINR(baseAmount) : '₹5,00,000'}
 
-You MUST return ONLY valid JSON matching this schema:
+Return ONLY a valid JSON object matching this schema:
 {
-  "title": "Clear, professional document title (e.g. 'Software Services Agreement', 'Employment Offer Letter')",
+  "title": "${documentType} for ${effectiveClientName} - ${projectName}",
   "documentType": "${documentType}",
   "category": "${category}",
-  "companyName": "${effectiveCompanyName}",
+  "companyName": "${issuingCompanyName}",
   "clientName": "${effectiveClientName}",
-  "clientEmail": "Extracted email or null",
-  "clientPhone": "Extracted phone or null",
-  "clientAddress": "Extracted address or null",
-  "clientContactPerson": "Contact person name or null",
+  "clientEmail": ${clientEmail ? `"${clientEmail}"` : 'null'},
+  "clientPhone": ${clientPhone ? `"${clientPhone}"` : 'null'},
+  "clientAddress": ${clientAddress ? `"${clientAddress}"` : 'null'},
+  "clientContactPerson": ${clientContactPerson ? `"${clientContactPerson}"` : 'null'},
   "variables": {
-    "company_name": "${effectiveCompanyName}",
+    "company_name": "${issuingCompanyName}",
     "client_name": "${effectiveClientName}",
-    "document_date": "Today's Date",
-    "valid_until": "Expiry Date (if applicable)",
-    "amount": "Total Amount or Salary (if applicable)",
-    "payment_terms": "Payment schedule (if applicable)"
+    "project_name": "${projectName}",
+    "document_date": "${todayStr}",
+    "valid_until": "${validUntil}",
+    "base_amount": "${baseAmount}",
+    "currency": "${currency}"
   },
   "financialData": {
-    "currency": "INR or USD",
-    "subtotal": 0,
-    "discountValue": 0,
+    "currency": "${currency}",
+    "subtotal": ${baseAmount},
     "taxRate": 18,
-    "total": 0
+    "cgstRate": 9,
+    "sgstRate": 9,
+    "total": ${Math.round(baseAmount * 1.18)}
   },
   "content": [
     {
       "id": "sec_1",
       "type": "header",
-      "title": "Document Heading & Overview",
-      "body": "Official document prepared by ${effectiveCompanyName} for ${effectiveClientName}..."
-    },
-    {
-      "id": "sec_2",
-      "type": "text",
-      "title": "Scope of Work / Responsibilities / Terms",
-      "body": "Detailed professional clauses, numbered paragraphs, and obligations..."
-    },
-    {
-      "id": "sec_3",
-      "type": "table",
-      "title": "Deliverables / Fees / Items (if applicable)",
-      "tableData": {
-        "headers": ["Item / Milestone", "Description", "Qty", "Unit", "Rate", "Amount"],
-        "rows": [
-          ["Deliverable 1", "Scope detail", "1", "unit", "50000", "50000"]
-        ]
-      }
-    },
-    {
-      "id": "sec_4",
-      "type": "terms",
-      "title": "Terms, Conditions & Payment Milestones",
-      "body": "Governing laws, delivery SLA, termination clauses, and dispute resolution..."
-    },
-    {
-      "id": "sec_5",
-      "type": "signature",
-      "title": "Authorized Signatures",
-      "body": "Sign-off block between ${effectiveCompanyName} and ${effectiveClientName}."
+      "title": "Document Overview",
+      "body": "Official ${documentType} issued by Dezoryn Technology to ${effectiveClientName} regarding ${projectName}."
     }
   ]
 }
 
 RULES:
-1. Generate realistic, comprehensive, enterprise-grade business clauses and paragraphs, not placeholders.
-2. If the document has a financial component (Quotation, Invoice, Purchase Order, Offer Letter salary), structure the tables and calculate numbers realistically.
-3. CRITICAL: The document header section ("sec_1") MUST prominently display "${effectiveCompanyName}" as the issuing creator company and "${effectiveClientName}" as the client/recipient.
-4. CRITICAL: The signature section ("sec_5") MUST explicitly state "For ${effectiveCompanyName} (Authorized Signatory)" and "Accepted by: ${effectiveClientName}".
-5. Output ONLY the raw JSON object.
+1. Provide rich, highly professional, client-ready business prose.
+2. For Bid Documents, provide complete comprehensive sections (Executive Summary, Dezoryn Profile, Client Requirements, Proposed Solution, Functional Capabilities, Scope of Work, Technical Approach, Implementation Timeline, Roles, Assumptions, Support & SLA, Security, Commercial Proposal, Payment Terms, Terms & Conditions, Acceptance Signatures).
+3. For Quotations, itemize deliverables such that the base sum equals exactly ${baseAmount}, followed by 9% CGST and 9% SGST.
+4. Output raw JSON only.
 `.trim();
-
-  let contextDescription = '';
-  if (clientContext) {
-    contextDescription += `\nClient Context: Name: "${clientContext.name}", Email: "${clientContext.email || ''}", Contact: "${clientContext.contactPerson || ''}", Address: "${clientContext.address || ''}"`;
-  }
-  if (templateContext) {
-    contextDescription += `\nTemplate Structure: Name: "${templateContext.name}", Category: "${templateContext.category}", Type: "${templateContext.documentType}"`;
-  }
 
   const userPrompt = `
-User Instruction:
-"${cleanPrompt}"
-Issuing Company: "${effectiveCompanyName}"
-Recipient/Client: "${effectiveClientName}"
-${contextDescription}
+Instruction: "${cleanPrompt}"
+Issuer: Dezoryn Technology
+Client: ${effectiveClientName}
+Project: ${projectName}
+Base Amount: ${baseAmount}
 `.trim();
 
-  let parsed = null;
-
   try {
-    const aiResult = await AIGateway.execute({
-      organisationId,
-      userId,
-      operation: 'generateText',
-      feature: 'ai_document_builder',
-      module: 'documents',
-      params: {
-        prompt: userPrompt,
-        systemPrompt,
-        temperature: 0.15,
-        maxTokens: 4000,
-      },
-    });
+    const aiResult = await withTimeout(
+      AIGateway.execute({
+        organisationId,
+        userId,
+        operation: 'generateText',
+        feature: 'ai_document_builder',
+        module: 'documents',
+        params: {
+          prompt: userPrompt,
+          systemPrompt,
+          temperature: 0.15,
+          maxTokens: 4500,
+        },
+      }),
+      5000
+    );
 
     if (aiResult && aiResult.text) {
       parsed = extractJsonFromText(aiResult.text);
     }
   } catch (err) {
-    console.warn('[AIDocumentBuilderService] AI Gateway execution notice:', err.message);
+    console.warn('[AIDocumentBuilderService] AI Gateway execution note:', err.message);
   }
 
-  // Fallback to rich heuristic generator if AI output is empty or malformed
-  if (!parsed || !parsed.content || !Array.isArray(parsed.content) || parsed.content.length === 0) {
-    parsed = generateHeuristicDocument(cleanPrompt, documentType, category, clientContext, templateContext, effectiveCompanyName, effectiveClientName);
-  }
-
-  // Ensure top-level companyName and clientName are strictly assigned
-  parsed.companyName = parsed.companyName || effectiveCompanyName;
-  parsed.clientName = parsed.clientName || effectiveClientName;
-
-  // Apply Client Context overrides if specified
-  if (clientContext) {
-    if (clientContext.name) parsed.clientName = clientContext.name;
-    if (clientContext.email) parsed.clientEmail = clientContext.email;
-    if (clientContext.contactPerson) parsed.clientContactPerson = clientContext.contactPerson;
-    if (clientContext.phone) parsed.clientPhone = clientContext.phone;
-    if (clientContext.address || clientContext.city) {
-      parsed.clientAddress = [clientContext.address, clientContext.city, clientContext.state, clientContext.country].filter(Boolean).join(', ');
+  // 5. Fallback to Dedicated Enterprise Heuristic Builders if AI is offline or incomplete
+  if (!parsed || !parsed.content || !Array.isArray(parsed.content) || parsed.content.length < 3) {
+    if (isBid) {
+      parsed = generateHeuristicBidDocument(orgProfile, effectiveClientName, projectName, baseAmount, currency, todayStr, validUntil, cleanPrompt);
+    } else if (isQuotation) {
+      parsed = generateHeuristicQuotationDocument(orgProfile, effectiveClientName, projectName, baseAmount, currency, todayStr, validUntil, cleanPrompt);
+    } else {
+      parsed = generateHeuristicDocument(cleanPrompt, documentType, category, clientContext, templateContext, issuingCompanyName, effectiveClientName, baseAmount, projectName, orgProfile);
     }
   }
 
-  // Ensure variables object is populated
-  const todayStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-  parsed.variables = {
-    company_name: parsed.companyName || effectiveCompanyName,
-    client_name: parsed.clientName || effectiveClientName,
-    client_address: parsed.clientAddress || '',
-    document_date: todayStr,
-    valid_until: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-    ...(parsed.variables || {}),
+  // 6. Guarantee Corporate Identity (Dezoryn Technology)
+  parsed.companyName = issuingCompanyName;
+  parsed.clientName = effectiveClientName;
+  if (!parsed.clientEmail && clientEmail) parsed.clientEmail = clientEmail;
+  if (!parsed.clientPhone && clientPhone) parsed.clientPhone = clientPhone;
+  if (!parsed.clientAddress && clientAddress) parsed.clientAddress = clientAddress;
+  if (!parsed.clientContactPerson && clientContactPerson) parsed.clientContactPerson = clientContactPerson;
+
+  // 7. Ensure Variables & Financial Data are Deterministically Calculated
+  if (isQuotation || parsed.category === 'Sales' || parsed.financialData?.subtotal > 0) {
+    const tableSec = parsed.content.find((s) => s.type === 'table');
+    let lineItems = [];
+    if (tableSec && tableSec.tableData && Array.isArray(tableSec.tableData.rows)) {
+      lineItems = tableSec.tableData.rows.map((r, idx) => ({
+        title: r[0] || `Deliverable ${idx + 1}`,
+        description: r[1] || '',
+        quantity: parseFloat(r[2]) || 1,
+        unit: r[3] || 'module',
+        unitPrice: parseFloat(String(r[4]).replace(/,/g, '')) || 0,
+      }));
+    }
+
+    // If rows don't match the required base amount, recalibrate rows cleanly
+    const currentSum = lineItems.reduce((acc, it) => acc + (it.quantity * it.unitPrice), 0);
+    if (Math.abs(currentSum - baseAmount) > 100 && baseAmount > 0) {
+      const p1 = Math.round(baseAmount * 0.5);
+      const p2 = Math.round(baseAmount * 0.3);
+      const p3 = baseAmount - (p1 + p2);
+
+      lineItems = [
+        { title: `${projectName} - Core Engine & Architecture`, description: 'Core solution design, API integrations, and backend pipeline', quantity: 1, unit: 'system', unitPrice: p1 },
+        { title: `${projectName} - Workflows & User Interface`, description: 'Frontend portal, administrative console, and security governance', quantity: 1, unit: 'package', unitPrice: p2 },
+        { title: 'Quality Assurance, Deployment & Hypercare Support', description: 'UAT sign-off, production deployment, and 30-day warranty', quantity: 1, unit: 'service', unitPrice: p3 },
+      ];
+
+      if (tableSec && tableSec.tableData) {
+        tableSec.tableData.rows = lineItems.map((it) => [
+          it.title,
+          it.description,
+          String(it.quantity),
+          it.unit,
+          formatCurrencyINR(it.unitPrice),
+          formatCurrencyINR(it.quantity * it.unitPrice),
+        ]);
+      }
+    }
+
+    const financials = calculateQuotationFinancials(lineItems, {
+      discountType: 'PERCENTAGE',
+      discountValue: 0,
+      taxRate: 18,
+    });
+
+    parsed.financialData = financials;
+  }
+
+  // Sender Metadata snapshot from Dezoryn corporate profile
+  const senderData = {
+    companyName: 'Dezoryn Technology',
+    legalName: orgProfile.legalName,
+    tagline: orgProfile.tagline,
+    registeredAddress: orgProfile.registeredAddress,
+    billingAddress: orgProfile.billingAddress,
+    city: orgProfile.city,
+    state: orgProfile.state,
+    country: orgProfile.country,
+    postalCode: orgProfile.postalCode,
+    email: orgProfile.email,
+    phone: orgProfile.phone,
+    website: orgProfile.website,
+    gstin: orgProfile.gstin,
+    pan: orgProfile.pan,
+    cin: orgProfile.cin,
+    authorisedSignatory: orgProfile.authorisedSignatory,
+    paymentDetails: orgProfile.paymentDetails,
+    branding: orgProfile.branding,
   };
 
-
-  // If financial data exists with table rows, recalculate deterministically
-  if (parsed.financialData && (category === 'Sales' || parsed.financialData.total > 0)) {
-    const tableSec = parsed.content.find((s) => s.type === 'table');
-    if (tableSec && tableSec.tableData && Array.isArray(tableSec.tableData.rows)) {
-      const lineItems = tableSec.tableData.rows.map((r) => {
-        const qty = parseFloat(r[2]) || 1;
-        const rate = parseFloat(r[4]) || 0;
-        return {
-          title: r[0] || 'Item',
-          description: r[1] || '',
-          quantity: qty,
-          unit: r[3] || 'unit',
-          unitPrice: rate,
-        };
-      });
-
-      const financials = calculateQuotationFinancials(lineItems, {
-        discountType: 'PERCENTAGE',
-        discountValue: parsed.financialData.discountValue || 0,
-        taxRate: parsed.financialData.taxRate !== undefined ? parsed.financialData.taxRate : 18,
-      });
-
-      parsed.financialData = {
-        currency: parsed.financialData.currency || 'INR',
-        subtotal: financials.subtotal,
-        discountType: financials.discountType,
-        discountValue: financials.discountValue,
-        discountAmount: financials.discountAmount,
-        taxRate: financials.taxRate,
-        taxAmount: financials.taxAmount,
-        total: financials.total,
-      };
-      parsed.variables.amount = String(financials.total);
-    }
-  }
+  const recipientData = {
+    companyName: effectiveClientName,
+    contactPerson: clientContactPerson || null,
+    email: clientEmail || null,
+    phone: clientPhone || null,
+    address: clientAddress || null,
+    gstin: clientGstin || null,
+    crmClientId: crmClientId || null,
+  };
 
   return {
-    title: parsed.title || `${documentType} - ${parsed.clientName || 'General'}`,
+    title: parsed.title || `${documentType} - ${effectiveClientName}`,
     documentType,
     category,
-    companyName: parsed.companyName || effectiveCompanyName,
-    clientName: parsed.clientName || effectiveClientName,
-    clientEmail: parsed.clientEmail || null,
-    clientPhone: parsed.clientPhone || null,
-    clientAddress: parsed.clientAddress || null,
-    clientContactPerson: parsed.clientContactPerson || null,
-    variables: parsed.variables,
+    companyName: issuingCompanyName,
+    legalName: issuingLegalName,
+    clientName: effectiveClientName,
+    clientEmail,
+    clientPhone,
+    clientAddress,
+    clientContactPerson,
+    crmClientId,
+    senderData,
+    recipientData,
+    variables: {
+      company_name: issuingCompanyName,
+      legal_name: issuingLegalName,
+      client_name: effectiveClientName,
+      project_name: projectName,
+      document_date: todayStr,
+      valid_until: validUntil,
+      amount: parsed.financialData?.total ? formatCurrencyINR(parsed.financialData.total) : formatCurrencyINR(baseAmount),
+      amount_in_words: parsed.financialData?.amountInWords || `${numberToIndianWords(baseAmount)}`,
+      gstin: orgProfile.gstin,
+      pan: orgProfile.pan,
+      ...(parsed.variables || {}),
+    },
     financialData: parsed.financialData || null,
     content: parsed.content,
     aiPrompt: cleanPrompt,
   };
+}
+
+/**
+ * Generate Comprehensive 18-Section Bid Document
+ * Submitted BY Dezoryn Technology TO the Client
+ */
+function generateHeuristicBidDocument(orgProfile, clientName, projectName, amount, currency, todayStr, validUntil, rawPrompt) {
+  const formattedAmount = formatCurrencyINR(amount);
+  const p1 = Math.round(amount * 0.4);
+  const p2 = Math.round(amount * 0.35);
+  const p3 = amount - (p1 + p2);
+
+  const sections = [
+    {
+      id: 'sec_cover',
+      type: 'header',
+      title: 'Commercial & Technical Bid Submission',
+      body: `DOCUMENT TYPE: FORMAL BID PROPOSAL\nBID REFERENCE: DT-BID-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}\n\nSUBMITTED BY:\nDezoryn Technology (Dezoryn Technology Pvt Ltd)\n${orgProfile.registeredAddress}\nGSTIN: ${orgProfile.gstin} | PAN: ${orgProfile.pan} | CIN: ${orgProfile.cin}\nEmail: ${orgProfile.email} | Web: ${orgProfile.website}\n\nSUBMITTED TO:\n${clientName}\nAttention: Tender Committee & Procurement Board\nSubmission Date: ${todayStr}\nProposal Validity: 60 Calendar Days (Valid Until: ${validUntil})`,
+    },
+    {
+      id: 'sec_exec_summary',
+      type: 'text',
+      title: '1. Executive Summary',
+      body: `Dezoryn Technology is honored to submit this comprehensive bid proposal to ${clientName} for the design, development, and enterprise rollout of ${projectName}. In today's digital economy, organizations require dependable, secure, and future-ready automation platforms to streamline operations and eliminate manual friction.\n\nOur proposed solution combines state-of-the-art intelligent processing with resilient microservices architecture, tailored precisely to meet ${clientName}'s strategic objectives. By partnering with Dezoryn Technology, ${clientName} secures a dedicated team of elite technologists, enterprise-grade SLA commitments, and a transparent delivery roadmap designed for maximum return on investment.`,
+    },
+    {
+      id: 'sec_dezoryn_profile',
+      type: 'text',
+      title: '2. Dezoryn Technology Corporate Profile & Credentials',
+      body: `Dezoryn Technology is a premier enterprise software and AI solutions engineering firm headquartered in Pune, Maharashtra. We specialize in automated document intelligence, cognitive workflows, high-throughput backend systems, and mission-critical cloud deployments.\n\nKey Organizational Highlights:\n• Registered Legal Entity: Dezoryn Technology Pvt Ltd (CIN: ${orgProfile.cin})\n• Tax Compliance: Fully GST-registered (GSTIN: ${orgProfile.gstin}) and ISO/IEC 27001 compliant security protocols.\n• Proven Delivery Record: Successfully delivered over 150+ bespoke enterprise implementations across BFSI, Logistics, Manufacturing, and Healthcare.\n• Dedicated Engineering Team: Specialized solution architects, full-stack engineers, and cloud reliability specialists providing round-the-clock operational capability.`,
+    },
+    {
+      id: 'sec_client_requirements',
+      type: 'text',
+      title: '3. Understanding of Client Requirements & Business Objectives',
+      body: `Based on our in-depth evaluation of ${clientName}'s operational ecosystem, we understand that the primary objectives for ${projectName} include:\n1. Operational Velocity: Accelerating end-to-end processing times and eliminating manual data entry bottlenecks.\n2. Accuracy & Reliability: Enforcing strict business validation rules, deterministic calculations, and zero-error audit trails.\n3. Enterprise Scalability: Accommodating high transaction concurrency with sub-second API latency.\n4. Multi-Tenant Security: Ensuring role-based access control (RBAC), tenant data isolation, and end-to-end encryption at rest and in transit.`,
+    },
+    {
+      id: 'sec_proposed_solution',
+      type: 'text',
+      title: '4. Proposed Solution Architecture',
+      body: `Dezoryn Technology proposes a modular, microservices-driven platform designed specifically for ${projectName}.\n\nArchitectural Tiers:\n• Client Experience Layer: High-performance, responsive web application built with Next.js, React, and Tailwind/Vanilla CSS tokens.\n• Application & Business Logic Tier: Robust Node.js / Express engine with strict input validation, domain-driven services, and role middleware.\n• Data Persistence Layer: Enterprise PostgreSQL database with Prisma ORM, multi-tenant indexing, and encrypted storage.\n• AI & Processing Gateway: Unified orchestration layer supporting OCR extraction, dynamic document rendering, and real-time validation.`,
+    },
+    {
+      id: 'sec_functional_capabilities',
+      type: 'text',
+      title: '5. Core Functional Capabilities',
+      body: `• Natural Language Workflow Engine: Enables users to trigger automated creation and pipeline processing using simple instructions.\n• Intelligent Entity Extraction: Automatically parses client metadata, financials, dates, and terms from unstructured context.\n• High-Fidelity Vector PDF Generation: Generates branded, pixel-perfect PDFs with embedded watermarks, dynamic tables, and signature blocks.\n• Live Approval & Workflow Management: Multi-tier approval hierarchies (Draft &rarr; Pending Review &rarr; Approved &rarr; Sent &rarr; Accepted).\n• Comprehensive Audit Trails: Captures IP addresses, timestamps, and user actions for full regulatory compliance.`,
+    },
+    {
+      id: 'sec_scope_of_work',
+      type: 'text',
+      title: '6. Scope of Work & Deliverables',
+      body: `The complete scope of work executed by Dezoryn Technology encompasses:\n• Work Package 1: Architectural Blueprinting, Technical Specifications, and Database Schema Design.\n• Work Package 2: Backend API Development, Multi-Tenant Authentication, and RBAC Permission Matrix.\n• Work Package 3: Frontend Portal Engineering, Responsive Dashboards, and Live Document Previews.\n• Work Package 4: Third-Party Integrations (Email SMTP, Cloud Storage, and OCR Engines).\n• Work Package 5: Quality Assurance, Security Penetration Testing, and User Acceptance Testing (UAT).\n• Work Package 6: Production Cloud Deployment, Performance Tuning, and Admin Knowledge Transfer.`,
+    },
+    {
+      id: 'sec_timeline',
+      type: 'table',
+      title: '7. Implementation Timeline & Milestone Deliverables',
+      tableData: {
+        headers: ['Phase / Milestone', 'Estimated Timeline', 'Deliverables', 'Sign-Off Criteria'],
+        rows: [
+          ['Phase 1: Discovery & Architecture', 'Weeks 1 - 2', 'SRS, Technical Architecture & Wireframes', 'Client Approval of SRS'],
+          ['Phase 2: Core Engineering', 'Weeks 3 - 6', 'Backend APIs, DB Schema, Security Layer', 'API Test Suite Completion'],
+          ['Phase 3: UI & Workflow Integration', 'Weeks 7 - 9', 'Web Interface, Live Preview & Generation', 'End-to-End Workflow Demo'],
+          ['Phase 4: Testing & UAT Sign-Off', 'Weeks 10 - 11', 'Penetration Testing, Bug Fixes & UAT', 'Formal Client UAT Sign-Off'],
+          ['Phase 5: Production Go-Live', 'Week 12', 'Cloud Deployment, SSL, Admin Handover', 'Production Acceptance Certificate'],
+        ],
+      },
+    },
+    {
+      id: 'sec_roles',
+      type: 'text',
+      title: '8. Roles, Responsibilities & Governance Matrix',
+      body: `A collaborative governance framework guarantees on-time delivery:\n• Dezoryn Technology Project Manager: Single point of contact for sprint planning, status reports, and escalation management.\n• Dezoryn Lead Architect: Oversees system integrity, security audits, and cloud reliability.\n• ${clientName} Project Sponsor: Provides strategic direction, review milestone sign-offs, and final acceptance.\n• Weekly Status Reviews: Formal virtual sprint reviews conducted every Friday with recorded action items.`,
+    },
+    {
+      id: 'sec_assumptions_exclusions',
+      type: 'text',
+      title: '9. Assumptions, Dependencies & Exclusions',
+      body: `Assumptions & Dependencies:\n1. ${clientName} will designate a technical coordinator to provide required brand assets and access keys within 5 business days of kickoff.\n2. Cloud hosting infrastructure costs (e.g., AWS / GCP) will be provisioned under ${clientName}'s enterprise cloud account.\n\nExclusions:\n• Any modifications to third-party legacy databases not explicitly documented in the SRS.\n• Hardware procurement or physical on-premise server maintenance.`,
+    },
+    {
+      id: 'sec_support_sla',
+      type: 'text',
+      title: '10. Support, SLA & Maintenance Framework',
+      body: `Dezoryn Technology provides comprehensive post-implementation support:\n• Complimentary Warranty: 60 calendar days of warranty support post-production launch.\n• SLA Response Times: Critical Severity 1 incidents responded to within 1 hour; Severity 2 within 4 hours; General queries within 1 business day.\n• Support Channels: Dedicated ticketing portal, enterprise email (${orgProfile.email}), and direct hotline (+91 98765 43210).`,
+    },
+    {
+      id: 'sec_security',
+      type: 'text',
+      title: '11. Security, Compliance & Data Privacy',
+      body: `• Data Isolation: Strict multi-tenant row-level database isolation ensuring complete confidentiality between customer partitions.\n• Cryptographic Standards: TLS 1.3 encryption in transit and AES-256 encryption for data at rest.\n• Session Security: JWT authentication with rotating refresh tokens, rate limiting, and CSRF protection.\n• Vulnerability Management: Regular OWASP top-10 scans and dependency vulnerability patches applied continuously.`,
+    },
+    {
+      id: 'sec_commercial_table',
+      type: 'table',
+      title: '12. Commercial Proposal & Financial Investment',
+      tableData: {
+        headers: ['Item / Milestone', 'Description', 'Qty', 'Unit', 'Rate', 'Amount'],
+        rows: [
+          [`Phase 1 & 2: Architecture & Core Platform`, `Design, backend engine, and database schema for ${projectName}`, '1', 'milestone', formatCurrencyINR(p1), formatCurrencyINR(p1)],
+          [`Phase 3: UI Portal & Workflow Modules`, `Interactive dashboards, live preview, and pipeline automation`, '1', 'milestone', formatCurrencyINR(p2), formatCurrencyINR(p2)],
+          [`Phase 4 & 5: QA Hardening & Go-Live`, `UAT sign-off, security audit, deployment, and 60-day warranty`, '1', 'milestone', formatCurrencyINR(p3), formatCurrencyINR(p3)],
+        ],
+      },
+    },
+    {
+      id: 'sec_commercial_summary',
+      type: 'terms',
+      title: '13. Commercial Summary & Statutory Taxes',
+      body: `• Total Base Value: ${formattedAmount} (${numberToIndianWords(amount)})\n• Applicable Taxes: GST @ 18% (CGST 9% + SGST 9%) amounting to ${formatCurrencyINR(Math.round(amount * 0.18))}\n• Total Commercial Bid Value: ${formatCurrencyINR(Math.round(amount * 1.18))} (${numberToIndianWords(Math.round(amount * 1.18))})\n• Currency: Indian National Rupees (INR)\n• Commercial Validity: Firm and binding for 60 calendar days from submission.`,
+    },
+    {
+      id: 'sec_payment_terms',
+      type: 'terms',
+      title: '14. Payment Schedule & Bank Information',
+      body: `Payment Milestones:\n1. 30% Advance upon Contract Execution & Kickoff.\n2. 40% upon successful completion of Core Modules & Mid-Project Demonstration.\n3. 30% upon Final UAT Sign-Off and Production Handover.\n\nBank Account Details for Remittance:\nAccount Name: Dezoryn Technology Pvt Ltd\nBank Name: ${orgProfile.paymentDetails.bankName}\nAccount Number: ${orgProfile.paymentDetails.accountNumber}\nIFSC Code: ${orgProfile.paymentDetails.ifscCode}\nBranch: ${orgProfile.paymentDetails.branch}`,
+    },
+    {
+      id: 'sec_legal_terms',
+      type: 'terms',
+      title: '15. Legal Terms, Governing Law & Acceptance',
+      body: `1. Intellectual Property: Upon receipt of full and final payment, complete customized source code, schemas, and IP rights transfer exclusively to ${clientName}.\n2. Confidentiality: Both parties shall treat all technical specifications and commercial terms as strictly confidential.\n3. Governing Law: This bid and any resultant contract shall be governed by the laws of India under the exclusive jurisdiction of the courts in Pune, Maharashtra.`,
+    },
+    {
+      id: 'sec_signatures',
+      type: 'signature',
+      title: '16. Bid Submission & Acceptance Sign-Off',
+      body: `Submitted on behalf of Dezoryn Technology by Authorized Signatory:\nAditya Sharma, Director & VP Enterprise Solutions\nDezoryn Technology Pvt Ltd\n\nAccepted & Acknowledged by:\nAuthorized Representative for ${clientName}`,
+    },
+  ];
+
+  const financials = {
+    currency,
+    subtotal: amount,
+    discountType: 'PERCENTAGE',
+    discountValue: 0,
+    discountAmount: 0,
+    taxableAmount: amount,
+    taxRate: 18,
+    taxAmount: Math.round(amount * 0.18),
+    cgstRate: 9,
+    cgstAmount: Math.round(amount * 0.09),
+    sgstRate: 9,
+    sgstAmount: Math.round(amount * 0.09),
+    total: Math.round(amount * 1.18),
+    amountInWords: numberToIndianWords(Math.round(amount * 1.18)),
+    subtotalInWords: numberToIndianWords(amount),
+  };
+
+  return {
+    title: `Bid Document for ${clientName} - ${projectName}`,
+    documentType: 'Bid Document',
+    category: 'Business',
+    companyName: 'Dezoryn Technology',
+    clientName,
+    financialData: financials,
+    variables: {
+      company_name: 'Dezoryn Technology',
+      client_name: clientName,
+      project_name: projectName,
+      document_date: todayStr,
+      valid_until: validUntil,
+      amount: formattedAmount,
+      total_with_tax: formatCurrencyINR(financials.total),
+    },
+    content: sections,
+  };
+}
+
+/**
+ * Generate Comprehensive Quotation Document
+ * FROM Dezoryn Technology TO Client with exact base amount & tax calculation
+ */
+function generateHeuristicQuotationDocument(orgProfile, clientName, projectName, amount, currency, todayStr, validUntil, rawPrompt) {
+  const p1 = Math.round(amount * 0.5);
+  const p2 = Math.round(amount * 0.3);
+  const p3 = amount - (p1 + p2);
+
+  const lineItems = [
+    {
+      title: `${projectName} - Core Engine & Processing Pipeline`,
+      description: 'System setup, intelligent workflow execution, and secure API endpoints',
+      quantity: 1,
+      unit: 'system',
+      unitPrice: p1,
+    },
+    {
+      title: `${projectName} - Enterprise Management Console`,
+      description: 'Web portal, responsive live editor, template configurations, and RBAC governance',
+      quantity: 1,
+      unit: 'package',
+      unitPrice: p2,
+    },
+    {
+      title: 'Quality Assurance, Production Deployment & 30-Day Hypercare',
+      description: 'End-to-end integration testing, cloud server launch, and hypercare engineering support',
+      quantity: 1,
+      unit: 'service',
+      unitPrice: p3,
+    },
+  ];
+
+  const financials = calculateQuotationFinancials(lineItems, {
+    discountType: 'PERCENTAGE',
+    discountValue: 0,
+    taxRate: 18,
+  });
+
+  const sections = [
+    {
+      id: 'sec_overview',
+      type: 'header',
+      title: 'Official Quotation & Commercial Estimate',
+      body: `QUOTATION NUMBER: DT-QT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}\nDATE OF ISSUE: ${todayStr}\nVALIDITY: 30 Calendar Days (Valid until: ${validUntil})\n\nISSUED BY (SELLER / SERVICE PROVIDER):\nDezoryn Technology (Dezoryn Technology Pvt Ltd)\n${orgProfile.registeredAddress}\nGSTIN: ${orgProfile.gstin} | PAN: ${orgProfile.pan} | CIN: ${orgProfile.cin}\nEmail: ${orgProfile.email} | Phone: ${orgProfile.phone} | Website: ${orgProfile.website}\n\nISSUED TO (CLIENT / RECIPIENT):\n${clientName}\nAttention: Project / Procurement Team\nSubject: Commercial Quotation for ${projectName}`,
+    },
+    {
+      id: 'sec_scope',
+      type: 'text',
+      title: '1. Project Scope & Solution Description',
+      body: `Dezoryn Technology is pleased to present this formal quotation to ${clientName} for the implementation of ${projectName}.\n\nOur engagement includes full lifecycle delivery:\n• Solution architecture, system setup, and responsive UI components.\n• Robust backend API layer integrated with PostgreSQL and secure authentication.\n• High-fidelity vector PDF generation, dynamic live preview, and automated email transmission.\n• Strict multi-tenant isolation, data encryption at rest and in transit, and role-based access control.`,
+    },
+    {
+      id: 'sec_table',
+      type: 'table',
+      title: '2. Itemized Deliverables & Pricing Schedule',
+      tableData: {
+        headers: ['Item / Deliverable', 'Description', 'Qty', 'Unit', 'Unit Price (INR)', 'Total Amount (INR)'],
+        rows: lineItems.map((item) => [
+          item.title,
+          item.description,
+          String(item.quantity),
+          item.unit,
+          formatCurrencyINR(item.unitPrice),
+          formatCurrencyINR(item.quantity * item.unitPrice),
+        ]),
+      },
+    },
+    {
+      id: 'sec_financial_summary',
+      type: 'terms',
+      title: '3. Financial Summary & Statutory Tax Breakdown',
+      body: `• Base Project Value (Taxable Amount): ${formatCurrencyINR(financials.subtotal)} (${financials.subtotalInWords})\n• Central GST (CGST @ 9%): ${formatCurrencyINR(financials.cgstAmount)}\n• State GST (SGST @ 9%): ${formatCurrencyINR(financials.sgstAmount)}\n• Total Applicable Tax (GST 18%): ${formatCurrencyINR(financials.taxAmount)}\n• Grand Total (Tax Inclusive): ${formatCurrencyINR(financials.total)}\n• Amount in Words: ${financials.amountInWords}\n\nNote: All rates are quoted in Indian Rupees (INR). GST has been calculated accurately as per statutory Indian tax regulations.`,
+    },
+    {
+      id: 'sec_timeline',
+      type: 'text',
+      title: '4. Delivery Timeline & Milestones',
+      body: `• Sprint 1 (Days 1–14): Architecture finalization, database setup, and UI mockups.\n• Sprint 2 (Days 15–30): Core engine development, backend services, and workflow automation.\n• Sprint 3 (Days 31–45): System integration, end-to-end testing, client UAT, and production handover.`,
+    },
+    {
+      id: 'sec_payment_terms',
+      type: 'terms',
+      title: '5. Payment Terms & Bank Remittance Information',
+      body: `Payment Schedule:\n• 50% Advance upon quotation acceptance and project sign-off.\n• 50% upon milestone completion, UAT approval, and delivery.\n\nBank Account Details for NEFT / RTGS Remittance:\nBeneficiary Name: Dezoryn Technology Pvt Ltd\nBank Name: ${orgProfile.paymentDetails.bankName}\nAccount Number: ${orgProfile.paymentDetails.accountNumber}\nIFSC Code: ${orgProfile.paymentDetails.ifscCode}\nBranch: ${orgProfile.paymentDetails.branch}\nAccount Type: Current Account`,
+    },
+    {
+      id: 'sec_support_terms',
+      type: 'text',
+      title: '6. Support, Warranty & Maintenance Terms',
+      body: `• Warranty Support: Includes 30 calendar days of comprehensive hypercare warranty support post-production go-live for bug fixes and operational stabilization.\n• Extended Maintenance: Optional Annual Maintenance Contract (AMC) available upon completion of warranty.\n• Helpdesk: Standard support available Monday to Friday, 9:30 AM to 6:30 PM IST via email and ticketing portal.`,
+    },
+    {
+      id: 'sec_terms',
+      type: 'terms',
+      title: '7. Standard Terms & Conditions',
+      body: orgProfile.savedTermsAndConditions.join('\n'),
+    },
+    {
+      id: 'sec_signature',
+      type: 'signature',
+      title: '8. Authorization & Client Acceptance',
+      body: `ISSUED BY:\nFor Dezoryn Technology Pvt Ltd\nAditya Sharma, Director & Authorised Signatory\n\nACCEPTED & CONFIRMED BY:\nClient: ${clientName}\nAuthorized Signature: _______________________\nName & Designation: _______________________\nDate: _______________________`,
+    },
+  ];
+
+  return {
+    title: `Quotation for ${clientName} - ${projectName}`,
+    documentType: 'Quotation',
+    category: 'Sales',
+    companyName: 'Dezoryn Technology',
+    clientName,
+    financialData: financials,
+    variables: {
+      company_name: 'Dezoryn Technology',
+      client_name: clientName,
+      project_name: projectName,
+      document_date: todayStr,
+      valid_until: validUntil,
+      amount: formatCurrencyINR(financials.total),
+      subtotal: formatCurrencyINR(financials.subtotal),
+      amount_in_words: financials.amountInWords,
+    },
+    content: sections,
+  };
+}
+
+/**
+ * Resilient Heuristic Generator covering Legal, HR, Operational & General
+ */
+function generateHeuristicDocument(prompt, documentType, category, clientContext, templateContext, companyName, clientName, amount, projectName, orgProfile) {
+  const entities = extractCommonEntities(prompt);
+  const resolvedClientName = clientContext?.name || clientName || entities.clientName || 'Valued Partner';
+  const resolvedCompanyName = 'Dezoryn Technology';
+
+  switch (category) {
+    case 'HR':
+      return generateHeuristicHrDocument(documentType, resolvedCompanyName, resolvedClientName, entities, orgProfile);
+    case 'Legal':
+      return generateHeuristicLegalDocument(documentType, resolvedCompanyName, resolvedClientName, entities, orgProfile);
+    case 'Operational':
+      return generateHeuristicOperationalDocument(documentType, resolvedCompanyName, resolvedClientName, entities, orgProfile);
+    default:
+      return generateHeuristicBusinessDocument(documentType, resolvedCompanyName, resolvedClientName, amount, 'INR', projectName, orgProfile);
+  }
+}
+
+function generateHeuristicHrDocument(documentType, companyName, candidateName, entities, orgProfile) {
+  const role = entities.role || 'Senior Software Engineer';
+  const salaryStr = entities.amount ? formatCurrencyINR(entities.amount) : '₹12,00,000';
+  return {
+    title: `${documentType} - ${candidateName}`,
+    documentType,
+    category: 'HR',
+    companyName,
+    clientName: candidateName,
+    variables: {
+      company_name: companyName,
+      candidate_name: candidateName,
+      client_name: candidateName,
+      designation: role,
+      joining_date: '1st of next month',
+      salary: `${salaryStr} per annum (Cost to Company)`,
+    },
+    content: [
+      {
+        id: 'sec_1',
+        type: 'header',
+        title: 'Employment Offer & Appointment Terms',
+        body: `Dear ${candidateName},\n\nWe at ${companyName} are pleased to extend this formal offer for the position of ${role} with our organization. Following our discussions, we were thoroughly impressed by your technical background, problem-solving skills, and passion for engineering excellence.\n\nWe are confident that you will play a vital role in building state-of-the-art enterprise document intelligence systems with us.`,
+      },
+      {
+        id: 'sec_2',
+        type: 'text',
+        title: 'Role, Responsibilities & Reporting',
+        body: `1. Reporting Structure: You will report directly to the Director of Engineering at ${companyName}.\n2. Location & Model: Hybrid work model operating out of our Pune Development Center.\n3. Responsibilities: System architecture, scalable microservices, automated testing, and technical mentoring.`,
+      },
+      {
+        id: 'sec_3',
+        type: 'table',
+        title: 'Compensation Package Breakdown (Annualized)',
+        tableData: {
+          headers: ['Compensation Component', 'Monthly (INR)', 'Annualized (INR)'],
+          rows: [
+            ['Basic Salary', '50,000', '6,00,000'],
+            ['House Rent Allowance (HRA)', '25,000', '3,00,000'],
+            ['Special & Performance Allowance', '20,000', '2,40,000'],
+            ['Provident Fund (Employer Share)', '5,000', '60,000'],
+            ['Total Cost to Company (CTC)', '1,00,000', salaryStr],
+          ],
+        },
+      },
+      {
+        id: 'sec_4',
+        type: 'terms',
+        title: 'Probation, Notice Period & Policies',
+        body: '• Probation Period: 90 calendar days from the date of commencement.\n• Notice Period: 30 days during probation, and 60 days following confirmation.\n• Background Checks: This offer is contingent upon satisfactory completion of professional references and credentials verification.',
+      },
+      {
+        id: 'sec_5',
+        type: 'signature',
+        title: 'Acceptance & Sign-Off',
+        body: `For ${companyName} (Dezoryn Technology Pvt Ltd)\nAditya Sharma, Director\n\nAccepted & Confirmed:\n${candidateName}\nSignature: _______________________ Date: _______________________`,
+      },
+    ],
+  };
+}
+
+function generateHeuristicLegalDocument(documentType, companyName, partnerName, entities, orgProfile) {
+  const todayStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  return {
+    title: `${documentType} between ${companyName} and ${partnerName}`,
+    documentType,
+    category: 'Legal',
+    companyName,
+    clientName: partnerName,
+    variables: {
+      company_name: companyName,
+      disclosing_party: companyName,
+      receiving_party: partnerName,
+      client_name: partnerName,
+      effective_date: todayStr,
+      term_period: '3 (three) years',
+    },
+    content: [
+      {
+        id: 'sec_1',
+        type: 'header',
+        title: 'Parties & Recitals',
+        body: `This Non-Disclosure & Confidentiality Agreement is entered into as of ${todayStr} by and between:\n\n1. ${companyName} (Dezoryn Technology Pvt Ltd), having its office at ${orgProfile.registeredAddress} ("Disclosing Party"), and\n2. ${partnerName} ("Receiving Party").\n\nThe parties intend to explore strategic technical collaboration and commercial engagements requiring the mutual disclosure of proprietary and confidential information.`,
+      },
+      {
+        id: 'sec_2',
+        type: 'text',
+        title: '1. Definition of Confidential Information',
+        body: '"Confidential Information" encompasses all technical architectures, source code, client records, algorithmic models, business methodologies, pricing structures, financial data, and intellectual property disclosed in written, oral, visual, or electronic form.',
+      },
+      {
+        id: 'sec_3',
+        type: 'text',
+        title: '2. Obligations of Non-Disclosure',
+        body: 'The Receiving Party shall:\n(a) Maintain all Confidential Information with the highest standard of professional care.\n(b) Disclose confidential material solely to employees who have an absolute need-to-know and are bound by equivalent confidentiality obligations.\n(c) Not copy, reverse-engineer, exploit, or distribute any proprietary material without prior written authorization.',
+      },
+      {
+        id: 'sec_4',
+        type: 'terms',
+        title: '3. Governing Law & Dispute Resolution',
+        body: 'This Agreement shall be governed by and construed under the laws of India. Any disputes arising hereunder shall be subject to binding arbitration in Pune, Maharashtra under the Arbitration and Conciliation Act.',
+      },
+      {
+        id: 'sec_5',
+        type: 'signature',
+        title: 'Authorized Execution',
+        body: `Executed on behalf of ${companyName}:\nAditya Sharma, Director\n\nExecuted on behalf of ${partnerName}:\nAuthorized Representative`,
+      },
+    ],
+  };
+}
+
+function generateHeuristicOperationalDocument(documentType, companyName, clientName, entities, orgProfile) {
+  const todayStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  return {
+    title: `${documentType} - ${clientName}`,
+    documentType,
+    category: 'Operational',
+    companyName,
+    clientName,
+    variables: {
+      company_name: companyName,
+      client_name: clientName,
+      completion_date: todayStr,
+      signoff_status: 'Verified & Accepted',
+    },
+    content: [
+      {
+        id: 'sec_1',
+        type: 'header',
+        title: `${documentType} Summary`,
+        body: `Official operational record certifying the execution, verification, and handover of technological services by ${companyName} for ${clientName}.`,
+      },
+      {
+        id: 'sec_2',
+        type: 'table',
+        title: 'Milestone Verification Checklist',
+        tableData: {
+          headers: ['Deliverable / Item', 'Technical Specification', 'Test Result', 'Verification Status'],
+          rows: [
+            ['Core Module Deployment', 'Containerized cloud deployment on production VPC', 'PASSED', 'Verified'],
+            ['Security & Vulnerability Audit', 'Penetration testing & OWASP compliance audit', 'PASSED', 'Verified'],
+            ['User Acceptance Testing (UAT)', 'End-to-end multi-tenant user workflows', 'PASSED', 'Accepted by Client'],
+          ],
+        },
+      },
+      {
+        id: 'sec_3',
+        type: 'terms',
+        title: 'Operational Warranty & Hypercare',
+        body: 'The deliverables covered under this certificate are warranted for 30 business days against operational defects. Ongoing maintenance is governed under the master agreement.',
+      },
+      {
+        id: 'sec_4',
+        type: 'signature',
+        title: 'Handover & Acceptance Signatures',
+        body: `Signed by Project Lead for ${companyName} and Operational Sponsor for ${clientName}.`,
+      },
+    ],
+  };
+}
+
+function generateHeuristicBusinessDocument(documentType, companyName, clientName, amount, currency, projectName, orgProfile) {
+  return {
+    title: `${documentType} for ${clientName}`,
+    documentType,
+    category: 'Business',
+    companyName,
+    clientName,
+    variables: {
+      company_name: companyName,
+      client_name: clientName,
+      project_name: projectName || 'Enterprise Engineering Solution',
+      duration: '60 Calendar Days',
+    },
+    content: [
+      {
+        id: 'sec_1',
+        type: 'header',
+        title: 'Executive Summary',
+        body: `This proposal outlines the strategic approach of ${companyName} to delivering high-impact technological solutions for ${clientName}. Our engineering methodologies ensure rapid time-to-market and robust scalability.`,
+      },
+      {
+        id: 'sec_2',
+        type: 'text',
+        title: 'Project Objectives & Scope',
+        body: '• Build scalable, modern responsive digital interfaces.\n• Establish microservices architecture with enterprise security.\n• Implement automated CI/CD deployment pipelines.\n• Ensure full technical documentation and operational handover.',
+      },
+      {
+        id: 'sec_3',
+        type: 'table',
+        title: 'Implementation Timeline & Milestones',
+        tableData: {
+          headers: ['Sprint', 'Key Milestone', 'Estimated Timeline', 'Deliverables'],
+          rows: [
+            ['Sprint 1', 'Architecture & Wireframes', '2 Weeks', 'Prototypes, PRD, and schema specification'],
+            ['Sprint 2', 'Core Module Engineering', '4 Weeks', 'Full-stack application and authenticated APIs'],
+            ['Sprint 3', 'Testing, UAT & Deployment', '2 Weeks', 'End-to-end test suite and production launch'],
+          ],
+        },
+      },
+      {
+        id: 'sec_4',
+        type: 'terms',
+        title: 'Governance & Escalation',
+        body: 'Weekly sprint reviews with executive sponsors. Change requests outside agreed scope will be evaluated via standard amendment protocols.',
+      },
+      {
+        id: 'sec_5',
+        type: 'signature',
+        title: 'Authorization & Sign-Off',
+        body: `Authorized by ${companyName} and Approved by ${clientName}.`,
+      },
+    ],
+  };
+}
+
+/**
+ * AI Post-Generation Editing Engine
+ * Enables user to refine, rewrite, shorten, expand, add sections, and modify pricing
+ */
+async function editDocumentWithAI({
+  document,
+  instruction,
+  sectionId = null,
+  action = 'general',
+  organisationId = null,
+  userId = null,
+}) {
+  if (!document) throw new Error('Document data is required for AI editing.');
+  const cleanInst = (instruction || '').trim();
+
+  const cloned = JSON.parse(JSON.stringify(document));
+  const sections = Array.isArray(cloned.content) ? cloned.content : [];
+
+  // 1. If action is pricing modification
+  if (action === 'update_pricing' || cleanInst.toLowerCase().includes('price') || cleanInst.toLowerCase().includes('discount')) {
+    const extracted = extractCommonEntities(cleanInst);
+    if (extracted.amount && cloned.financialData) {
+      const newAmount = extracted.amount;
+      const tableSec = sections.find((s) => s.type === 'table');
+      if (tableSec && tableSec.tableData && Array.isArray(tableSec.tableData.rows)) {
+        const p1 = Math.round(newAmount * 0.5);
+        const p2 = Math.round(newAmount * 0.3);
+        const p3 = newAmount - (p1 + p2);
+
+        tableSec.tableData.rows = [
+          [`Phase 1: Core Engine Architecture`, 'Backend pipeline, database schema, and microservices setup', '1', 'milestone', formatCurrencyINR(p1), formatCurrencyINR(p1)],
+          [`Phase 2: Management Portal & UI Modules`, 'Frontend dashboards, responsive interfaces, and validation', '1', 'package', formatCurrencyINR(p2), formatCurrencyINR(p2)],
+          [`Phase 3: QA Hardening & Production Launch`, 'UAT sign-off, cloud server deployment, and 30-day warranty', '1', 'service', formatCurrencyINR(p3), formatCurrencyINR(p3)],
+        ];
+
+        const lineItems = [
+          { title: 'Phase 1: Core Engine Architecture', quantity: 1, unitPrice: p1 },
+          { title: 'Phase 2: Management Portal & UI Modules', quantity: 1, unitPrice: p2 },
+          { title: 'Phase 3: QA Hardening & Production Launch', quantity: 1, unitPrice: p3 },
+        ];
+
+        cloned.financialData = calculateQuotationFinancials(lineItems, { discountType: 'PERCENTAGE', discountValue: 0, taxRate: 18 });
+        cloned.variables = {
+          ...(cloned.variables || {}),
+          amount: formatCurrencyINR(cloned.financialData.total),
+          subtotal: formatCurrencyINR(cloned.financialData.subtotal),
+          amount_in_words: cloned.financialData.amountInWords,
+        };
+
+        const termsSec = sections.find((s) => s.type === 'terms' && s.title.toLowerCase().includes('financial'));
+        if (termsSec) {
+          termsSec.body = `• Base Project Value: ${formatCurrencyINR(cloned.financialData.subtotal)} (${cloned.financialData.subtotalInWords})\n• Applicable GST @ 18%: ${formatCurrencyINR(cloned.financialData.taxAmount)}\n• Grand Total: ${formatCurrencyINR(cloned.financialData.total)}\n• Amount in Words: ${cloned.financialData.amountInWords}`;
+        }
+      }
+    }
+    return cloned;
+  }
+
+  // 2. Section-specific editing
+  if (sectionId) {
+    const secIndex = sections.findIndex((s) => s.id === sectionId);
+    if (secIndex !== -1) {
+      const targetSec = sections[secIndex];
+
+      // Try AI refinement
+      try {
+        const sys = `You are an expert enterprise business editor for Dezoryn Technology.
+Refine this specific section according to the user instruction: "${cleanInst || action}".
+Retain professional tone, high accuracy, and strict corporate formatting.
+Output ONLY the refined replacement text for the section body (do not include json or markdown fences).`;
+
+        const res = await AIGateway.execute({
+          organisationId,
+          userId,
+          operation: 'generateText',
+          feature: 'ai_document_editor',
+          module: 'documents',
+          params: {
+            prompt: `Current Section Title: ${targetSec.title}\nCurrent Content:\n${targetSec.body || ''}`,
+            systemPrompt: sys,
+            temperature: 0.2,
+            maxTokens: 1000,
+          },
+        });
+
+        if (res && res.text && res.text.trim()) {
+          targetSec.body = res.text.trim();
+          cloned.content = sections;
+          return cloned;
+        }
+      } catch (e) {
+        console.warn('[AIDocumentBuilderService] AI Edit fallback note:', e.message);
+      }
+
+      // Rule-based heuristic edits
+      if (action === 'make_professional' || cleanInst.toLowerCase().includes('professional')) {
+        targetSec.body = `[Formally Ratified Clause]\n${targetSec.body}\n\nDezoryn Technology warrants that all deliverables outlined herein adhere to enterprise-grade software standards, comprehensive data isolation protocols, and robust security benchmarks.`;
+      } else if (action === 'shorten' || cleanInst.toLowerCase().includes('shorten') || cleanInst.toLowerCase().includes('concise')) {
+        targetSec.body = targetSec.body.split('\n').filter(Boolean).slice(0, 3).join('\n');
+      } else if (action === 'expand' || cleanInst.toLowerCase().includes('expand') || cleanInst.toLowerCase().includes('detail')) {
+        targetSec.body = `${targetSec.body}\n\nDetailed Implementation Standards:\n• 100% adherence to agreed technical acceptance criteria.\n• Comprehensive automated test coverage prior to milestone delivery.\n• Continuous stakeholder reporting through structured sprint retrospectives.`;
+      }
+      cloned.content = sections;
+      return cloned;
+    }
+  }
+
+  // 3. Add new section
+  if (action === 'add_section' || cleanInst.toLowerCase().includes('add section')) {
+    const newTitle = cleanInst.replace(/add section\s*/i, '').trim() || 'Additional Operational Provisions';
+    sections.push({
+      id: `sec_custom_${Date.now()}`,
+      type: 'text',
+      title: newTitle,
+      body: `This supplementary section formalizes additional requirements agreed between Dezoryn Technology and ${cloned.clientName}.\n\nAll provisions herein are binding and incorporated into the primary document terms.`,
+    });
+    cloned.content = sections;
+    return cloned;
+  }
+
+  // 4. Whole Document AI Refinement
+  try {
+    const sysPrompt = `You are the Enterprise AI Document Architect for Dezoryn Technology.
+The user wants to update the document according to this instruction: "${cleanInst}".
+CRITICAL: The issuing party MUST remain Dezoryn Technology. The recipient is ${cloned.clientName}.
+Return the updated document in valid JSON with updated "content" array matching the existing structure.
+Output raw JSON only.`;
+
+    const aiRes = await AIGateway.execute({
+      organisationId,
+      userId,
+      operation: 'generateText',
+      feature: 'ai_document_editor',
+      module: 'documents',
+      params: {
+        prompt: JSON.stringify({ title: cloned.title, content: cloned.content }),
+        systemPrompt: sysPrompt,
+        temperature: 0.2,
+        maxTokens: 3500,
+      },
+    });
+
+    if (aiRes && aiRes.text) {
+      const parsedAi = extractJsonFromText(aiRes.text);
+      if (parsedAi && Array.isArray(parsedAi.content)) {
+        cloned.content = parsedAi.content;
+        if (parsedAi.title) cloned.title = parsedAi.title;
+        return cloned;
+      }
+    }
+  } catch (e) {
+    console.warn('[AIDocumentBuilderService] Whole document AI edit note:', e.message);
+  }
+
+  return cloned;
 }
 
 /**
@@ -519,308 +1299,10 @@ function extractJsonFromText(text) {
   }
 }
 
-/**
- * Resilient Heuristic Generator covering all 5 core domains & custom types
- */
-function generateHeuristicDocument(prompt, documentType, category, clientContext, templateContext, companyName, clientName) {
-  const entities = extractCommonEntities(prompt);
-  const resolvedClientName = clientContext?.name || clientName || entities.clientName || 'Valued Partner';
-  const resolvedCompanyName = companyName || entities.companyName || 'Enterprise Solutions Tech Pvt Ltd';
-  const amount = entities.amount || 150000;
-  const currency = entities.currency || 'INR';
-
-  switch (category) {
-    case 'HR':
-      return generateHeuristicHrDocument(documentType, resolvedCompanyName, resolvedClientName, entities);
-    case 'Legal':
-      return generateHeuristicLegalDocument(documentType, resolvedCompanyName, resolvedClientName, entities);
-    case 'Sales':
-      return generateHeuristicSalesDocument(documentType, resolvedCompanyName, resolvedClientName, amount, currency);
-    case 'Operational':
-      return generateHeuristicOperationalDocument(documentType, resolvedCompanyName, resolvedClientName, entities);
-    default:
-      return generateHeuristicBusinessDocument(documentType, resolvedCompanyName, resolvedClientName, amount, currency);
-  }
-}
-
-function generateHeuristicHrDocument(documentType, companyName, candidateName, entities) {
-  const role = entities.role || 'Software Engineer';
-  return {
-    title: `${documentType} - ${candidateName}`,
-    documentType,
-    category: 'HR',
-    companyName,
-    clientName: candidateName,
-    variables: {
-      company_name: companyName,
-      candidate_name: candidateName,
-      client_name: candidateName,
-      designation: role,
-      joining_date: '1st of next month',
-      salary: entities.amount ? `₹${entities.amount.toLocaleString('en-IN')} per annum` : '₹12,00,000 per annum (CTC)',
-    },
-    content: [
-      {
-        id: 'sec_1',
-        type: 'header',
-        title: 'Employment Offer & Appointment Terms',
-        body: `Dear ${candidateName},\n\nWe at ${companyName} are pleased to offer you the position of ${role} with our organization. Following your interviews, we were thoroughly impressed by your credentials and look forward to welcoming you to our team.`,
-      },
-      {
-        id: 'sec_2',
-        type: 'text',
-        title: 'Role, Responsibilities & Reporting',
-        body: `1. You will report directly to the Director of Engineering at ${companyName}.\n2. Your work location will be Hybrid / Head Office.\n3. Standard working hours are Monday through Friday, 9:30 AM to 6:30 PM.\n4. You will be responsible for system architecture, scalable software modules, and quality deliverables.`,
-      },
-      {
-        id: 'sec_3',
-        type: 'table',
-        title: 'Annual Compensation Package (CTC Breakdown)',
-        tableData: {
-          headers: ['Salary Component', 'Monthly (INR)', 'Annualized (INR)'],
-          rows: [
-            ['Basic Salary', '50,000', '6,00,000'],
-            ['House Rent Allowance (HRA)', '25,000', '3,00,000'],
-            ['Special & Performance Allowance', '20,000', '2,40,000'],
-            ['Provident Fund (Employer Share)', '5,000', '60,000'],
-            ['Total Cost to Company (CTC)', '1,00,000', '12,00,000'],
-          ],
-        },
-      },
-      {
-        id: 'sec_4',
-        type: 'terms',
-        title: 'Probation & Notice Period',
-        body: '• Initial probation period of 90 calendar days from commencement.\n• Notice period of 30 days during probation, and 60 days upon confirmation.\n• Offer is contingent upon standard background verification and reference checks.',
-      },
-      {
-        id: 'sec_5',
-        type: 'signature',
-        title: 'Acceptance & Sign-Off',
-        body: `Signed by Authorized Signatory for ${companyName} and accepted by ${candidateName}.`,
-      },
-    ],
-  };
-}
-
-function generateHeuristicLegalDocument(documentType, companyName, partnerName, entities) {
-  return {
-    title: `${documentType} between ${companyName} and ${partnerName}`,
-    documentType,
-    category: 'Legal',
-    companyName,
-    clientName: partnerName,
-    variables: {
-      company_name: companyName,
-      disclosing_party: companyName,
-      receiving_party: partnerName,
-      client_name: partnerName,
-      effective_date: new Date().toLocaleDateString('en-GB'),
-      term_period: '3 (three) years',
-    },
-    content: [
-      {
-        id: 'sec_1',
-        type: 'header',
-        title: 'Parties & Recitals',
-        body: `This Non-Disclosure & Confidentiality Agreement is entered into as of ${new Date().toLocaleDateString('en-GB')} by and between:\n\n1. ${companyName} ("Disclosing Party"), and\n2. ${partnerName} ("Receiving Party").\n\nThe parties intend to discuss commercial collaboration and service provision requiring disclosure of proprietary information.`,
-      },
-      {
-        id: 'sec_2',
-        type: 'text',
-        title: '1. Definition of Confidential Information',
-        body: '"Confidential Information" includes all technical architectures, source code, client records, pricing algorithms, trade secrets, business roadmaps, and intellectual property disclosed in written, oral, or electronic form.',
-      },
-      {
-        id: 'sec_3',
-        type: 'text',
-        title: '2. Obligations of Non-Disclosure',
-        body: 'The Receiving Party shall:\n(a) Hold all Confidential Information in strict confidence with highest duty of care.\n(b) Restrict access solely to employees with a direct need-to-know.\n(c) Not copy, reverse-engineer, or distribute any proprietary material without prior written consent.',
-      },
-      {
-        id: 'sec_4',
-        type: 'terms',
-        title: '3. Governing Law & Jurisdiction',
-        body: 'This Agreement shall be construed and enforced under the laws of the jurisdiction. Any disputes shall be resolved through binding arbitration under the Arbitration and Conciliation Act.',
-      },
-      {
-        id: 'sec_5',
-        type: 'signature',
-        title: 'Authorized Execution',
-        body: `In witness whereof, ${companyName} and ${partnerName} have executed this Agreement by their authorized representatives.`,
-      },
-    ],
-  };
-}
-
-function generateHeuristicSalesDocument(documentType, companyName, clientName, amount, currency) {
-  const p1 = round2(amount * 0.3);
-  const p2 = round2(amount * 0.5);
-  const p3 = round2(amount - (p1 + p2));
-
-  return {
-    title: `${documentType} - ${clientName}`,
-    documentType,
-    category: 'Sales',
-    companyName,
-    clientName,
-    financialData: {
-      currency,
-      subtotal: amount,
-      discountValue: 0,
-      discountAmount: 0,
-      taxRate: 18,
-      taxAmount: round2(amount * 0.18),
-      total: round2(amount * 1.18),
-    },
-    variables: {
-      company_name: companyName,
-      client_name: clientName,
-      amount: String(amount),
-      payment_terms: '50% advance on sign-off, 50% upon milestone completion',
-    },
-    content: [
-      {
-        id: 'sec_1',
-        type: 'header',
-        title: `${documentType} Overview`,
-        body: `Commercial deliverable schedule and investment proposal prepared by ${companyName} for ${clientName}.`,
-      },
-      {
-        id: 'sec_2',
-        type: 'table',
-        title: 'Deliverables & Line Items',
-        tableData: {
-          headers: ['Item / Milestone', 'Description', 'Qty', 'Unit', 'Rate', 'Amount'],
-          rows: [
-            ['Phase 1: Solution Architecture & Wireframes', 'Design systems & technical specifications', '1', 'milestone', String(p1), String(p1)],
-            ['Phase 2: Core Engineering & Integrations', 'Frontend & backend development with API services', '1', 'milestone', String(p2), String(p2)],
-            ['Phase 3: QA Hardening & Deployment', 'Cross-browser testing, cloud setup & warranty', '1', 'milestone', String(p3), String(p3)],
-          ],
-        },
-      },
-      {
-        id: 'sec_3',
-        type: 'terms',
-        title: 'Payment Terms & Schedule',
-        body: '1. Quotation/Invoice valid for 30 calendar days.\n2. Work initiates within 3 business days of payment clearance.\n3. IP and production credentials transferred upon final settlement.',
-      },
-      {
-        id: 'sec_4',
-        type: 'signature',
-        title: 'Authorized Signatures',
-        body: `Prepared by ${companyName}. Client sign-off confirms acceptance by ${clientName}.`,
-      },
-    ],
-  };
-}
-
-function generateHeuristicOperationalDocument(documentType, companyName, clientName, entities) {
-  return {
-    title: `${documentType} - ${clientName}`,
-    documentType,
-    category: 'Operational',
-    companyName,
-    clientName,
-    variables: {
-      company_name: companyName,
-      client_name: clientName,
-      completion_date: new Date().toLocaleDateString('en-GB'),
-      signoff_status: 'Completed & Accepted',
-    },
-    content: [
-      {
-        id: 'sec_1',
-        type: 'header',
-        title: `${documentType} Summary`,
-        body: `Official operational record certifying the execution, verification, and handover of services by ${companyName} for ${clientName}.`,
-      },
-      {
-        id: 'sec_2',
-        type: 'table',
-        title: 'Inspection & Milestone Checklist',
-        tableData: {
-          headers: ['Deliverable / Item', 'Specification', 'Result', 'Verification Status'],
-          rows: [
-            ['Core Module Deployment', 'Containerized cloud deployment', 'PASSED', 'Verified'],
-            ['Security Audit', 'Penetration testing & OWASP compliance', 'PASSED', 'Verified'],
-            ['User Acceptance Testing (UAT)', 'End-to-end user workflows', 'PASSED', 'Accepted by Client'],
-          ],
-        },
-      },
-      {
-        id: 'sec_3',
-        type: 'terms',
-        title: 'Operational Warranty & Hypercare',
-        body: 'The deliverables covered under this certificate are warranted for 30 business days against operational defects. Ongoing maintenance is governed under the master agreement.',
-      },
-      {
-        id: 'sec_4',
-        type: 'signature',
-        title: 'Handover & Acceptance Signatures',
-        body: `Signed by Project Lead for ${companyName} and Client Operational Sponsor for ${clientName}.`,
-      },
-    ],
-  };
-}
-
-function generateHeuristicBusinessDocument(documentType, companyName, clientName, amount, currency) {
-  return {
-    title: `${documentType} for ${clientName}`,
-    documentType,
-    category: 'Business',
-    companyName,
-    clientName,
-    variables: {
-      company_name: companyName,
-      client_name: clientName,
-      project_name: 'Strategic Implementation & Engineering',
-      duration: '60 Calendar Days',
-    },
-    content: [
-      {
-        id: 'sec_1',
-        type: 'header',
-        title: 'Executive Summary',
-        body: `This proposal outlines the strategic approach of ${companyName} to delivering high-impact technological solutions for ${clientName}. Our engineering methodologies ensure rapid time-to-market and robust scalability.`,
-      },
-      {
-        id: 'sec_2',
-        type: 'text',
-        title: 'Project Objectives & Scope',
-        body: '• Build scalable, modern responsive digital interfaces.\n• Establish microservices architecture with enterprise security.\n• Implement automated CI/CD deployment pipelines.\n• Ensure full technical documentation and operational handover.',
-      },
-      {
-        id: 'sec_3',
-        type: 'table',
-        title: 'Implementation Timeline & Milestones',
-        tableData: {
-          headers: ['Sprint', 'Key Milestone', 'Estimated Timeline', 'Deliverables'],
-          rows: [
-            ['Sprint 1', 'Architecture & Wireframes', '2 Weeks', 'Figma prototypes, PRD, and schema'],
-            ['Sprint 2', 'Core Module Engineering', '4 Weeks', 'Full-stack application and authenticated APIs'],
-            ['Sprint 3', 'Testing, UAT & Deployment', '2 Weeks', 'End-to-end test suite and production launch'],
-          ],
-        },
-      },
-      {
-        id: 'sec_4',
-        type: 'terms',
-        title: 'Governance & Escalation',
-        body: 'Weekly sprint reviews with executive sponsors. Change requests outside agreed scope will be evaluated via standard amendment protocols.',
-      },
-      {
-        id: 'sec_5',
-        type: 'signature',
-        title: 'Authorization & Sign-Off',
-        body: `Authorized by ${companyName} and Approved by ${clientName}.`,
-      },
-    ],
-  };
-}
-
 module.exports = {
   detectDocumentIntent,
+  extractCommonEntities,
   generateStructuredDocumentFromAI,
+  editDocumentWithAI,
   DOCUMENT_TYPE_REGISTRY,
 };

@@ -1,4 +1,5 @@
 const prisma = require('../config/prismaClient');
+const { getOrganisationCompanyProfile } = require('./organisationProfileService');
 const { generateDocumentNumber } = require('../utils/documentNumberGenerator');
 const { generateUnifiedDocumentPdf } = require('./documentPdfService');
 const { generateUnifiedDocumentDocx } = require('./documentDocxService');
@@ -146,20 +147,26 @@ async function createDocument(organisationId, userId, userName, payload, req = n
   // Generate sequential document number
   const documentNumber = await generateDocumentNumber(organisationId, documentType);
 
-  // If senderData not provided, default to organisation info
-  let finalSenderData = senderData;
-  if (!finalSenderData || Object.keys(finalSenderData).length === 0) {
-    const org = await prisma.organisation.findUnique({
-      where: { id: organisationId },
-      select: { name: true, branch: true, city: true },
-    });
-    finalSenderData = {
-      companyName: org?.name || 'Enterprise Solutions',
-      address: [org?.branch, org?.city].filter(Boolean).join(', '),
-      email: null,
-      phone: null,
-    };
-  }
+  // Ensure issuing party is ALWAYS Dezoryn Technology with corporate profile
+  const orgProfile = await getOrganisationCompanyProfile(organisationId);
+  let finalSenderData = {
+    companyName: 'Dezoryn Technology',
+    legalName: orgProfile.legalName,
+    registeredAddress: orgProfile.registeredAddress,
+    billingAddress: orgProfile.billingAddress,
+    email: orgProfile.email,
+    phone: orgProfile.phone,
+    website: orgProfile.website,
+    gstin: orgProfile.gstin,
+    pan: orgProfile.pan,
+    cin: orgProfile.cin,
+    authorisedSignatory: orgProfile.authorisedSignatory,
+    paymentDetails: orgProfile.paymentDetails,
+    ...(senderData || {}),
+  };
+  // Ensure companyName is never overwritten by client name
+  finalSenderData.companyName = 'Dezoryn Technology';
+  finalSenderData.legalName = orgProfile.legalName;
 
   // Template Independence Guarantee:
   // Capture immutable snapshot of template structure used at creation time

@@ -63,16 +63,96 @@ function calculateQuotationFinancials(rawItems = [], options = {}) {
   const taxAmount = round2((taxableAmount * taxRate) / 100);
   const total = round2(taxableAmount + taxAmount);
 
+  const cgstRate = round2(taxRate / 2);
+  const sgstRate = round2(taxRate / 2);
+  const cgstAmount = round2(taxAmount / 2);
+  const sgstAmount = round2(taxAmount / 2);
+
   return {
     items,
     subtotal,
     discountType,
     discountValue: round2(discountValue),
     discountAmount,
+    taxableAmount,
     taxRate: round2(taxRate),
     taxAmount,
+    cgstRate,
+    cgstAmount,
+    sgstRate,
+    sgstAmount,
     total,
+    amountInWords: numberToIndianWords(total),
+    subtotalInWords: numberToIndianWords(subtotal),
   };
+}
+
+/**
+ * Convert numerical amounts into Indian Currency words (Rupees and Paise)
+ * Example: 500000 -> "Rupees Five Lakh Only"
+ */
+function numberToIndianWords(num) {
+  if (num === null || num === undefined || isNaN(num) || num === 0) return 'Rupees Zero Only';
+
+  const a = [
+    '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+    'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen',
+  ];
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+  function convertTwoDigits(n) {
+    if (n === 0) return '';
+    if (n < 20) return a[n];
+    const tens = b[Math.floor(n / 10)];
+    const units = a[n % 10];
+    return units ? `${tens} ${units}` : tens;
+  }
+
+  function convertThreeDigits(n) {
+    const hundred = Math.floor(n / 100);
+    const rest = n % 100;
+    let res = '';
+    if (hundred > 0) res += `${a[hundred]} Hundred`;
+    if (rest > 0) res += (res ? ' and ' : '') + convertTwoDigits(rest);
+    return res;
+  }
+
+  const rounded = round2(num);
+  const rupees = Math.floor(rounded);
+  const paise = Math.round((rounded - rupees) * 100);
+
+  let words = '';
+  let crore = Math.floor(rupees / 10000000);
+  let remainder = rupees % 10000000;
+
+  let lakh = Math.floor(remainder / 100000);
+  remainder %= 100000;
+
+  let thousand = Math.floor(remainder / 1000);
+  remainder %= 1000;
+
+  if (crore > 0) {
+    words += `${convertThreeDigits(crore)} Crore `;
+  }
+  if (lakh > 0) {
+    words += `${convertTwoDigits(lakh)} Lakh `;
+  }
+  if (thousand > 0) {
+    words += `${convertTwoDigits(thousand)} Thousand `;
+  }
+  if (remainder > 0) {
+    words += convertThreeDigits(remainder);
+  }
+
+  words = words.trim() || 'Zero';
+
+  let result = `Rupees ${words}`;
+  if (paise > 0) {
+    result += ` and ${convertTwoDigits(paise)} Paise`;
+  }
+  result += ' Only';
+
+  return result.replace(/\s+/g, ' ');
 }
 
 /**
@@ -91,7 +171,6 @@ function formatCurrency(amount, currency = 'INR') {
   };
   const symbol = symMap[currency.toUpperCase()] || `${currency} `;
   
-  // Format numbers nicely (Indian format for INR, US for USD/others)
   try {
     if (currency.toUpperCase() === 'INR') {
       return `${symbol}${num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -102,8 +181,14 @@ function formatCurrency(amount, currency = 'INR') {
   }
 }
 
+function formatCurrencyINR(amount) {
+  return formatCurrency(amount, 'INR');
+}
+
 module.exports = {
   round2,
   calculateQuotationFinancials,
   formatCurrency,
+  formatCurrencyINR,
+  numberToIndianWords,
 };

@@ -1,5 +1,5 @@
 const unifiedDocumentService = require('../services/unifiedDocumentService');
-const { detectDocumentIntent, generateStructuredDocumentFromAI } = require('../services/aiDocumentBuilderService');
+const { detectDocumentIntent, generateStructuredDocumentFromAI, editDocumentWithAI } = require('../services/aiDocumentBuilderService');
 
 const unifiedDocumentController = {
   /**
@@ -81,6 +81,35 @@ const unifiedDocumentController = {
       return res.json({ success: true, message: 'Document generated successfully.', data: generated });
     } catch (err) {
       console.error('[UnifiedDocumentController.generateWithAi]', err);
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  /**
+   * POST /api/unified-documents/ai-edit
+   */
+  async editWithAi(req, res) {
+    try {
+      const orgId = req.user.organisationId;
+      const userId = req.user.userId || req.user.id;
+      const { document, instruction, sectionId, action } = req.body;
+
+      if (!document) {
+        return res.status(400).json({ success: false, message: 'Document object required.' });
+      }
+
+      const updated = await editDocumentWithAI({
+        document,
+        instruction,
+        sectionId,
+        action,
+        organisationId: orgId,
+        userId,
+      });
+
+      return res.json({ success: true, message: 'Document updated successfully with AI.', data: updated });
+    } catch (err) {
+      console.error('[UnifiedDocumentController.editWithAi]', err);
       return res.status(500).json({ success: false, message: err.message });
     }
   },

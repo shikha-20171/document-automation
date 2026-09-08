@@ -5,54 +5,56 @@ const prisma = require('../config/prismaClient');
  */
 const TYPE_PREFIXES = {
   // Sales
-  'Quotation': 'QT',
-  'Estimate': 'EST',
-  'Invoice': 'INV',
-  'Proforma Invoice': 'PI',
-  'Purchase Order': 'PO',
-  'Sales Order': 'SO',
-  'Credit Note': 'CN',
-  'Debit Note': 'DN',
-  'Receipt': 'RCP',
+  'Quotation': 'DT-QT',
+  'Estimate': 'DT-EST',
+  'Invoice': 'DT-INV',
+  'Proforma Invoice': 'DT-PI',
+  'Purchase Order': 'DT-PO',
+  'Sales Order': 'DT-SO',
+  'Credit Note': 'DT-CN',
+  'Debit Note': 'DT-DN',
+  'Receipt': 'DT-RCP',
   // Business
-  'Business Proposal': 'PROP',
-  'Project Proposal': 'PROP',
-  'Statement of Work': 'SOW',
-  'Scope of Work': 'SOW',
-  'Project Brief': 'BRF',
-  'Business Letter': 'LTR',
+  'Bid Document': 'DT-BID',
+  'Bid': 'DT-BID',
+  'Business Proposal': 'DT-PROP',
+  'Project Proposal': 'DT-PROP',
+  'Statement of Work': 'DT-SOW',
+  'Scope of Work': 'DT-SOW',
+  'Project Brief': 'DT-BRF',
+  'Business Letter': 'DT-LTR',
   // Legal
-  'NDA': 'NDA',
-  'Non-Disclosure Agreement': 'NDA',
-  'Service Agreement': 'AGR',
-  'Consultancy Agreement': 'AGR',
-  'Vendor Agreement': 'VAGR',
-  'Contract': 'CTR',
+  'NDA': 'DT-NDA',
+  'Non-Disclosure Agreement': 'DT-NDA',
+  'Service Agreement': 'DT-AGR',
+  'Consultancy Agreement': 'DT-AGR',
+  'Vendor Agreement': 'DT-VAGR',
+  'Contract': 'DT-CTR',
   // HR
-  'Offer Letter': 'OFR',
-  'Appointment Letter': 'APT',
-  'Employment Agreement': 'EMP',
-  'Experience Letter': 'EXP',
-  'Relieving Letter': 'REL',
-  'Salary Certificate': 'SAL',
+  'Offer Letter': 'DT-OFR',
+  'Appointment Letter': 'DT-APT',
+  'Employment Agreement': 'DT-EMP',
+  'Experience Letter': 'DT-EXP',
+  'Relieving Letter': 'DT-REL',
+  'Salary Certificate': 'DT-SAL',
   // Operational
-  'Work Order': 'WO',
-  'Delivery Note': 'DN',
-  'Completion Certificate': 'CERT',
-  'Service Report': 'REP',
-  'Incident Report': 'INC',
+  'Work Order': 'DT-WO',
+  'Delivery Note': 'DT-DN',
+  'Completion Certificate': 'DT-CERT',
+  'Service Report': 'DT-REP',
+  'Incident Report': 'DT-INC',
 };
 
 /**
  * Generate sequential document number unique per organisation and document type
- * Example: INV-2026-0001, OFR-2026-0001, DOC-2026-0001
+ * Example: DT-QT-2026-0001, DT-BID-2026-0001
  * @param {number} organisationId
  * @param {string} documentType
  * @returns {Promise<string>}
  */
 async function generateDocumentNumber(organisationId, documentType = 'Document') {
   const currentYear = new Date().getFullYear();
-  const rawPrefix = TYPE_PREFIXES[documentType] || (documentType.replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase() || 'DOC');
+  const rawPrefix = TYPE_PREFIXES[documentType] || `DT-${documentType.replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase() || 'DOC'}`;
   const prefix = `${rawPrefix}-${currentYear}-`;
 
   const latestDoc = await prisma.unifiedDocument.findFirst({

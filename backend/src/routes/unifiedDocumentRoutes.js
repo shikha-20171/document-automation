@@ -11,6 +11,7 @@ router.use(authorizeRoles('SUPER_ADMIN', 'ORGANISATION_ADMIN', 'DEPARTMENT_MANAG
 router.get('/metrics', unifiedDocumentController.getMetrics);
 router.post('/detect-intent', unifiedDocumentController.detectIntent);
 router.post('/ai-generate', unifiedDocumentController.generateWithAi);
+router.post('/ai-edit', unifiedDocumentController.editWithAi);
 
 // Document CRUD
 router.get('/', unifiedDocumentController.listDocuments);
