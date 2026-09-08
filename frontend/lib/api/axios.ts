@@ -64,6 +64,8 @@ export interface ApiResponse<T = any> {
   success: boolean;
   message?: string;
   data: T;
+  error?: { message?: string; code?: string; details?: any } | any;
+  errors?: any;
 }
 
 // ─── ONE Centralized Axios Instance ───────────────────────────────────────────

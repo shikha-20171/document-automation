@@ -233,11 +233,39 @@ class AIGateway {
         resolvedModelCode = routingConfig.primaryModel;
       }
     }
+
     if (!resolvedProviderCode) {
-      resolvedProviderCode = "gemini";
+      // Look up active configured providers from database
+      const activeProviders = await prisma.aIProvider.findMany({
+        where: {
+          status: "ACTIVE",
+          OR: [
+            { apiKeyEncrypted: { not: null } },
+            { providerCode: "gemini" },
+          ],
+        },
+        orderBy: [{ isDefault: "desc" }, { priority: "asc" }],
+      }).catch(() => []);
+
+      const primary = activeProviders.find((p) => p.isDefault) || activeProviders[0];
+      if (primary) {
+        resolvedProviderCode = primary.providerCode;
+        if (!resolvedModelCode) {
+          resolvedModelCode = primary.defaultModel;
+        }
+      } else if (process.env.GEMINI_API_KEY) {
+        resolvedProviderCode = "gemini";
+      } else if (process.env.OPENAI_API_KEY) {
+        resolvedProviderCode = "openai";
+      } else {
+        throw new Error(
+          "No active AI provider is configured on the platform. Please configure Google Gemini or OpenAI in Super Admin → AI Automation."
+        );
+      }
     }
+
     if (!resolvedModelCode) {
-      resolvedModelCode = resolvedProviderCode.includes("gemini")
+      resolvedModelCode = resolvedProviderCode.toLowerCase().includes("gemini")
         ? (process.env.GEMINI_MODEL || "gemini-3.6-flash")
         : "gpt-4o-mini";
     }
@@ -270,19 +298,41 @@ class AIGateway {
     } catch (execErr) {
       console.warn(`[AIGateway] Primary provider [${resolvedProviderCode}] error (${execErr.message}).`);
       
-      // Check for configured fallback provider
+      // Check for configured fallback provider or automatic active alternative
       let fallbackSucceeded = false;
-      if (
-        routingConfig?.routingEnabled &&
-        routingConfig?.fallbackProviderCode &&
-        routingConfig.fallbackProviderCode.toLowerCase() !== resolvedProviderCode.toLowerCase()
-      ) {
+      let fbProviderCode =
+        routingConfig?.routingEnabled && routingConfig?.fallbackProviderCode
+          ? routingConfig.fallbackProviderCode
+          : null;
+
+      if (!fbProviderCode || fbProviderCode.toLowerCase() === resolvedProviderCode.toLowerCase()) {
+        const altProvider = await prisma.aIProvider.findFirst({
+          where: {
+            status: "ACTIVE",
+            providerCode: { not: { equals: resolvedProviderCode, mode: "insensitive" } },
+            OR: [
+              { apiKeyEncrypted: { not: null } },
+              { providerCode: "gemini" },
+            ],
+          },
+        }).catch(() => null);
+
+        if (altProvider) {
+          fbProviderCode = altProvider.providerCode;
+        }
+      }
+
+      if (fbProviderCode && fbProviderCode.toLowerCase() !== resolvedProviderCode.toLowerCase()) {
         try {
-          console.warn(`[AIGateway] Routing to configured fallback provider [${routingConfig.fallbackProviderCode}]...`);
-          const fbProviderCode = routingConfig.fallbackProviderCode;
-          const fbModelCode = routingConfig.fallbackModel || "gpt-4o-mini";
+          console.warn(`[AIGateway] Routing to fallback provider [${fbProviderCode}]...`);
+          const fbModelCode =
+            routingConfig?.fallbackModel && fbProviderCode === routingConfig?.fallbackProviderCode
+              ? routingConfig.fallbackModel
+              : fbProviderCode.includes("gemini")
+              ? (process.env.GEMINI_MODEL || "gemini-3.6-flash")
+              : "gpt-4o-mini";
           const fallbackResolved = await this.getAdapter(fbProviderCode, fbModelCode);
-          
+
           result = await runAdapter(fallbackResolved.adapter, fbModelCode);
           resolvedProviderCode = fbProviderCode;
           resolvedModelCode = fbModelCode;

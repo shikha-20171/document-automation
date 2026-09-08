@@ -786,7 +786,10 @@ class SuperAdminAiService {
       throw new Error("Provider not found");
     }
 
-    let apiKey = provider.apiKeyEncrypted ? decryptApiKey(provider.apiKeyEncrypted) : null;
+    let apiKey = (options.apiKey && options.apiKey.trim().length > 0 && !options.apiKey.includes("••"))
+      ? options.apiKey.trim()
+      : (provider.apiKeyEncrypted ? decryptApiKey(provider.apiKeyEncrypted) : null);
+
     if (!apiKey) {
       if (provider.providerCode === "gemini" && process.env.GEMINI_API_KEY) {
         apiKey = process.env.GEMINI_API_KEY;

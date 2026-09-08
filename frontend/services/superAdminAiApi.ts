@@ -206,7 +206,7 @@ export const superAdminAiApi = {
     return data;
   },
 
-  testProvider: async (id: string, payload?: { model?: string }): Promise<ApiResponse<TestConnectionResult>> => {
+  testProvider: async (id: string, payload?: { model?: string; apiKey?: string }): Promise<ApiResponse<TestConnectionResult>> => {
     const { data } = await api.post<ApiResponse<TestConnectionResult>>(`/super-admin/ai/providers/${id}/test`, payload || {});
     return data;
   },
@@ -457,6 +457,7 @@ export interface GoogleDocAITestResult {
   errorCategory?: string;
   message: string;
   responseTimeMs: number;
+  latencyMs?: number;
   testedAt: string;
 }
 
