@@ -410,7 +410,7 @@ export default function AIAutomationPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#0b101e] text-slate-900 dark:text-slate-100 p-6 md:p-8 space-y-6">
+    <div className="space-y-6 text-slate-900 dark:text-slate-100">
       {/* Toast Notification */}
       {toastMessage && (
         <div
@@ -436,10 +436,10 @@ export default function AIAutomationPage() {
       )}
 
       {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-[#11192e] p-6 rounded-3xl border border-slate-200 dark:border-slate-800/80 shadow-xs">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-[#11192e] p-6 rounded-3xl border border-slate-200/80 dark:border-[#274690]/30 shadow-xs">
         <div className="space-y-1.5">
           <div className="flex items-center gap-2">
-            <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 border-0 text-xs font-bold px-2.5 py-0.5 rounded-full">
+            <Badge className="bg-[#274690] text-white border-0 text-xs font-bold px-3 py-1 rounded-full shadow-xs shadow-[#274690]/25">
               Platform Configuration Center
             </Badge>
             <span className="text-xs text-slate-400 font-medium flex items-center gap-1">
@@ -448,7 +448,9 @@ export default function AIAutomationPage() {
             </span>
           </div>
           <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-slate-50 flex items-center gap-3">
-            <Cpu className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+            <div className="p-2 rounded-2xl bg-[#274690]/10 dark:bg-[#274690]/25 border border-[#274690]/30 text-[#274690] dark:text-[#8fb1ec] flex items-center justify-center shrink-0">
+              <Cpu className="w-7 h-7" />
+            </div>
             AI & OCR Automation
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 max-w-2xl">
@@ -462,9 +464,9 @@ export default function AIAutomationPage() {
             variant="outline"
             onClick={loadData}
             disabled={loading}
-            className="rounded-2xl border-slate-200 dark:border-slate-700 bg-white dark:bg-[#152038] hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs gap-2 py-2 px-4 shadow-xs"
+            className="rounded-2xl border-slate-200 dark:border-slate-700 bg-white dark:bg-[#152038] hover:bg-[#274690]/5 dark:hover:bg-[#274690]/15 hover:border-[#274690]/40 text-slate-700 dark:text-slate-200 hover:text-[#274690] dark:hover:text-[#8fb1ec] font-bold text-xs gap-2 py-2 px-4 shadow-xs"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-[#274690]" : ""}`} />
             Refresh Status
           </Button>
         </div>
@@ -476,13 +478,15 @@ export default function AIAutomationPage() {
           onClick={() => setActiveSection("ai")}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-black transition-all ${
             activeSection === "ai"
-              ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
-              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/50"
+              ? "bg-[#274690] text-white shadow-md shadow-[#274690]/25"
+              : "text-slate-600 dark:text-slate-400 hover:text-[#274690] dark:hover:text-[#8fb1ec] hover:bg-[#274690]/10"
           }`}
         >
           <Bot className="w-4 h-4" />
           1. AI Automation
-          <span className="ml-1 text-[11px] px-2 py-0.5 rounded-full bg-blue-700/40 text-blue-100">
+          <span className={`ml-1 text-[11px] px-2.5 py-0.5 rounded-full font-bold ${
+            activeSection === "ai" ? "bg-white/20 text-white" : "bg-[#274690]/10 text-[#274690] dark:text-[#8fb1ec]"
+          }`}>
             Gemini & OpenAI
           </span>
         </button>
@@ -491,13 +495,15 @@ export default function AIAutomationPage() {
           onClick={() => setActiveSection("ocr")}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-black transition-all ${
             activeSection === "ocr"
-              ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
-              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/50"
+              ? "bg-[#274690] text-white shadow-md shadow-[#274690]/25"
+              : "text-slate-600 dark:text-slate-400 hover:text-[#274690] dark:hover:text-[#8fb1ec] hover:bg-[#274690]/10"
           }`}
         >
           <ScanText className="w-4 h-4" />
           2. OCR Automation
-          <span className="ml-1 text-[11px] px-2 py-0.5 rounded-full bg-blue-700/40 text-blue-100">
+          <span className={`ml-1 text-[11px] px-2.5 py-0.5 rounded-full font-bold ${
+            activeSection === "ocr" ? "bg-white/20 text-white" : "bg-[#274690]/10 text-[#274690] dark:text-[#8fb1ec]"
+          }`}>
             Tesseract & Google Doc AI
           </span>
         </button>
@@ -508,8 +514,8 @@ export default function AIAutomationPage() {
       {/* ========================================================================= */}
       {activeSection === "ai" && (
         <div className="space-y-6 animate-in fade-in duration-200">
-          <div className="bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/40 rounded-2xl p-4 flex items-start gap-3 text-xs text-blue-900 dark:text-blue-300">
-            <Bot className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+          <div className="bg-[#274690]/5 dark:bg-[#274690]/15 border border-[#274690]/25 dark:border-[#274690]/40 rounded-2xl p-4 flex items-start gap-3 text-xs text-[#274690] dark:text-[#8fb1ec]">
+            <Bot className="w-4 h-4 text-[#274690] dark:text-[#8fb1ec] shrink-0 mt-0.5" />
             <div>
               <span className="font-bold">Automatic AI Router Active:</span> The platform automatically uses the
               active AI engine below for quotation creation, document generation, and AI summaries. If Google Gemini is
@@ -519,12 +525,12 @@ export default function AIAutomationPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* GOOGLE GEMINI CARD */}
-            <Card className="rounded-3xl border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#11192e] shadow-sm overflow-hidden flex flex-col justify-between">
+            <Card className="rounded-3xl border-slate-200/90 dark:border-[#274690]/30 hover:border-[#274690]/50 transition-colors bg-white dark:bg-[#11192e] shadow-xs overflow-hidden flex flex-col justify-between">
               <div>
                 <CardHeader className="border-b border-slate-100 dark:border-slate-800/60 pb-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-sm">
+                      <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-[#274690] to-[#1e3561] flex items-center justify-center text-white shadow-xs shadow-[#274690]/25">
                         <Sparkles className="w-6 h-6" />
                       </div>
                       <div>
@@ -593,9 +599,9 @@ export default function AIAutomationPage() {
                 <Button
                   variant="outline"
                   onClick={() => geminiProvider && handleOpenConfigModal(geminiProvider)}
-                  className="rounded-2xl border-slate-200 dark:border-slate-700 text-xs font-bold py-2.5 px-4"
+                  className="rounded-2xl border-slate-200 dark:border-slate-700 hover:border-[#274690]/40 text-xs font-bold py-2.5 px-4 hover:text-[#274690] dark:hover:text-[#8fb1ec]"
                 >
-                  <Edit2 className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
+                  <Edit2 className="w-3.5 h-3.5 mr-1.5 text-[#274690] dark:text-[#8fb1ec]" />
                   Configure
                 </Button>
 
@@ -604,10 +610,10 @@ export default function AIAutomationPage() {
                     variant="outline"
                     disabled={testingProviderId === geminiProvider?.id}
                     onClick={() => geminiProvider && handleQuickTestAI(geminiProvider)}
-                    className="rounded-2xl border-slate-200 dark:border-slate-700 text-xs font-bold py-2.5 px-4"
+                    className="rounded-2xl border-slate-200 dark:border-slate-700 hover:border-[#274690]/40 text-xs font-bold py-2.5 px-4 hover:text-[#274690] dark:hover:text-[#8fb1ec]"
                   >
                     <RotateCcw
-                      className={`w-3.5 h-3.5 mr-1.5 text-blue-500 ${
+                      className={`w-3.5 h-3.5 mr-1.5 text-[#274690] dark:text-[#8fb1ec] ${
                         testingProviderId === geminiProvider?.id ? "animate-spin" : ""
                       }`}
                     />
@@ -626,7 +632,7 @@ export default function AIAutomationPage() {
                   ) : (
                     <Button
                       onClick={() => geminiProvider && handleToggleActivate(geminiProvider)}
-                      className="rounded-2xl text-xs font-black py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white"
+                      className="rounded-2xl text-xs font-black py-2.5 px-4 bg-[#274690] hover:bg-[#1e3561] text-white shadow-xs shadow-[#274690]/25"
                     >
                       <Check className="w-3.5 h-3.5 mr-1.5" />
                       Connect
@@ -637,7 +643,7 @@ export default function AIAutomationPage() {
             </Card>
 
             {/* OPENAI CARD */}
-            <Card className="rounded-3xl border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#11192e] shadow-sm overflow-hidden flex flex-col justify-between">
+            <Card className="rounded-3xl border-slate-200/90 dark:border-[#274690]/30 hover:border-[#274690]/50 transition-colors bg-white dark:bg-[#11192e] shadow-xs overflow-hidden flex flex-col justify-between">
               <div>
                 <CardHeader className="border-b border-slate-100 dark:border-slate-800/60 pb-4">
                   <div className="flex items-center justify-between">
@@ -711,9 +717,9 @@ export default function AIAutomationPage() {
                 <Button
                   variant="outline"
                   onClick={() => openAiProvider && handleOpenConfigModal(openAiProvider)}
-                  className="rounded-2xl border-slate-200 dark:border-slate-700 text-xs font-bold py-2.5 px-4"
+                  className="rounded-2xl border-slate-200 dark:border-slate-700 hover:border-[#274690]/40 text-xs font-bold py-2.5 px-4 hover:text-[#274690] dark:hover:text-[#8fb1ec]"
                 >
-                  <Edit2 className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
+                  <Edit2 className="w-3.5 h-3.5 mr-1.5 text-[#274690] dark:text-[#8fb1ec]" />
                   Configure
                 </Button>
 
@@ -722,10 +728,10 @@ export default function AIAutomationPage() {
                     variant="outline"
                     disabled={testingProviderId === openAiProvider?.id || !openAiProvider?.hasApiKey}
                     onClick={() => openAiProvider && handleQuickTestAI(openAiProvider)}
-                    className="rounded-2xl border-slate-200 dark:border-slate-700 text-xs font-bold py-2.5 px-4"
+                    className="rounded-2xl border-slate-200 dark:border-slate-700 hover:border-[#274690]/40 text-xs font-bold py-2.5 px-4 hover:text-[#274690] dark:hover:text-[#8fb1ec]"
                   >
                     <RotateCcw
-                      className={`w-3.5 h-3.5 mr-1.5 text-blue-500 ${
+                      className={`w-3.5 h-3.5 mr-1.5 text-[#274690] dark:text-[#8fb1ec] ${
                         testingProviderId === openAiProvider?.id ? "animate-spin" : ""
                       }`}
                     />
@@ -744,7 +750,7 @@ export default function AIAutomationPage() {
                   ) : (
                     <Button
                       onClick={() => openAiProvider && handleOpenConfigModal(openAiProvider)}
-                      className="rounded-2xl text-xs font-black py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white"
+                      className="rounded-2xl text-xs font-black py-2.5 px-4 bg-[#274690] hover:bg-[#1e3561] text-white shadow-xs shadow-[#274690]/25"
                     >
                       <Key className="w-3.5 h-3.5 mr-1.5" />
                       Connect
@@ -762,8 +768,8 @@ export default function AIAutomationPage() {
       {/* ========================================================================= */}
       {activeSection === "ocr" && (
         <div className="space-y-6 animate-in fade-in duration-200">
-          <div className="bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 rounded-2xl p-4 flex items-start gap-3 text-xs text-emerald-900 dark:text-emerald-300">
-            <ScanText className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+          <div className="bg-[#274690]/5 dark:bg-[#274690]/15 border border-[#274690]/25 dark:border-[#274690]/40 rounded-2xl p-4 flex items-start gap-3 text-xs text-[#274690] dark:text-[#8fb1ec]">
+            <ScanText className="w-4 h-4 text-[#274690] dark:text-[#8fb1ec] shrink-0 mt-0.5" />
             <div>
               <span className="font-bold">Zero-Configuration OCR Active:</span> Local Tesseract OCR is auto-detected
               and running natively on the backend server. Tenant users never choose OCR settings — uploaded and scanned
@@ -773,12 +779,12 @@ export default function AIAutomationPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* TESSERACT OCR CARD */}
-            <Card className="rounded-3xl border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#11192e] shadow-sm overflow-hidden flex flex-col justify-between">
+            <Card className="rounded-3xl border-slate-200/90 dark:border-[#274690]/30 hover:border-[#274690]/50 transition-colors bg-white dark:bg-[#11192e] shadow-xs overflow-hidden flex flex-col justify-between">
               <div>
                 <CardHeader className="border-b border-slate-100 dark:border-slate-800/60 pb-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center text-white shadow-sm">
+                      <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-[#274690] to-[#3a5eb0] flex items-center justify-center text-white shadow-xs shadow-[#274690]/25">
                         <HardDrive className="w-6 h-6" />
                       </div>
                       <div>
@@ -840,16 +846,16 @@ export default function AIAutomationPage() {
                 <Button
                   onClick={handleTestTesseract}
                   disabled={tesseractTesting}
-                  className="rounded-2xl text-xs font-black py-2.5 px-5 bg-blue-600 hover:bg-blue-700 text-white"
+                  className="rounded-2xl text-xs font-black py-2.5 px-5 bg-[#274690] hover:bg-[#1e3561] text-white shadow-xs shadow-[#274690]/25"
                 >
-                  <RotateCcw className={`w-3.5 h-3.5 mr-1.5 ${tesseractTesting ? "animate-spin" : ""}`} />
+                  <RotateCcw className={`w-3.5 h-3.5 mr-1.5 ${tesseractTesting ? "animate-spin text-[#274690]" : ""}`} />
                   Test Tesseract OCR
                 </Button>
               </div>
             </Card>
 
             {/* GOOGLE CLOUD DOCUMENT AI CARD */}
-            <Card className="rounded-3xl border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#11192e] shadow-sm overflow-hidden flex flex-col justify-between">
+            <Card className="rounded-3xl border-slate-200/90 dark:border-[#274690]/30 hover:border-[#274690]/50 transition-colors bg-white dark:bg-[#11192e] shadow-xs overflow-hidden flex flex-col justify-between">
               <div>
                 <CardHeader className="border-b border-slate-100 dark:border-slate-800/60 pb-4">
                   <div className="flex items-center justify-between">
@@ -918,9 +924,9 @@ export default function AIAutomationPage() {
                 <Button
                   variant="outline"
                   onClick={handleOpenGoogleDocAiModal}
-                  className="rounded-2xl border-slate-200 dark:border-slate-700 text-xs font-bold py-2.5 px-4"
+                  className="rounded-2xl border-slate-200 dark:border-slate-700 hover:border-[#274690]/40 text-xs font-bold py-2.5 px-4 hover:text-[#274690] dark:hover:text-[#8fb1ec]"
                 >
-                  <Edit2 className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
+                  <Edit2 className="w-3.5 h-3.5 mr-1.5 text-[#274690] dark:text-[#8fb1ec]" />
                   Configure
                 </Button>
 
@@ -929,9 +935,9 @@ export default function AIAutomationPage() {
                     variant="outline"
                     disabled={!ocrConfig?.googleDocumentAI?.isConfigured}
                     onClick={handleTestGoogleDocAI}
-                    className="rounded-2xl border-slate-200 dark:border-slate-700 text-xs font-bold py-2.5 px-4"
+                    className="rounded-2xl border-slate-200 dark:border-slate-700 hover:border-[#274690]/40 text-xs font-bold py-2.5 px-4 hover:text-[#274690] dark:hover:text-[#8fb1ec]"
                   >
-                    <RotateCcw className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
+                    <RotateCcw className="w-3.5 h-3.5 mr-1.5 text-[#274690] dark:text-[#8fb1ec]" />
                     Test Connection
                   </Button>
 
@@ -947,7 +953,7 @@ export default function AIAutomationPage() {
                   ) : (
                     <Button
                       onClick={handleOpenGoogleDocAiModal}
-                      className="rounded-2xl text-xs font-black py-2.5 px-4 bg-amber-600 hover:bg-amber-700 text-white"
+                      className="rounded-2xl text-xs font-black py-2.5 px-4 bg-[#274690] hover:bg-[#1e3561] text-white shadow-xs shadow-[#274690]/25"
                     >
                       <Key className="w-3.5 h-3.5 mr-1.5" />
                       Connect
@@ -965,10 +971,10 @@ export default function AIAutomationPage() {
       {/* ========================================================================= */}
       {editingProvider && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="w-full max-w-lg bg-white dark:bg-[#11192e] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150">
+          <div className="w-full max-w-lg bg-white dark:bg-[#11192e] rounded-3xl border border-slate-200/90 dark:border-[#274690]/30 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800/80">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-2xl bg-[#274690]/10 dark:bg-[#274690]/25 text-[#274690] dark:text-[#8fb1ec] flex items-center justify-center">
                   <Key className="w-5 h-5" />
                 </div>
                 <div>
@@ -1007,7 +1013,7 @@ export default function AIAutomationPage() {
                       variant="outline"
                       size="sm"
                       onClick={() => setIsReplacingKey(true)}
-                      className="rounded-xl text-xs font-bold h-8 border-slate-300 dark:border-slate-700"
+                      className="rounded-xl text-xs font-bold h-8 border-slate-300 dark:border-slate-700 hover:border-[#274690]/40 hover:text-[#274690]"
                     >
                       Replace Key
                     </Button>
@@ -1023,7 +1029,7 @@ export default function AIAutomationPage() {
                           ? "AIzaSy..."
                           : "sk-proj-..."
                       }
-                      className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#152038] text-slate-900 dark:text-slate-100 text-sm font-mono focus:outline-hidden focus:ring-2 focus:ring-blue-500 pr-11"
+                      className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#152038] text-slate-900 dark:text-slate-100 text-sm font-mono focus:outline-hidden focus:ring-2 focus:ring-[#274690] pr-11"
                     />
                     <button
                       type="button"
@@ -1044,7 +1050,7 @@ export default function AIAutomationPage() {
                 <select
                   value={modalModel}
                   onChange={(e) => setModalModel(e.target.value)}
-                  className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#152038] text-slate-900 dark:text-slate-100 text-sm font-bold focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#152038] text-slate-900 dark:text-slate-100 text-sm font-bold focus:outline-hidden focus:ring-2 focus:ring-[#274690]"
                 >
                   {(editingProvider.providerCode === "gemini"
                     ? SUPPORTED_GEMINI_MODELS
@@ -1068,7 +1074,7 @@ export default function AIAutomationPage() {
                     value={modalBaseUrl}
                     onChange={(e) => setModalBaseUrl(e.target.value)}
                     placeholder="https://api.openai.com/v1"
-                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#152038] text-slate-900 dark:text-slate-100 text-sm font-mono focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#152038] text-slate-900 dark:text-slate-100 text-sm font-mono focus:outline-hidden focus:ring-2 focus:ring-[#274690]"
                   />
                 </div>
               )}
@@ -1087,7 +1093,7 @@ export default function AIAutomationPage() {
                   type="checkbox"
                   checked={modalIsActive}
                   onChange={(e) => setModalIsActive(e.target.checked)}
-                  className="w-5 h-5 accent-blue-600 rounded cursor-pointer"
+                  className="w-5 h-5 accent-[#274690] rounded cursor-pointer"
                 />
               </div>
 
@@ -1119,9 +1125,9 @@ export default function AIAutomationPage() {
                 variant="outline"
                 disabled={modalTesting || modalSaving}
                 onClick={handleTestInModal}
-                className="rounded-2xl text-xs font-bold py-2.5 px-4"
+                className="rounded-2xl text-xs font-bold py-2.5 px-4 hover:border-[#274690]/40 hover:text-[#274690]"
               >
-                <RotateCcw className={`w-3.5 h-3.5 mr-1.5 ${modalTesting ? "animate-spin" : ""}`} />
+                <RotateCcw className={`w-3.5 h-3.5 mr-1.5 ${modalTesting ? "animate-spin text-[#274690]" : ""}`} />
                 Test Connection
               </Button>
 
@@ -1138,7 +1144,7 @@ export default function AIAutomationPage() {
                   type="button"
                   onClick={handleConnectAndSaveAI}
                   disabled={modalSaving || modalTesting}
-                  className="rounded-2xl text-xs font-black py-2.5 px-5 bg-blue-600 hover:bg-blue-700 text-white"
+                  className="rounded-2xl text-xs font-black py-2.5 px-5 bg-[#274690] hover:bg-[#1e3561] text-white shadow-xs shadow-[#274690]/25"
                 >
                   {modalSaving ? "Connecting..." : "Connect & Save"}
                 </Button>
@@ -1153,7 +1159,7 @@ export default function AIAutomationPage() {
       {/* ========================================================================= */}
       {showGoogleDocAiModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="w-full max-w-xl bg-white dark:bg-[#11192e] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150">
+          <div className="w-full max-w-xl bg-white dark:bg-[#11192e] rounded-3xl border border-slate-200/90 dark:border-[#274690]/30 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800/80">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-900/30 text-amber-600 flex items-center justify-center">
@@ -1187,7 +1193,7 @@ export default function AIAutomationPage() {
                     value={docAiProjectId}
                     onChange={(e) => setDocAiProjectId(e.target.value)}
                     placeholder="my-document-ai-project"
-                    className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#152038] text-sm font-medium focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#152038] text-sm font-medium focus:outline-hidden focus:ring-2 focus:ring-[#274690]"
                   />
                 </div>
 
@@ -1198,7 +1204,7 @@ export default function AIAutomationPage() {
                   <select
                     value={docAiLocation}
                     onChange={(e) => setDocAiLocation(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#152038] text-sm font-bold focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#152038] text-sm font-bold focus:outline-hidden focus:ring-2 focus:ring-[#274690]"
                   >
                     {SUPPORTED_DOC_AI_LOCATIONS.map((loc) => (
                       <option key={loc.value} value={loc.value}>
@@ -1219,7 +1225,7 @@ export default function AIAutomationPage() {
                     value={docAiProcessorId}
                     onChange={(e) => setDocAiProcessorId(e.target.value)}
                     placeholder="e.g. 7a8b9c0d1e2f3a4b"
-                    className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#152038] text-sm font-mono focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#152038] text-sm font-mono focus:outline-hidden focus:ring-2 focus:ring-[#274690]"
                   />
                 </div>
 
@@ -1230,7 +1236,7 @@ export default function AIAutomationPage() {
                   <select
                     value={docAiProcessorType}
                     onChange={(e) => setDocAiProcessorType(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#152038] text-sm font-bold focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#152038] text-sm font-bold focus:outline-hidden focus:ring-2 focus:ring-[#274690]"
                   >
                     {PROCESSOR_TYPES.map((pt) => (
                       <option key={pt.value} value={pt.value}>
@@ -1257,7 +1263,7 @@ export default function AIAutomationPage() {
                   value={docAiCredentialsJson}
                   onChange={(e) => setDocAiCredentialsJson(e.target.value)}
                   placeholder='{"type": "service_account", "project_id": "...", "private_key": "..."}'
-                  className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#152038] text-xs font-mono focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#152038] text-xs font-mono focus:outline-hidden focus:ring-2 focus:ring-[#274690]"
                 />
                 <span className="text-[11px] text-slate-400 block">
                   Paste the Service Account JSON key. Credentials are encrypted at rest with AES-256-GCM.
@@ -1292,9 +1298,9 @@ export default function AIAutomationPage() {
                 variant="outline"
                 disabled={docAiTesting || docAiSaving}
                 onClick={handleTestGoogleDocAI}
-                className="rounded-2xl text-xs font-bold py-2.5 px-4"
+                className="rounded-2xl text-xs font-bold py-2.5 px-4 hover:border-[#274690]/40 hover:text-[#274690]"
               >
-                <RotateCcw className={`w-3.5 h-3.5 mr-1.5 ${docAiTesting ? "animate-spin" : ""}`} />
+                <RotateCcw className={`w-3.5 h-3.5 mr-1.5 ${docAiTesting ? "animate-spin text-[#274690]" : ""}`} />
                 Test Connection
               </Button>
 
@@ -1311,7 +1317,7 @@ export default function AIAutomationPage() {
                   type="button"
                   onClick={handleConnectAndSaveGoogleDocAI}
                   disabled={docAiSaving || docAiTesting}
-                  className="rounded-2xl text-xs font-black py-2.5 px-5 bg-blue-600 hover:bg-blue-700 text-white"
+                  className="rounded-2xl text-xs font-black py-2.5 px-5 bg-[#274690] hover:bg-[#1e3561] text-white shadow-xs shadow-[#274690]/25"
                 >
                   {docAiSaving ? "Connecting..." : "Connect & Save"}
                 </Button>
@@ -1326,10 +1332,10 @@ export default function AIAutomationPage() {
       {/* ========================================================================= */}
       {showTesseractModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="w-full max-w-md bg-white dark:bg-[#11192e] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150">
+          <div className="w-full max-w-md bg-white dark:bg-[#11192e] rounded-3xl border border-slate-200/90 dark:border-[#274690]/30 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800/80">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-2xl bg-[#274690]/10 dark:bg-[#274690]/25 text-[#274690] dark:text-[#8fb1ec] flex items-center justify-center">
                   <ScanText className="w-5 h-5" />
                 </div>
                 <div>
@@ -1352,7 +1358,7 @@ export default function AIAutomationPage() {
             <div className="p-6 space-y-4">
               {tesseractTesting ? (
                 <div className="py-8 flex flex-col items-center justify-center space-y-3">
-                  <RefreshCw className="w-8 h-8 text-blue-500 animate-spin" />
+                  <RefreshCw className="w-8 h-8 text-[#274690] animate-spin" />
                   <span className="text-xs font-bold text-slate-500">
                     Executing test image through /opt/homebrew/bin/tesseract...
                   </span>
@@ -1410,7 +1416,7 @@ export default function AIAutomationPage() {
             <div className="p-6 border-t border-slate-100 dark:border-slate-800/80 flex justify-end">
               <Button
                 onClick={() => setShowTesseractModal(false)}
-                className="rounded-2xl text-xs font-bold py-2 px-5"
+                className="rounded-2xl text-xs font-bold py-2 px-5 bg-[#274690] hover:bg-[#1e3561] text-white"
               >
                 Close
               </Button>
