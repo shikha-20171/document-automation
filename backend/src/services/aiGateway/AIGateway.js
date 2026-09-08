@@ -222,108 +222,175 @@ class AIGateway {
     // 1. Check Organisation Entitlements & Quotas
     await QuotaService.checkAndIncrementAI(orgIdNum, userId);
 
-    // 2. Resolve Provider & Model
-    const resolvedProviderCode = provider || "gemini";
-    const resolvedModelCode = model || (resolvedProviderCode.includes("gemini") ? (process.env.GEMINI_MODEL || "gemini-3.6-flash") : "gpt-4o-mini");
+    // 2. Dynamic Routing Lookup from Database
+    let routingConfig = await prisma.aIRoutingConfig.findFirst().catch(() => null);
+    let resolvedProviderCode = provider;
+    let resolvedModelCode = model;
+
+    if (!resolvedProviderCode && routingConfig?.routingEnabled && routingConfig?.primaryProviderCode) {
+      resolvedProviderCode = routingConfig.primaryProviderCode;
+      if (!resolvedModelCode) {
+        resolvedModelCode = routingConfig.primaryModel;
+      }
+    }
+    if (!resolvedProviderCode) {
+      resolvedProviderCode = "gemini";
+    }
+    if (!resolvedModelCode) {
+      resolvedModelCode = resolvedProviderCode.includes("gemini")
+        ? (process.env.GEMINI_MODEL || "gemini-3.6-flash")
+        : "gpt-4o-mini";
+    }
 
     // 3. Obtain Adapter
-    const { adapter, providerRecord } = await this.getAdapter(resolvedProviderCode, resolvedModelCode);
+    let { adapter, providerRecord } = await this.getAdapter(resolvedProviderCode, resolvedModelCode);
 
-    // 4. Execute with Timing and Logging
+    // 4. Execute with Timing, Routing Fallback, and Logging
     const startTime = Date.now();
     let result = null;
     let requestStatus = "SUCCESS";
     let errorMessage = null;
 
-    try {
-      if (operation === "summarize" && typeof adapter.summarize === "function") {
-        result = await adapter.summarize({ ...params, model: resolvedModelCode });
-      } else if (operation === "classify" && typeof adapter.classify === "function") {
-        result = await adapter.classify({ ...params, model: resolvedModelCode });
-      } else if (operation === "extract" && typeof adapter.extract === "function") {
-        result = await adapter.extract({ ...params, model: resolvedModelCode });
-      } else if (operation === "generateStructuredOutput" && typeof adapter.generateStructuredOutput === "function") {
-        result = await adapter.generateStructuredOutput({ ...params, model: resolvedModelCode });
+    const runAdapter = async (targetAdapter, targetModel) => {
+      if (operation === "summarize" && typeof targetAdapter.summarize === "function") {
+        return await targetAdapter.summarize({ ...params, model: targetModel });
+      } else if (operation === "classify" && typeof targetAdapter.classify === "function") {
+        return await targetAdapter.classify({ ...params, model: targetModel });
+      } else if (operation === "extract" && typeof targetAdapter.extract === "function") {
+        return await targetAdapter.extract({ ...params, model: targetModel });
+      } else if (operation === "generateStructuredOutput" && typeof targetAdapter.generateStructuredOutput === "function") {
+        return await targetAdapter.generateStructuredOutput({ ...params, model: targetModel });
       } else {
-        result = await adapter.generateText({ ...params, model: resolvedModelCode });
+        return await targetAdapter.generateText({ ...params, model: targetModel });
       }
-    } catch (execErr) {
-      console.warn(`[AIGateway] Provider [${resolvedProviderCode}] error (${execErr.message}). Generating resilient enterprise fallback response...`);
-      requestStatus = "FALLBACK";
-      errorMessage = execErr.message;
+    };
 
-      // Intelligent Enterprise Resilient Fallback Generator
-      if (operation === "summarize") {
-        const docText = params?.text || "";
-        const lines = docText.split("\n").filter((l) => l.trim().length > 0);
-        result = {
-          text: `### EXECUTIVE SUMMARY\nThis document outlines essential operational parameters, contractual responsibilities, and procedural benchmarks.\n\n### KEY TAKEAWAYS\n- Key objectives and functional scope are clearly established.\n- Complies with current organizational governance and data privacy frameworks.\n- Identified ${lines.length} structural elements for automated review.\n\n### ACTION ITEMS\n- [ ] Department head review & sign-off.\n- [ ] Archive copy to central repository.`,
-          totalTokens: 210,
-          inputTokens: 120,
-          outputTokens: 90,
-        };
-      } else if (operation === "classify") {
-        result = {
-          data: {
-            documentType: "Operational / Business Document",
-            category: "General Corporate",
-            confidence: 0.94,
-            keywords: ["Business", "Policy", "Enterprise", "Workflow"],
-          },
-          totalTokens: 140,
-        };
-      } else if (operation === "extract") {
-        result = {
-          data: {
-            documentType: "Standard Enterprise Record",
-            extractedFields: {
-              status: "Validated",
-              processingEngine: "DocuCore AI Engine",
-              confidence: "0.95",
+    try {
+      result = await runAdapter(adapter, resolvedModelCode);
+    } catch (execErr) {
+      console.warn(`[AIGateway] Primary provider [${resolvedProviderCode}] error (${execErr.message}).`);
+      
+      // Check for configured fallback provider
+      let fallbackSucceeded = false;
+      if (
+        routingConfig?.routingEnabled &&
+        routingConfig?.fallbackProviderCode &&
+        routingConfig.fallbackProviderCode.toLowerCase() !== resolvedProviderCode.toLowerCase()
+      ) {
+        try {
+          console.warn(`[AIGateway] Routing to configured fallback provider [${routingConfig.fallbackProviderCode}]...`);
+          const fbProviderCode = routingConfig.fallbackProviderCode;
+          const fbModelCode = routingConfig.fallbackModel || "gpt-4o-mini";
+          const fallbackResolved = await this.getAdapter(fbProviderCode, fbModelCode);
+          
+          result = await runAdapter(fallbackResolved.adapter, fbModelCode);
+          resolvedProviderCode = fbProviderCode;
+          resolvedModelCode = fbModelCode;
+          adapter = fallbackResolved.adapter;
+          providerRecord = fallbackResolved.providerRecord;
+          fallbackSucceeded = true;
+          requestStatus = "SUCCESS";
+          console.log(`[AIGateway] Fallback provider [${fbProviderCode}] succeeded!`);
+        } catch (fbErr) {
+          console.warn(`[AIGateway] Fallback provider failed: ${fbErr.message}`);
+          errorMessage = `Primary [${resolvedProviderCode}]: ${execErr.message} | Fallback: ${fbErr.message}`;
+        }
+      }
+
+      if (!fallbackSucceeded) {
+        requestStatus = "FAILED";
+        errorMessage = execErr.message;
+
+        // Intelligent Enterprise Resilient Fallback Generator
+        if (operation === "summarize") {
+          const docText = params?.text || "";
+          const lines = docText.split("\n").filter((l) => l.trim().length > 0);
+          result = {
+            text: `### EXECUTIVE SUMMARY\nThis document outlines essential operational parameters, contractual responsibilities, and procedural benchmarks.\n\n### KEY TAKEAWAYS\n- Key objectives and functional scope are clearly established.\n- Complies with current organizational governance and data privacy frameworks.\n- Identified ${lines.length} structural elements for automated review.\n\n### ACTION ITEMS\n- [ ] Department head review & sign-off.\n- [ ] Archive copy to central repository.`,
+            totalTokens: 210,
+            inputTokens: 120,
+            outputTokens: 90,
+          };
+        } else if (operation === "classify") {
+          result = {
+            data: {
+              documentType: "Operational / Business Document",
+              category: "General Corporate",
+              confidence: 0.94,
+              keywords: ["Business", "Policy", "Enterprise", "Workflow"],
             },
-          },
-          totalTokens: 160,
-        };
-      } else if (operation === "generateStructuredOutput") {
-        result = {
-          data: {
-            status: "success",
-            result: "Structured content parsed and aligned with enterprise schema.",
-            fields: params?.schema || {},
-          },
-          totalTokens: 180,
-        };
-      } else {
-        const promptText = params?.prompt || "";
-        result = {
-          text: `# Document Automation Analysis\n\n**Generated:** ${new Date().toLocaleDateString()}\n**Status:** Processed\n\n## Overview\nBased on the request: "${promptText.slice(0, 80)}..."\n\n### Specifications\n1. **Standard Compliance:** All operational guidelines conform to enterprise standards.\n2. **Execution Steps:** Verify prerequisites, complete necessary validation checks, and route for required approvals.\n\n> Note: Review document details before finalizing distribution.`,
-          totalTokens: 250,
-          inputTokens: 100,
-          outputTokens: 150,
-        };
+            totalTokens: 140,
+          };
+        } else if (operation === "extract") {
+          result = {
+            data: {
+              documentType: "Standard Enterprise Record",
+              extractedFields: {
+                status: "Validated",
+                processingEngine: "DocuCore AI Engine",
+                confidence: "0.95",
+              },
+            },
+            totalTokens: 160,
+          };
+        } else if (operation === "generateStructuredOutput") {
+          result = {
+            data: {
+              status: "success",
+              result: "Structured content parsed and aligned with enterprise schema.",
+              fields: params?.schema || {},
+            },
+            totalTokens: 180,
+          };
+        } else {
+          const promptText = params?.prompt || "";
+          result = {
+            text: `# Document Automation Analysis\n\n**Generated:** ${new Date().toLocaleDateString()}\n**Status:** Processed\n\n## Overview\nBased on the request: "${promptText.slice(0, 80)}..."\n\n### Specifications\n1. **Standard Compliance:** All operational guidelines conform to enterprise standards.\n2. **Execution Steps:** Verify prerequisites, complete necessary validation checks, and route for required approvals.\n\n> Note: Review document details before finalizing distribution.`,
+            totalTokens: 250,
+            inputTokens: 100,
+            outputTokens: 150,
+          };
+        }
       }
     } finally {
       const latencyMs = Date.now() - startTime;
       const totalTokens = result?.totalTokens || 150;
 
-      // Asynchronously log AI request
+      // Log AI request into aILog table
       try {
-        await prisma.aILog.create({
-          data: {
-            organisationId: orgIdStr,
-            userId: userId ? String(userId) : null,
-            providerId: providerRecord.id || "provider-default",
-            modelId: providerRecord.models?.[0]?.id || "model-default",
-            requestType: operation,
-            requestStatus: requestStatus === "SUCCESS" ? "SUCCESS" : "FAILED",
-            promptTokens: result?.inputTokens || 50,
-            completionTokens: result?.outputTokens || 100,
-            totalTokens,
-            latencyMs,
-            cost: (totalTokens * 0.00005),
-            errorMessage,
+        const logCode = `LOG-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+        
+        let dbProvider = await prisma.aIProvider.findFirst({
+          where: {
+            OR: [
+              { id: providerRecord?.id || "" },
+              { providerCode: { equals: resolvedProviderCode, mode: "insensitive" } },
+            ],
           },
+          include: { models: true },
         }).catch(() => null);
+
+        let dbModel = dbProvider?.models?.find((m) => m.modelCode === resolvedModelCode) || dbProvider?.models?.[0];
+
+        if (dbProvider && dbModel) {
+          await prisma.aILog.create({
+            data: {
+              logCode,
+              organisationId: orgIdStr,
+              userId: userId ? String(userId) : null,
+              providerId: dbProvider.id,
+              modelId: dbModel.id,
+              promptType: feature || operation || "DOCUMENT_AI",
+              requestStatus: requestStatus === "SUCCESS" ? "SUCCESS" : "FAILED",
+              promptTokens: result?.inputTokens || 50,
+              completionTokens: result?.outputTokens || 100,
+              totalTokens,
+              latencyMs,
+              estimatedCost: Number((totalTokens * 0.00004).toFixed(4)),
+              errorMessage: errorMessage ? errorMessage.slice(0, 500) : null,
+            },
+          }).catch((err) => console.warn("[AIGateway] Logging notice:", err.message));
+        }
       } catch (logErr) {
         // ignore logging error
       }

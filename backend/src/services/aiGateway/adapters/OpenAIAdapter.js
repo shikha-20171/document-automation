@@ -31,11 +31,54 @@ class OpenAIAdapter extends AIProviderAdapter {
     }
   }
 
+  _categorizeError(message = "", status = 0) {
+    const lower = String(message).toLowerCase();
+    if (
+      lower.includes("invalid api key") ||
+      lower.includes("incorrect api key") ||
+      lower.includes("invalid_api_key") ||
+      lower.includes("invalid authentication") ||
+      status === 401
+    ) {
+      return "Invalid API key";
+    }
+    if (lower.includes("permission") || lower.includes("unauthorized") || lower.includes("organization") || status === 403) {
+      return "Authentication failed";
+    }
+    if (lower.includes("model") && (lower.includes("not found") || lower.includes("does not exist") || lower.includes("no access") || status === 404)) {
+      return "Model unavailable";
+    }
+    if (lower.includes("quota") || lower.includes("insufficient_quota") || lower.includes("rate limit") || status === 429) {
+      return "Rate limit exceeded";
+    }
+    if (lower.includes("econnrefused") || lower.includes("etimedout") || lower.includes("enotfound") || lower.includes("unavailable") || status >= 500) {
+      return "Provider unavailable";
+    }
+    if (lower.includes("invalid") || lower.includes("bad request") || status === 400) {
+      return "Invalid configuration";
+    }
+    return "Provider unavailable";
+  }
+
   async testConnection(params = {}) {
     const start = Date.now();
-    const model = params.model || this.defaultModel;
+    const model = params.model || this.defaultModel || "gpt-4o-mini";
+
+    if (!this.apiKey) {
+      return {
+        success: false,
+        status: "failed",
+        provider: "OpenAI",
+        modelTested: model,
+        responseTimeMs: 0,
+        testedAt: new Date().toISOString(),
+        errorCategory: "Invalid API key",
+        message: "Missing API Key. Please configure a valid API key.",
+      };
+    }
+
     try {
-      // Direct models listing endpoint or mini ping
+      // Test lightweight connection against OpenAI models list
       const res = await this._fetchWithTimeout(`${this.baseUrl}/models`, {
         method: "GET",
       });
@@ -44,32 +87,74 @@ class OpenAIAdapter extends AIProviderAdapter {
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        const msg = errorData.error?.message || `HTTP ${res.status} ${res.statusText}`;
+        const rawMsg = errorData.error?.message || `HTTP ${res.status} ${res.statusText}`;
+        const safeCategory = this._categorizeError(rawMsg, res.status);
         return {
           success: false,
           status: "failed",
-          latencyMs,
-          message: `OpenAI authentication failed: ${msg}`,
+          provider: "OpenAI",
+          modelTested: model,
+          responseTimeMs: latencyMs,
+          testedAt: new Date().toISOString(),
+          errorCategory: safeCategory,
+          message: `${safeCategory}: ${rawMsg}`,
         };
       }
 
       return {
         success: true,
         status: "connected",
-        provider: "openai",
-        latencyMs,
-        testedModel: model,
-        message: `Successfully connected to OpenAI (${latencyMs}ms)`,
+        provider: "OpenAI",
+        modelTested: model,
+        responseTimeMs: latencyMs,
         testedAt: new Date().toISOString(),
+        message: "Connection successful",
       };
     } catch (err) {
+      const latencyMs = Date.now() - start;
+      const safeCategory = this._categorizeError(err.message);
       return {
         success: false,
         status: "failed",
-        latencyMs: Date.now() - start,
-        message: `OpenAI connection failed: ${err.message}`,
+        provider: "OpenAI",
+        modelTested: model,
+        responseTimeMs: latencyMs,
+        testedAt: new Date().toISOString(),
+        errorCategory: safeCategory,
+        message: `${safeCategory}: ${err.message}`,
       };
     }
+  }
+
+  async fetchAvailableModels() {
+    if (!this.apiKey) {
+      throw new Error("Missing API Key. Please configure an API key first.");
+    }
+    const res = await this._fetchWithTimeout(`${this.baseUrl}/models`, { method: "GET" });
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      const rawMsg = errorData.error?.message || `HTTP ${res.status} ${res.statusText}`;
+      throw new Error(this._categorizeError(rawMsg, res.status) + ": " + rawMsg);
+    }
+    const data = await res.json();
+    const allowedPrefixes = ["gpt-4", "gpt-5", "o1", "o3", "chatgpt", "gpt-3.5"];
+    const models = (data.data || [])
+      .filter((m) => allowedPrefixes.some((p) => m.id.toLowerCase().startsWith(p)))
+      .sort((a, b) => (b.created || 0) - (a.created || 0))
+      .slice(0, 20)
+      .map((m) => {
+        const isVision = m.id.includes("vision") || m.id.includes("4o") || m.id.includes("gpt-5");
+        return {
+          modelCode: m.id,
+          modelName: m.id.toUpperCase(),
+          description: `OpenAI ${m.id} model`,
+          contextWindow: m.id.includes("mini") ? 128000 : 128000,
+          maxOutputTokens: 16384,
+          supportsVision: isVision,
+          status: "ACTIVE",
+        };
+      });
+    return models;
   }
 
   async generateText({ prompt, systemPrompt, model, temperature = 0.3, maxTokens = 2048 }) {

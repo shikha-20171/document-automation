@@ -2,8 +2,9 @@ const crypto = require("crypto");
 
 const ALGORITHM = "aes-256-gcm";
 
-// Deterministic 32-byte key derived from .env
+// Deterministic 32-byte master encryption key derived from environment variables
 const rawKey =
+  process.env.AI_CREDENTIAL_ENCRYPTION_KEY ||
   process.env.ENCRYPTION_KEY ||
   process.env.ENCRYPTION_SECRET ||
   "c396aeb3c12afcade81f5ba7e5fda520476f78f5b236356f2c362ee9b179bafc";
@@ -28,9 +29,9 @@ function encryptApiKey(plaintext) {
 }
 
 /**
- * Decrypt encrypted API key in-memory
+ * Decrypt encrypted API key securely in-memory
  * @param {string} stored
- * @returns {string|null} Plaintext key 
+ * @returns {string|null} Plaintext key
  */
 function decryptApiKey(stored) {
   if (!stored || typeof stored !== "string") return null;
@@ -51,7 +52,8 @@ function decryptApiKey(stored) {
 }
 
 /**
- * Mask API key for safe UI display (e.g. sk-proj-••••••••••••4f8A)
+ * Mask API key for safe UI display (e.g. ••••••••••••••••)
+ * Never exposes the plaintext key
  * @param {string} stored
  * @returns {string}
  */
@@ -59,12 +61,23 @@ function maskApiKey(stored) {
   if (!stored) return "Not configured";
   const plain = decryptApiKey(stored);
   if (!plain) return "Not configured";
-  if (plain.length <= 8) return "••••••••";
-  return plain.substring(0, 4) + "••••••••••••" + plain.slice(-4);
+  return "••••••••••••••••";
+}
+
+/**
+ * Check if a valid encrypted API key is configured
+ * @param {string} stored
+ * @returns {boolean}
+ */
+function hasValidApiKey(stored) {
+  if (!stored) return false;
+  const plain = decryptApiKey(stored);
+  return Boolean(plain && plain.length > 0);
 }
 
 module.exports = {
   encryptApiKey,
   decryptApiKey,
   maskApiKey,
+  hasValidApiKey,
 };

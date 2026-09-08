@@ -1,50 +1,41 @@
 const AIProviderAdapter = require("./AIProviderAdapter");
 
 const GEMINI_MODELS_POOL = [
-  "gemini-flash-lite-latest",
+  "gemini-3.6-flash",
+  "gemini-3.5-flash",
   "gemini-3.5-flash-lite",
   "gemini-3.1-flash-lite",
   "gemini-flash-latest",
-  "gemini-3.6-flash",
 ];
 
 class GeminiAdapter extends AIProviderAdapter {
   constructor(config = {}) {
     super(config);
     this.baseUrl = config.baseUrl || "https://generativelanguage.googleapis.com/v1beta";
-    this.defaultModel = config.defaultModel || process.env.GEMINI_MODEL || "gemini-flash-lite-latest";
+    this.defaultModel = config.defaultModel || process.env.GEMINI_MODEL || "gemini-3.6-flash";
     this.apiKey = config.apiKey || process.env.GEMINI_API_KEY;
   }
 
   _normalizeModel(modelName) {
-    if (!modelName) return "gemini-flash-lite-latest";
+    if (!modelName) return "gemini-3.6-flash";
     const clean = modelName.replace(/^models\//, "").trim();
-    if (
-      clean === "gemini-1.5-flash" ||
-      clean === "gemini-2.0-flash" ||
-      clean === "gemini-2.5-flash" ||
-      clean === "gemini-flash" ||
-      clean === "default" ||
-      clean === "gpt-4o" ||
-      clean === "gpt-4o-mini"
-    ) {
-      return "gemini-flash-lite-latest";
+    if (clean === "default" || clean === "gemini-2.5-flash" || clean === "gemini-flash-lite-latest") {
+      return "gemini-3.6-flash";
     }
     return clean;
   }
 
-  _cleanBase64(b64String) {
-    if (!b64String) return null;
-    return b64String.replace(/^data:[^;]+;base64,/, "").trim();
+  _cleanBase64(data) {
+    if (!data) return "";
+    return data.replace(/^data:[^;]+;base64,/, "").trim();
   }
 
-  _detectMimeType(b64String, defaultType = "image/jpeg") {
-    if (!b64String) return defaultType;
-    const match = b64String.match(/^data:([^;]+);base64,/);
-    if (match && match[1]) {
-      return match[1];
+  _detectMimeType(data, fallback = "image/jpeg") {
+    if (typeof data === "string" && data.startsWith("data:")) {
+      const match = data.match(/^data:([^;]+);base64,/);
+      if (match) return match[1];
     }
-    return defaultType;
+    return fallback;
   }
 
   async _fetchSingle(url, options = {}, timeoutMs = 35000) {
@@ -67,54 +58,139 @@ class GeminiAdapter extends AIProviderAdapter {
     }
   }
 
+  _categorizeError(message = "", status = 0) {
+    const lower = String(message).toLowerCase();
+    if (
+      lower.includes("api key not valid") ||
+      lower.includes("api_key_invalid") ||
+      lower.includes("invalid api key") ||
+      lower.includes("unregistered callers") ||
+      status === 401
+    ) {
+      return "Invalid API key";
+    }
+    if (lower.includes("permission") || lower.includes("unauthorized") || status === 403) {
+      return "Authentication failed";
+    }
+    if (lower.includes("not found") || lower.includes("unsupported") || lower.includes("is not found for api version") || status === 404) {
+      return "Model unavailable";
+    }
+    if (lower.includes("quota") || lower.includes("resource_exhausted") || lower.includes("rate limit") || status === 429) {
+      return "Rate limit exceeded";
+    }
+    if (lower.includes("econnrefused") || lower.includes("etimedout") || lower.includes("enotfound") || lower.includes("unavailable") || status >= 500) {
+      return "Provider unavailable";
+    }
+    if (lower.includes("invalid") || lower.includes("bad request") || status === 400) {
+      return "Invalid configuration";
+    }
+    return "Provider unavailable";
+  }
+
   async testConnection(params = {}) {
     const start = Date.now();
-    const requestedModel = this._normalizeModel(params.model || this.defaultModel);
-    const candidateList = [requestedModel, ...GEMINI_MODELS_POOL.filter((m) => m !== requestedModel)];
+    const model = this._normalizeModel(params.model || this.defaultModel || "gemini-3.6-flash");
+
+    if (!this.apiKey) {
+      return {
+        success: false,
+        status: "failed",
+        provider: "Google Gemini",
+        modelTested: model,
+        responseTimeMs: 0,
+        testedAt: new Date().toISOString(),
+        errorCategory: "Invalid API key",
+        message: "Missing API Key. Please configure a valid API key.",
+      };
+    }
 
     const pingBody = {
       contents: [{ parts: [{ text: "ping" }] }],
       generationConfig: { maxOutputTokens: 5 },
     };
 
-    let lastError = "Connection failed";
-    for (const model of candidateList) {
-      try {
-        const res = await this._fetchSingle(
-          `${this.baseUrl}/models/${model}:generateContent?key=${encodeURIComponent(this.apiKey)}`,
-          {
-            method: "POST",
-            body: JSON.stringify(pingBody),
-          },
-          10000
-        );
+    try {
+      const cleanBase = (this.baseUrl || "https://generativelanguage.googleapis.com/v1beta").replace(/\/+$/, "");
+      const res = await this._fetchSingle(
+        `${cleanBase}/models/${model}:generateContent?key=${encodeURIComponent(this.apiKey)}`,
+        {
+          method: "POST",
+          body: JSON.stringify(pingBody),
+        },
+        12000
+      );
 
-        if (res.ok) {
-          const latencyMs = Date.now() - start;
-          return {
-            success: true,
-            status: "connected",
-            provider: "gemini",
-            latencyMs,
-            testedModel: model,
-            message: `Successfully connected to Google Gemini (${model} - ${latencyMs}ms)`,
-            testedAt: new Date().toISOString(),
-          };
-        } else {
-          const errData = await res.json().catch(() => ({}));
-          lastError = errData.error?.message || `HTTP ${res.status}`;
-        }
-      } catch (err) {
-        lastError = err.message;
+      const latencyMs = Date.now() - start;
+
+      if (res.ok) {
+        return {
+          success: true,
+          status: "connected",
+          provider: "Google Gemini",
+          modelTested: model,
+          responseTimeMs: latencyMs,
+          testedAt: new Date().toISOString(),
+          message: "Connection successful",
+        };
       }
-    }
 
-    return {
-      success: false,
-      status: "failed",
-      latencyMs: Date.now() - start,
-      message: `Google Gemini connection notice: ${lastError}`,
-    };
+      const errData = await res.json().catch(() => ({}));
+      const rawMsg = errData.error?.message || `HTTP ${res.status}`;
+      const safeCategory = this._categorizeError(rawMsg, res.status);
+
+      return {
+        success: false,
+        status: "failed",
+        provider: "Google Gemini",
+        modelTested: model,
+        responseTimeMs: latencyMs,
+        testedAt: new Date().toISOString(),
+        errorCategory: safeCategory,
+        message: `${safeCategory}: ${rawMsg.replace(/key=[^&\s]+/gi, "key=REDACTED")}`,
+      };
+    } catch (err) {
+      const latencyMs = Date.now() - start;
+      const safeCategory = this._categorizeError(err.message);
+      return {
+        success: false,
+        status: "failed",
+        provider: "Google Gemini",
+        modelTested: model,
+        responseTimeMs: latencyMs,
+        testedAt: new Date().toISOString(),
+        errorCategory: safeCategory,
+        message: `${safeCategory}: ${err.message.replace(/key=[^&\s]+/gi, "key=REDACTED")}`,
+      };
+    }
+  }
+
+  async fetchAvailableModels() {
+    if (!this.apiKey) {
+      throw new Error("Missing API Key. Please configure an API key first.");
+    }
+    const cleanBase = (this.baseUrl || "https://generativelanguage.googleapis.com/v1beta").replace(/\/+$/, "");
+    const res = await this._fetchSingle(`${cleanBase}/models?key=${encodeURIComponent(this.apiKey)}`, { method: "GET" }, 15000);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      const rawMsg = err.error?.message || `HTTP ${res.status}`;
+      throw new Error(this._categorizeError(rawMsg, res.status) + ": " + rawMsg);
+    }
+    const data = await res.json();
+    const models = (data.models || [])
+      .filter((m) => (m.supportedGenerationMethods || []).includes("generateContent"))
+      .map((m) => {
+        const code = m.name.replace(/^models\//, "");
+        return {
+          modelCode: code,
+          modelName: m.displayName || code,
+          description: m.description || null,
+          contextWindow: m.inputTokenLimit || 1048576,
+          maxOutputTokens: m.outputTokenLimit || 8192,
+          supportsVision: true,
+          status: "ACTIVE",
+        };
+      });
+    return models;
   }
 
   async generateText({ prompt, systemPrompt, imageBase64, mimeType, model, temperature = 0.3, maxTokens = 4096 }) {
@@ -133,7 +209,8 @@ class GeminiAdapter extends AIProviderAdapter {
       });
     }
 
-    const userParts = [{ text: prompt }];
+    const safePrompt = (typeof prompt === "string" && prompt.trim()) ? prompt : "Process request.";
+    const userParts = [{ text: safePrompt }];
 
     if (imageBase64) {
       const cleanData = this._cleanBase64(imageBase64);
@@ -214,7 +291,8 @@ IMPORTANT: Output strictly valid, well-formed JSON only. Do not add markdown cod
 
 ${prompt}`;
 
-    const userParts = [{ text: fullPrompt }];
+    const safeFullPrompt = (typeof fullPrompt === "string" && fullPrompt.trim()) ? fullPrompt : "Return JSON response.";
+    const userParts = [{ text: safeFullPrompt }];
 
     if (imageBase64) {
       const cleanData = this._cleanBase64(imageBase64);

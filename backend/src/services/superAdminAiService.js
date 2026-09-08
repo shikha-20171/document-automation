@@ -484,16 +484,22 @@ class SuperAdminAiService {
     });
 
     return providers.map((p) => {
-      let decryptedKey = p.apiKeyEncrypted ? decryptApiKey(p.apiKeyEncrypted) : "";
+      const decryptedKey = p.apiKeyEncrypted ? decryptApiKey(p.apiKeyEncrypted) : "";
+      const hasKey = Boolean(decryptedKey);
+      const defaultMod = p.defaultModel || p.models.find((m) => m.isDefault)?.modelCode || p.models[0]?.modelCode || "default";
+
       return {
         id: p.id,
         providerName: p.providerName,
         providerCode: p.providerCode,
+        providerType: p.providerType || "LLM",
         description: p.description,
         baseUrl: p.baseUrl,
         apiVersion: p.apiVersion,
-        apiKeyMasked: maskApiKey(decryptedKey),
-        hasApiKey: Boolean(decryptedKey),
+        defaultModel: defaultMod,
+        apiKeyStatus: hasKey ? "Configured" : "Not Configured",
+        apiKeyMasked: maskApiKey(p.apiKeyEncrypted),
+        hasApiKey: hasKey,
         status: p.status,
         connectionStatus: p.connectionStatus,
         priority: p.priority,
@@ -503,7 +509,14 @@ class SuperAdminAiService {
         supportsOCR: false,
         supportsStreaming: p.supportsStreaming,
         healthScore: p.healthScore,
-        lastConnectedAt: p.lastConnectedAt,
+        lastConnectionTest: p.lastTestedAt || p.lastConnectedAt,
+        lastTestStatus: p.lastTestStatus || (p.connectionStatus === "CONNECTED" ? "SUCCESS" : "DISCONNECTED"),
+        lastTestedAt: p.lastTestedAt,
+        lastError: p.lastError,
+        lastUsed: p.lastConnectedAt,
+        createdDate: p.createdAt,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt,
         models: p.models.map((m) => ({
           id: m.id,
           providerId: m.providerId,
@@ -522,24 +535,76 @@ class SuperAdminAiService {
     });
   }
 
-  static async createProvider(data) {
-    const encryptedKey = data.apiKey ? encryptApiKey(data.apiKey) : null;
+  static async getProviderById(id) {
+    await this.ensureAiSeeded();
+
+    const p = await prisma.aIProvider.findUnique({
+      where: { id: String(id) },
+      include: {
+        models: { orderBy: [{ isDefault: "desc" }, { modelName: "asc" }] },
+        serviceHealth: true,
+      },
+    });
+
+    if (!p) {
+      throw new Error("AI Provider not found");
+    }
+
+    const decryptedKey = p.apiKeyEncrypted ? decryptApiKey(p.apiKeyEncrypted) : "";
+    const hasKey = Boolean(decryptedKey);
+
+    return {
+      id: p.id,
+      providerName: p.providerName,
+      providerCode: p.providerCode,
+      providerType: p.providerType || "LLM",
+      description: p.description,
+      baseUrl: p.baseUrl,
+      apiVersion: p.apiVersion,
+      defaultModel: p.defaultModel || p.models.find((m) => m.isDefault)?.modelCode || p.models[0]?.modelCode,
+      apiKeyStatus: hasKey ? "Configured" : "Not Configured",
+      apiKeyMasked: maskApiKey(p.apiKeyEncrypted),
+      hasApiKey: hasKey,
+      status: p.status,
+      connectionStatus: p.connectionStatus,
+      priority: p.priority,
+      isDefault: p.isDefault,
+      supportsChat: p.supportsChat,
+      supportsVision: p.supportsVision,
+      supportsStreaming: p.supportsStreaming,
+      lastConnectionTest: p.lastTestedAt || p.lastConnectedAt,
+      lastTestStatus: p.lastTestStatus,
+      lastTestedAt: p.lastTestedAt,
+      lastError: p.lastError,
+      lastUsed: p.lastConnectedAt,
+      createdAt: p.createdAt,
+      models: p.models,
+    };
+  }
+
+  static async createProvider(data, user) {
+    const encryptedKey = data.apiKey && !data.apiKey.includes("••") ? encryptApiKey(data.apiKey) : null;
+    const providerCode = (data.providerCode || data.providerName || "custom").toLowerCase().replace(/[^a-z0-9_-]/g, "_");
+
     const provider = await prisma.aIProvider.create({
       data: {
         providerName: data.providerName,
-        providerCode: data.providerCode.toLowerCase().replace(/\s+/g, "_"),
+        providerCode,
+        providerType: data.providerType || "LLM",
         description: data.description || null,
         baseUrl: data.baseUrl || null,
         apiVersion: data.apiVersion || "v1",
+        defaultModel: data.defaultModel || null,
         apiKeyEncrypted: encryptedKey,
         status: data.status || "ACTIVE",
-        connectionStatus: data.apiKey ? "CONNECTED" : "DISCONNECTED",
+        connectionStatus: encryptedKey ? "CONNECTED" : "DISCONNECTED",
         priority: data.priority ? Number(data.priority) : 1,
         isDefault: Boolean(data.isDefault),
         supportsChat: data.supportsChat ?? true,
         supportsVision: Boolean(data.supportsVision),
         supportsOCR: false,
         supportsStreaming: data.supportsStreaming ?? true,
+        createdBy: user?.email || "Super Admin",
       },
     });
 
@@ -555,9 +620,9 @@ class SuperAdminAiService {
     }).catch(() => null);
 
     AuditLogService.log({
-      actorName: "Super Admin",
+      actorName: user?.email || "Super Admin",
       actorRole: "SUPER_ADMIN",
-      module: "PLATFORM",
+      module: "AI_AUTOMATION",
       action: "AI_PROVIDER_CREATED",
       resourceType: "AI_PROVIDER",
       resourceId: provider.id,
@@ -568,31 +633,38 @@ class SuperAdminAiService {
         providerName: provider.providerName,
         providerCode: provider.providerCode,
         status: provider.status,
-        priority: provider.priority,
+        defaultModel: provider.defaultModel,
       },
     });
 
     return provider;
   }
 
-  static async updateProvider(id, data) {
+  static async updateProvider(id, data, user) {
     const existing = await prisma.aIProvider.findUnique({ where: { id: String(id) } });
+    if (!existing) throw new Error("AI Provider not found");
+
     const updateData = {};
     if (data.providerName !== undefined) updateData.providerName = data.providerName;
+    if (data.providerType !== undefined) updateData.providerType = data.providerType;
     if (data.description !== undefined) updateData.description = data.description;
     if (data.baseUrl !== undefined) updateData.baseUrl = data.baseUrl;
     if (data.apiVersion !== undefined) updateData.apiVersion = data.apiVersion;
+    if (data.defaultModel !== undefined) updateData.defaultModel = data.defaultModel;
     if (data.status !== undefined) updateData.status = data.status;
     if (data.priority !== undefined) updateData.priority = Number(data.priority);
     if (data.isDefault !== undefined) updateData.isDefault = Boolean(data.isDefault);
     if (data.supportsChat !== undefined) updateData.supportsChat = Boolean(data.supportsChat);
     if (data.supportsVision !== undefined) updateData.supportsVision = Boolean(data.supportsVision);
     if (data.supportsStreaming !== undefined) updateData.supportsStreaming = Boolean(data.supportsStreaming);
+    updateData.updatedBy = user?.email || "Super Admin";
 
+    let keyAction = null;
     if (data.apiKey && data.apiKey.trim().length > 0 && !data.apiKey.includes("••")) {
       updateData.apiKeyEncrypted = encryptApiKey(data.apiKey);
       updateData.connectionStatus = "CONNECTED";
       updateData.lastConnectedAt = new Date();
+      keyAction = existing.apiKeyEncrypted ? "AI_PROVIDER_KEY_UPDATED" : "AI_PROVIDER_KEY_CONFIGURED";
     }
 
     const updated = await prisma.aIProvider.update({
@@ -600,47 +672,111 @@ class SuperAdminAiService {
       data: updateData,
     });
 
+    if (keyAction) {
+      AuditLogService.log({
+        actorName: user?.email || "Super Admin",
+        actorRole: "SUPER_ADMIN",
+        module: "AI_AUTOMATION",
+        action: keyAction,
+        resourceType: "AI_PROVIDER",
+        resourceId: String(id),
+        resourceName: updated.providerName,
+        severity: "INFO",
+        status: "SUCCESS",
+      });
+    }
+
     AuditLogService.log({
-      actorName: "Super Admin",
+      actorName: user?.email || "Super Admin",
       actorRole: "SUPER_ADMIN",
-      module: "PLATFORM",
+      module: "AI_AUTOMATION",
       action: "AI_PROVIDER_UPDATED",
       resourceType: "AI_PROVIDER",
       resourceId: String(id),
       resourceName: updated.providerName,
       severity: "INFO",
       status: "SUCCESS",
-      beforeData: existing ? { providerName: existing.providerName, status: existing.status, isDefault: existing.isDefault } : null,
-      afterData: { providerName: updated.providerName, status: updated.status, isDefault: updated.isDefault },
+      afterData: { providerName: updated.providerName, status: updated.status, defaultModel: updated.defaultModel },
     });
 
     return updated;
   }
 
-  static async toggleProvider(id, { enabled, status }) {
-    const targetStatus = status || (enabled ? "ACTIVE" : "INACTIVE");
+  static async activateProvider(id, user) {
     const updated = await prisma.aIProvider.update({
       where: { id: String(id) },
-      data: { status: targetStatus },
+      data: { status: "ACTIVE", updatedBy: user?.email || "Super Admin" },
     });
 
     AuditLogService.log({
-      actorName: "Super Admin",
+      actorName: user?.email || "Super Admin",
       actorRole: "SUPER_ADMIN",
-      module: "PLATFORM",
-      action: targetStatus === "ACTIVE" ? "AI_PROVIDER_ENABLED" : "AI_PROVIDER_DISABLED",
+      module: "AI_AUTOMATION",
+      action: "AI_PROVIDER_ACTIVATED",
       resourceType: "AI_PROVIDER",
       resourceId: String(id),
       resourceName: updated.providerName,
       severity: "INFO",
       status: "SUCCESS",
-      afterData: { status: targetStatus },
     });
 
     return updated;
   }
 
-  static async testProviderConnection(id) {
+  static async deactivateProvider(id, user) {
+    const updated = await prisma.aIProvider.update({
+      where: { id: String(id) },
+      data: { status: "INACTIVE", updatedBy: user?.email || "Super Admin" },
+    });
+
+    AuditLogService.log({
+      actorName: user?.email || "Super Admin",
+      actorRole: "SUPER_ADMIN",
+      module: "AI_AUTOMATION",
+      action: "AI_PROVIDER_DEACTIVATED",
+      resourceType: "AI_PROVIDER",
+      resourceId: String(id),
+      resourceName: updated.providerName,
+      severity: "INFO",
+      status: "SUCCESS",
+    });
+
+    return updated;
+  }
+
+  static async toggleProvider(id, { enabled, status }, user) {
+    const targetStatus = status || (enabled ? "ACTIVE" : "INACTIVE");
+    if (targetStatus === "ACTIVE") {
+      return await this.activateProvider(id, user);
+    } else {
+      return await this.deactivateProvider(id, user);
+    }
+  }
+
+  static async deleteProvider(id, user) {
+    const provider = await prisma.aIProvider.findUnique({ where: { id: String(id) } });
+    if (!provider) throw new Error("AI Provider not found");
+
+    await prisma.aIModel.deleteMany({ where: { providerId: String(id) } });
+    await prisma.aIServiceHealth.deleteMany({ where: { providerId: String(id) } });
+    await prisma.aIProvider.delete({ where: { id: String(id) } });
+
+    AuditLogService.log({
+      actorName: user?.email || "Super Admin",
+      actorRole: "SUPER_ADMIN",
+      module: "AI_AUTOMATION",
+      action: "AI_PROVIDER_DELETED",
+      resourceType: "AI_PROVIDER",
+      resourceId: String(id),
+      resourceName: provider.providerName,
+      severity: "WARNING",
+      status: "SUCCESS",
+    });
+
+    return { success: true, message: "AI Provider deleted successfully" };
+  }
+
+  static async testProviderConnection(id, options = {}, user) {
     const provider = await prisma.aIProvider.findUnique({
       where: { id: String(id) },
       include: { models: true },
@@ -661,67 +797,273 @@ class SuperAdminAiService {
       }
     }
 
+    const testModel = options.model || provider.defaultModel || provider.models?.[0]?.modelCode;
+
     if (!apiKey) {
-      return {
+      const failResult = {
         success: false,
-        status: "FAILED",
-        message: `API Key is missing for ${provider.providerName}. Please add an API key.`,
-        latencyMs: 0,
+        status: "Failed",
+        provider: provider.providerName,
+        modelTested: testModel || "default",
+        responseTimeMs: 0,
+        testedAt: new Date().toISOString(),
+        errorCategory: "Invalid API key",
+        message: `API Key is missing for ${provider.providerName}. Please configure an API key.`,
       };
+
+      await prisma.aIProvider.update({
+        where: { id: provider.id },
+        data: {
+          connectionStatus: "FAILED",
+          lastTestStatus: "Invalid API key",
+          lastTestedAt: new Date(),
+          lastError: failResult.message,
+        },
+      });
+
+      return failResult;
     }
 
     const config = {
       apiKey,
       baseUrl: provider.baseUrl,
       apiVersion: provider.apiVersion,
-      defaultModel: provider.models?.[0]?.modelCode,
+      defaultModel: testModel,
     };
 
     let testResult;
     try {
       if (provider.providerCode === "gemini") {
         const adapter = new GeminiAdapter(config);
-        testResult = await adapter.testConnection();
+        testResult = await adapter.testConnection({ model: testModel });
       } else if (provider.providerCode === "anthropic") {
         const adapter = new AnthropicAdapter(config);
-        testResult = await adapter.testConnection();
+        testResult = await adapter.testConnection({ model: testModel });
       } else {
         const adapter = new OpenAIAdapter(config);
-        testResult = await adapter.testConnection();
+        testResult = await adapter.testConnection({ model: testModel });
       }
 
       await prisma.aIProvider.update({
         where: { id: provider.id },
         data: {
           connectionStatus: testResult.success ? "CONNECTED" : "FAILED",
+          lastTestStatus: testResult.success ? "SUCCESS" : (testResult.errorCategory || "FAILED"),
+          lastTestedAt: new Date(),
+          lastError: testResult.success ? null : (testResult.errorCategory || testResult.message),
           lastConnectedAt: testResult.success ? new Date() : undefined,
           lastHealthCheckAt: new Date(),
         },
       });
 
-      return testResult;
+      AuditLogService.log({
+        actorName: user?.email || "Super Admin",
+        actorRole: "SUPER_ADMIN",
+        module: "AI_AUTOMATION",
+        action: "AI_PROVIDER_CONNECTION_TESTED",
+        resourceType: "AI_PROVIDER",
+        resourceId: provider.id,
+        resourceName: provider.providerName,
+        severity: testResult.success ? "INFO" : "WARNING",
+        status: testResult.success ? "SUCCESS" : "FAILURE",
+        details: {
+          modelTested: testResult.modelTested,
+          responseTimeMs: testResult.responseTimeMs,
+          errorCategory: testResult.errorCategory || null,
+        },
+      });
+
+      return {
+        success: testResult.success,
+        status: testResult.success ? "Connected" : "Failed",
+        provider: provider.providerName,
+        modelTested: testResult.modelTested || testModel,
+        responseTimeMs: testResult.responseTimeMs || testResult.latencyMs || 0,
+        testedAt: testResult.testedAt || new Date().toISOString(),
+        message: testResult.success ? "Connection successful" : testResult.message,
+        errorCategory: testResult.errorCategory,
+      };
     } catch (err) {
       await prisma.aIProvider.update({
         where: { id: provider.id },
         data: {
           connectionStatus: "FAILED",
+          lastTestStatus: "Provider unavailable",
+          lastTestedAt: new Date(),
+          lastError: err.message,
           lastHealthCheckAt: new Date(),
         },
       });
 
       return {
         success: false,
-        status: "FAILED",
+        status: "Failed",
+        provider: provider.providerName,
+        modelTested: testModel || "default",
+        responseTimeMs: 0,
+        testedAt: new Date().toISOString(),
+        errorCategory: "Provider unavailable",
         message: err.message,
-        latencyMs: 0,
       };
     }
   }
 
-  static async deleteProvider(id) {
-    return await prisma.aIProvider.delete({
+  static async syncModels(id, user) {
+    const provider = await prisma.aIProvider.findUnique({
       where: { id: String(id) },
+      include: { models: true },
     });
+    if (!provider) throw new Error("AI Provider not found");
+
+    let apiKey = provider.apiKeyEncrypted ? decryptApiKey(provider.apiKeyEncrypted) : null;
+    if (!apiKey) {
+      if (provider.providerCode === "gemini" && process.env.GEMINI_API_KEY) {
+        apiKey = process.env.GEMINI_API_KEY;
+      } else if (provider.providerCode === "openai" && process.env.OPENAI_API_KEY) {
+        apiKey = process.env.OPENAI_API_KEY;
+      }
+    }
+    if (!apiKey) {
+      throw new Error(`API key is required to sync models for ${provider.providerName}. Please configure an API key first.`);
+    }
+
+    const config = {
+      apiKey,
+      baseUrl: provider.baseUrl,
+      apiVersion: provider.apiVersion,
+    };
+
+    let adapter;
+    if (provider.providerCode === "gemini") {
+      adapter = new GeminiAdapter(config);
+    } else {
+      adapter = new OpenAIAdapter(config);
+    }
+
+    if (typeof adapter.fetchAvailableModels !== "function") {
+      throw new Error(`Model synchronization is not supported for ${provider.providerName}`);
+    }
+
+    const remoteModels = await adapter.fetchAvailableModels();
+    const upserted = [];
+
+    for (const rm of remoteModels) {
+      const existing = provider.models.find((m) => m.modelCode === rm.modelCode);
+      if (existing) {
+        const u = await prisma.aIModel.update({
+          where: { id: existing.id },
+          data: {
+            modelName: rm.modelName,
+            contextWindow: rm.contextWindow,
+            maxOutputTokens: rm.maxOutputTokens,
+            supportsVision: rm.supportsVision,
+          },
+        });
+        upserted.push(u);
+      } else {
+        const c = await prisma.aIModel.create({
+          data: {
+            providerId: provider.id,
+            modelName: rm.modelName,
+            modelCode: rm.modelCode,
+            contextWindow: rm.contextWindow,
+            maxOutputTokens: rm.maxOutputTokens,
+            supportsVision: rm.supportsVision,
+            status: "ACTIVE",
+            isDefault: false,
+          },
+        });
+        upserted.push(c);
+      }
+    }
+
+    if (!provider.defaultModel && upserted.length > 0) {
+      await prisma.aIProvider.update({
+        where: { id: provider.id },
+        data: { defaultModel: upserted[0].modelCode },
+      });
+    }
+
+    AuditLogService.log({
+      actorName: user?.email || "Super Admin",
+      actorRole: "SUPER_ADMIN",
+      module: "AI_AUTOMATION",
+      action: "AI_MODELS_SYNCHRONIZED",
+      resourceType: "AI_PROVIDER",
+      resourceId: String(provider.id),
+      resourceName: provider.providerName,
+      severity: "INFO",
+      status: "SUCCESS",
+      details: { syncedCount: upserted.length },
+    });
+
+    return upserted;
+  }
+
+  static async getRoutingConfig() {
+    let config = await prisma.aIRoutingConfig.findFirst();
+    if (!config) {
+      config = await prisma.aIRoutingConfig.create({
+        data: {
+          primaryProviderCode: "gemini",
+          primaryModel: "gemini-2.5-flash",
+          fallbackProviderCode: "openai",
+          fallbackModel: "gpt-4o-mini",
+          routingEnabled: true,
+        },
+      });
+    }
+    return config;
+  }
+
+  static async updateRoutingConfig(data, user) {
+    let existing = await prisma.aIRoutingConfig.findFirst();
+    let updated;
+    if (existing) {
+      updated = await prisma.aIRoutingConfig.update({
+        where: { id: existing.id },
+        data: {
+          primaryProviderCode: data.primaryProviderCode || existing.primaryProviderCode,
+          primaryModel: data.primaryModel || existing.primaryModel,
+          fallbackProviderCode: data.fallbackProviderCode !== undefined ? data.fallbackProviderCode : existing.fallbackProviderCode,
+          fallbackModel: data.fallbackModel !== undefined ? data.fallbackModel : existing.fallbackModel,
+          routingEnabled: data.routingEnabled !== undefined ? Boolean(data.routingEnabled) : existing.routingEnabled,
+          updatedBy: user?.email || "Super Admin",
+        },
+      });
+    } else {
+      updated = await prisma.aIRoutingConfig.create({
+        data: {
+          primaryProviderCode: data.primaryProviderCode || "gemini",
+          primaryModel: data.primaryModel || "gemini-2.5-flash",
+          fallbackProviderCode: data.fallbackProviderCode || "openai",
+          fallbackModel: data.fallbackModel || "gpt-4o-mini",
+          routingEnabled: data.routingEnabled !== undefined ? Boolean(data.routingEnabled) : true,
+          updatedBy: user?.email || "Super Admin",
+        },
+      });
+    }
+
+    AuditLogService.log({
+      actorName: user?.email || "Super Admin",
+      actorRole: "SUPER_ADMIN",
+      module: "AI_AUTOMATION",
+      action: "AI_ROUTING_CONFIG_UPDATED",
+      resourceType: "AI_ROUTING",
+      resourceId: updated.id,
+      resourceName: "AI Router Config",
+      severity: "INFO",
+      status: "SUCCESS",
+      details: {
+        primaryProvider: updated.primaryProviderCode,
+        primaryModel: updated.primaryModel,
+        fallbackProvider: updated.fallbackProviderCode,
+        fallbackModel: updated.fallbackModel,
+        routingEnabled: updated.routingEnabled,
+      },
+    });
+
+    return updated;
   }
 
   /**

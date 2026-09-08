@@ -18,9 +18,18 @@ const getProviders = async (req, res, next) => {
   }
 };
 
+const getProviderById = async (req, res, next) => {
+  try {
+    const data = await SuperAdminAiService.getProviderById(req.params.id);
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const createProvider = async (req, res, next) => {
   try {
-    const data = await SuperAdminAiService.createProvider(req.body);
+    const data = await SuperAdminAiService.createProvider(req.body, req.user);
     res.status(201).json({ success: true, message: "AI Provider created successfully", data });
   } catch (error) {
     next(error);
@@ -29,8 +38,26 @@ const createProvider = async (req, res, next) => {
 
 const updateProvider = async (req, res, next) => {
   try {
-    const data = await SuperAdminAiService.updateProvider(req.params.id, req.body);
+    const data = await SuperAdminAiService.updateProvider(req.params.id, req.body, req.user);
     res.status(200).json({ success: true, message: "AI Provider updated successfully", data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const activateProvider = async (req, res, next) => {
+  try {
+    const data = await SuperAdminAiService.activateProvider(req.params.id, req.user);
+    res.status(200).json({ success: true, message: "AI Provider activated successfully", data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const deactivateProvider = async (req, res, next) => {
+  try {
+    const data = await SuperAdminAiService.deactivateProvider(req.params.id, req.user);
+    res.status(200).json({ success: true, message: "AI Provider deactivated successfully", data });
   } catch (error) {
     next(error);
   }
@@ -38,7 +65,7 @@ const updateProvider = async (req, res, next) => {
 
 const toggleProvider = async (req, res, next) => {
   try {
-    const data = await SuperAdminAiService.toggleProvider(req.params.id, req.body);
+    const data = await SuperAdminAiService.toggleProvider(req.params.id, req.body, req.user);
     res.status(200).json({ success: true, message: "AI Provider status updated", data });
   } catch (error) {
     next(error);
@@ -47,7 +74,7 @@ const toggleProvider = async (req, res, next) => {
 
 const testProvider = async (req, res, next) => {
   try {
-    const data = await SuperAdminAiService.testProviderConnection(req.params.id);
+    const data = await SuperAdminAiService.testProviderConnection(req.params.id, req.body, req.user);
     res.status(200).json({ success: true, data });
   } catch (error) {
     next(error);
@@ -56,8 +83,35 @@ const testProvider = async (req, res, next) => {
 
 const deleteProvider = async (req, res, next) => {
   try {
-    await SuperAdminAiService.deleteProvider(req.params.id);
+    await SuperAdminAiService.deleteProvider(req.params.id, req.user);
     res.status(200).json({ success: true, message: "AI Provider removed successfully" });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const syncModels = async (req, res, next) => {
+  try {
+    const data = await SuperAdminAiService.syncModels(req.params.id, req.user);
+    res.status(200).json({ success: true, message: "Models synchronized successfully", data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getRoutingConfig = async (req, res, next) => {
+  try {
+    const data = await SuperAdminAiService.getRoutingConfig();
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const updateRoutingConfig = async (req, res, next) => {
+  try {
+    const data = await SuperAdminAiService.updateRoutingConfig(req.body, req.user);
+    res.status(200).json({ success: true, message: "AI Routing configuration updated", data });
   } catch (error) {
     next(error);
   }
@@ -219,11 +273,17 @@ const testAllHealth = async (req, res, next) => {
 module.exports = {
   getOverview,
   getProviders,
+  getProviderById,
   createProvider,
   updateProvider,
+  activateProvider,
+  deactivateProvider,
   toggleProvider,
   testProvider,
   deleteProvider,
+  syncModels,
+  getRoutingConfig,
+  updateRoutingConfig,
   getModels,
   createModel,
   updateModel,

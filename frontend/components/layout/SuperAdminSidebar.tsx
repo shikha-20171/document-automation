@@ -26,7 +26,6 @@ import {
   Users,
   Receipt,
   ShoppingBag,
-  ScanSearch,
 } from "lucide-react";
 
 export interface MenuItem {
@@ -85,11 +84,6 @@ export const superAdminNavSections: MenuSection[] = [
         href: "/super-admin/ocr-management",
         icon: ScanText,
         hasSubmodules: true,
-      },
-      {
-        title: "OCR Processing",
-        href: "/super-admin/ocr-processing",
-        icon: ScanSearch,
       },
       {
         title: "Storage Management",

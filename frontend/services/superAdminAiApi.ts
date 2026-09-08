@@ -12,7 +12,7 @@ export interface AIProviderModel {
   outputCostPer1K: number;
   maxOutputTokens: number;
   supportsVision: boolean;
-  supportsFunctionCalling: boolean;
+  supportsFunctionCalling?: boolean;
   status: "ACTIVE" | "INACTIVE" | "DEPRECATED";
   isDefault: boolean;
 }
@@ -21,9 +21,12 @@ export interface AIProviderItem {
   id: string;
   providerName: string;
   providerCode: string;
+  providerType?: string;
   description: string | null;
   baseUrl: string | null;
   apiVersion: string | null;
+  defaultModel?: string;
+  apiKeyStatus?: "Configured" | "Not Configured";
   apiKeyMasked?: string;
   hasApiKey: boolean;
   status: "ACTIVE" | "INACTIVE" | "MAINTENANCE";
@@ -35,8 +38,27 @@ export interface AIProviderItem {
   supportsOCR: boolean;
   supportsStreaming: boolean;
   healthScore?: number | null;
+  lastConnectionTest?: string | null;
+  lastTestStatus?: string | null;
+  lastTestedAt?: string | null;
+  lastError?: string | null;
+  lastUsed?: string | null;
   lastConnectedAt?: string | null;
+  createdDate?: string;
+  createdAt?: string;
+  updatedAt?: string;
   models: AIProviderModel[];
+}
+
+export interface AIRoutingConfig {
+  id?: string;
+  primaryProviderCode: string;
+  primaryModel: string;
+  fallbackProviderCode: string | null;
+  fallbackModel: string | null;
+  routingEnabled: boolean;
+  updatedBy?: string | null;
+  updatedAt?: string;
 }
 
 export interface AICapabilityItem {
@@ -130,6 +152,17 @@ export interface AIHealthItem {
   }>;
 }
 
+export interface TestConnectionResult {
+  success: boolean;
+  status: string;
+  provider: string;
+  modelTested: string;
+  responseTimeMs: number;
+  testedAt: string;
+  message: string;
+  errorCategory?: string | null;
+}
+
 export const superAdminAiApi = {
   getOverview: async (): Promise<ApiResponse<AIOverviewData>> => {
     const { data } = await api.get<ApiResponse<AIOverviewData>>("/super-admin/ai/overview");
@@ -138,6 +171,11 @@ export const superAdminAiApi = {
 
   getProviders: async (): Promise<ApiResponse<AIProviderItem[]>> => {
     const { data } = await api.get<ApiResponse<AIProviderItem[]>>("/super-admin/ai/providers");
+    return data;
+  },
+
+  getProvider: async (id: string): Promise<ApiResponse<AIProviderItem>> => {
+    const { data } = await api.get<ApiResponse<AIProviderItem>>(`/super-admin/ai/providers/${id}`);
     return data;
   },
 
@@ -151,18 +189,43 @@ export const superAdminAiApi = {
     return data;
   },
 
+  activateProvider: async (id: string): Promise<ApiResponse<AIProviderItem>> => {
+    const { data } = await api.post<ApiResponse<AIProviderItem>>(`/super-admin/ai/providers/${id}/activate`);
+    return data;
+  },
+
+  deactivateProvider: async (id: string): Promise<ApiResponse<AIProviderItem>> => {
+    const { data } = await api.post<ApiResponse<AIProviderItem>>(`/super-admin/ai/providers/${id}/deactivate`);
+    return data;
+  },
+
   toggleProvider: async (id: string, enabled: boolean): Promise<ApiResponse<AIProviderItem>> => {
     const { data } = await api.put<ApiResponse<AIProviderItem>>(`/super-admin/ai/providers/${id}/toggle`, { enabled });
     return data;
   },
 
-  testProvider: async (id: string): Promise<ApiResponse<any>> => {
-    const { data } = await api.post<ApiResponse<any>>(`/super-admin/ai/providers/${id}/test`);
+  testProvider: async (id: string, payload?: { model?: string }): Promise<ApiResponse<TestConnectionResult>> => {
+    const { data } = await api.post<ApiResponse<TestConnectionResult>>(`/super-admin/ai/providers/${id}/test`, payload || {});
+    return data;
+  },
+
+  syncModels: async (id: string): Promise<ApiResponse<AIProviderModel[]>> => {
+    const { data } = await api.post<ApiResponse<AIProviderModel[]>>(`/super-admin/ai/providers/${id}/models/sync`);
     return data;
   },
 
   deleteProvider: async (id: string): Promise<ApiResponse<any>> => {
     const { data } = await api.delete<ApiResponse<any>>(`/super-admin/ai/providers/${id}`);
+    return data;
+  },
+
+  getRoutingConfig: async (): Promise<ApiResponse<AIRoutingConfig>> => {
+    const { data } = await api.get<ApiResponse<AIRoutingConfig>>("/super-admin/ai/routing");
+    return data;
+  },
+
+  updateRoutingConfig: async (payload: Partial<AIRoutingConfig>): Promise<ApiResponse<AIRoutingConfig>> => {
+    const { data } = await api.put<ApiResponse<AIRoutingConfig>>("/super-admin/ai/routing", payload);
     return data;
   },
 

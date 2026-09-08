@@ -672,6 +672,11 @@ model AIProvider {
   requestTimeoutMs   Int                @default(60000)
   maxRetries         Int                @default(3)
   healthScore        Float?
+  providerType       String?            @default("LLM") @db.VarChar(50)
+  defaultModel       String?            @db.VarChar(100)
+  lastTestStatus     String?            @db.VarChar(50)
+  lastTestedAt       DateTime?
+  lastError          String?            @db.Text
   lastConnectedAt    DateTime?
   lastHealthCheckAt  DateTime?
   createdBy          String?
@@ -774,6 +779,20 @@ model AICapability {
   @@index([code])
   @@index([status])
   @@map("ai_capabilities")
+}
+
+model AIRoutingConfig {
+  id                   String   @id @default(uuid())
+  primaryProviderCode  String   @default("gemini") @db.VarChar(50)
+  primaryModel         String   @default("gemini-2.5-flash") @db.VarChar(100)
+  fallbackProviderCode String?  @default("openai") @db.VarChar(50)
+  fallbackModel        String?  @default("gpt-4o-mini") @db.VarChar(100)
+  routingEnabled       Boolean  @default(true)
+  updatedBy            String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@map("ai_routing_configs")
 }
 
 // ===================================
