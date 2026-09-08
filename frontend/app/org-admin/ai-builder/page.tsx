@@ -388,7 +388,45 @@ function UniversalAiDocumentBuilderContent() {
         setStatus(saved.status);
         setCurrentVersion(saved.currentVersion);
         setPublicShareToken(saved.publicShareToken);
-        showToast("Saved Successfully", `Document ${saved.documentNumber} is saved.`);
+
+        // Automatically ensure document is also registered in Template library
+        try {
+          const autoTplItem = {
+            id: `tmpl-${saved.id || Date.now()}`,
+            name: `${title.trim()} Template`,
+            description: `Generated from ${documentType} for ${clientName}`,
+            category: category || "General",
+            status: "Active",
+            usage: 0,
+            createdBy: companyName,
+            owner: companyName,
+            updated: "Just now",
+            department: "All",
+            documentType: documentType || "Document",
+            tags: [category || "General", "AI Generated"],
+            visibility: "Organisation Wide",
+            isShared: true,
+            content: sections.map((s) => `### ${s.title}\n\n${s.body || ""}`).join("\n\n---\n\n"),
+            sections,
+            defaultVariables: { company_name: companyName, client_name: clientName },
+          };
+          if (typeof window !== "undefined") {
+            const raw = localStorage.getItem("docucore_custom_templates");
+            const existing = raw ? JSON.parse(raw) : [];
+            localStorage.setItem(
+              "docucore_custom_templates",
+              JSON.stringify([autoTplItem, ...existing.filter((t: any) => t.name !== autoTplItem.name)])
+            );
+          }
+          if (saved.id) {
+            apiClient.post(`/api/unified-documents/${saved.id}/save-as-template`, {
+              name: `${title.trim()} Template`,
+              category: category || "General",
+            }).catch(() => {});
+          }
+        } catch {}
+
+        showToast("Saved Successfully", `Document ${saved.documentNumber} is saved and available in Templates.`);
         if (!documentId) {
           router.replace(`/org-admin/ai-builder?id=${saved.id}`);
         }

@@ -183,16 +183,23 @@ function extractCommonEntities(text) {
   else if (/€|eur|euro/i.test(clean)) res.currency = 'EUR';
   else if (/£|gbp/i.test(clean)) res.currency = 'GBP';
 
-  // 2. Amount Extraction (supports "5,00,000", "5 lakh", "₹5 lakh", "500000", "5 lacs")
-  const lakhMatch = clean.match(/(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d+)?)\s*(?:lakh|lakhs|lac|lacs)/i);
-  const rawNumMatch = clean.match(/(?:₹|rs\.?|\$|€|£)?\s*([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]+)?|[0-9]{4,10})/i);
-
+  // 2. Amount Extraction (supports "5,00,000", "5 lakh", "₹5 lakh", "500000", "5 lacs", "2500000")
+  const lakhMatch = clean.match(/(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d+)?)\s*(?:lakh|lakhs|lac|lacs|cr|crore|crores)/i);
   if (lakhMatch && lakhMatch[1]) {
     const num = parseFloat(lakhMatch[1].replace(/,/g, ''));
-    if (!isNaN(num)) res.amount = Math.round(num * 100000);
-  } else if (rawNumMatch && rawNumMatch[1]) {
-    const num = parseFloat(rawNumMatch[1].replace(/,/g, ''));
-    if (!isNaN(num) && num >= 100) res.amount = Math.round(num);
+    if (!isNaN(num)) {
+      if (/cr|crore/i.test(lakhMatch[0])) res.amount = Math.round(num * 10000000);
+      else res.amount = Math.round(num * 100000);
+    }
+  } else {
+    const rawNumMatch = clean.match(/(?:for|worth|costing|amount|value|sum|price|fee)\s+(?:of\s+)?(?:₹|rs\.?|\$|€|£)?\s*([0-9]{4,10}|[0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]+)?)/i) ||
+                        clean.match(/(?:₹|rs\.?|\$|€|£)\s*([0-9]{4,10}|[0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]+)?)/i) ||
+                        clean.match(/\b([0-9]{1,3}(?:,[0-9]{2,3})+(?:\.[0-9]+)?)\b/) ||
+                        clean.match(/\b([0-9]{4,10})\b/);
+    if (rawNumMatch && rawNumMatch[1]) {
+      const num = parseFloat(rawNumMatch[1].replace(/,/g, ''));
+      if (!isNaN(num) && num >= 100) res.amount = Math.round(num);
+    }
   }
 
   // 3. Pairwise Company Extraction:
@@ -337,7 +344,7 @@ async function generateStructuredDocumentFromAI({
   const detected = detectDocumentIntent(cleanPrompt);
   const entities = extractCommonEntities(cleanPrompt);
 
-  const explicitCompany = (companyName || entities.companyName || '').trim();
+  const explicitCompany = (entities.companyName || companyName || '').trim();
   const issuingCompanyName = explicitCompany && explicitCompany !== 'Dezoryn Technology'
     ? explicitCompany
     : (orgProfile.companyName || 'Dezoryn Technology');
@@ -409,11 +416,11 @@ async function generateStructuredDocumentFromAI({
   const isQuotation = documentType.toLowerCase().includes('quotation') || documentType.toLowerCase().includes('quote');
 
   const systemPrompt = `
-You are the Enterprise AI Document Architect for Dezoryn Technology.
+You are an Enterprise AI Document Architect.
 CRITICAL CORPORATE IDENTITY RULE:
-Every document generated is ALWAYS issued FROM Dezoryn Technology (Dezoryn Technology Pvt Ltd) as the seller, bidder, service provider, or contracting authority.
-The client company (${effectiveClientName}) is ALWAYS the recipient/client/buyer.
-Under NO circumstances should Dezoryn Technology be replaced by the client name.
+Every document generated is ALWAYS issued FROM the issuing company "${issuingCompanyName}" (${issuingLegalName}) as the seller, bidder, service provider, or contracting authority.
+The client company "${effectiveClientName}" is ALWAYS the recipient/client/buyer.
+Under NO circumstances should the issuer and recipient roles be reversed.
 
 Document Type: "${documentType}"
 Category: "${category}"
@@ -455,21 +462,21 @@ Return ONLY a valid JSON object matching this schema:
       "id": "sec_1",
       "type": "header",
       "title": "Document Overview",
-      "body": "Official ${documentType} issued by Dezoryn Technology to ${effectiveClientName} regarding ${projectName}."
+      "body": "Official ${documentType} issued by ${issuingCompanyName} to ${effectiveClientName} regarding ${projectName}."
     }
   ]
 }
 
 RULES:
 1. Provide rich, highly professional, client-ready business prose.
-2. For Bid Documents, provide complete comprehensive sections (Executive Summary, Dezoryn Profile, Client Requirements, Proposed Solution, Functional Capabilities, Scope of Work, Technical Approach, Implementation Timeline, Roles, Assumptions, Support & SLA, Security, Commercial Proposal, Payment Terms, Terms & Conditions, Acceptance Signatures).
+2. For Bid Documents, provide complete comprehensive sections (Executive Summary, Issuer Corporate Profile, Client Requirements, Proposed Solution, Functional Capabilities, Scope of Work, Technical Approach, Implementation Timeline, Roles, Assumptions, Support & SLA, Security, Commercial Proposal, Payment Terms, Terms & Conditions, Acceptance Signatures).
 3. For Quotations, itemize deliverables such that the base sum equals exactly ${baseAmount}, followed by 9% CGST and 9% SGST.
 4. Output raw JSON only.
 `.trim();
 
   const userPrompt = `
 Instruction: "${cleanPrompt}"
-Issuer: Dezoryn Technology
+Issuer: ${issuingCompanyName} (${issuingLegalName})
 Client: ${effectiveClientName}
 Project: ${projectName}
 Base Amount: ${baseAmount}
@@ -503,9 +510,9 @@ Base Amount: ${baseAmount}
   // 5. Fallback to Dedicated Enterprise Heuristic Builders if AI is offline or incomplete
   if (!parsed || !parsed.content || !Array.isArray(parsed.content) || parsed.content.length < 3) {
     if (isBid) {
-      parsed = generateHeuristicBidDocument(orgProfile, effectiveClientName, projectName, baseAmount, currency, todayStr, validUntil, cleanPrompt);
+      parsed = generateHeuristicBidDocument(orgProfile, issuingCompanyName, issuingLegalName, effectiveClientName, projectName, baseAmount, currency, todayStr, validUntil, cleanPrompt);
     } else if (isQuotation) {
-      parsed = generateHeuristicQuotationDocument(orgProfile, effectiveClientName, projectName, baseAmount, currency, todayStr, validUntil, cleanPrompt);
+      parsed = generateHeuristicQuotationDocument(orgProfile, issuingCompanyName, issuingLegalName, effectiveClientName, projectName, baseAmount, currency, todayStr, validUntil, cleanPrompt);
     } else {
       parsed = generateHeuristicDocument(cleanPrompt, documentType, category, clientContext, templateContext, issuingCompanyName, effectiveClientName, baseAmount, projectName, orgProfile);
     }
@@ -634,9 +641,9 @@ Base Amount: ${baseAmount}
 
 /**
  * Generate Comprehensive 18-Section Bid Document
- * Submitted BY Dezoryn Technology TO the Client
+ * Submitted BY issuingCompanyName TO the Client
  */
-function generateHeuristicBidDocument(orgProfile, clientName, projectName, amount, currency, todayStr, validUntil, rawPrompt) {
+function generateHeuristicBidDocument(orgProfile, issuingCompanyName, issuingLegalName, clientName, projectName, amount, currency, todayStr, validUntil, rawPrompt) {
   const formattedAmount = formatCurrencyINR(amount);
   const p1 = Math.round(amount * 0.4);
   const p2 = Math.round(amount * 0.35);
@@ -647,19 +654,19 @@ function generateHeuristicBidDocument(orgProfile, clientName, projectName, amoun
       id: 'sec_cover',
       type: 'header',
       title: 'Commercial & Technical Bid Submission',
-      body: `DOCUMENT TYPE: FORMAL BID PROPOSAL\nBID REFERENCE: DT-BID-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}\n\nSUBMITTED BY:\nDezoryn Technology (Dezoryn Technology Pvt Ltd)\n${orgProfile.registeredAddress}\nGSTIN: ${orgProfile.gstin} | PAN: ${orgProfile.pan} | CIN: ${orgProfile.cin}\nEmail: ${orgProfile.email} | Web: ${orgProfile.website}\n\nSUBMITTED TO:\n${clientName}\nAttention: Tender Committee & Procurement Board\nSubmission Date: ${todayStr}\nProposal Validity: 60 Calendar Days (Valid Until: ${validUntil})`,
+      body: `DOCUMENT TYPE: FORMAL BID PROPOSAL\nBID REFERENCE: BID-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}\n\nSUBMITTED BY:\n${issuingCompanyName} (${issuingLegalName})\n${orgProfile.registeredAddress}\nGSTIN: ${orgProfile.gstin} | PAN: ${orgProfile.pan} | CIN: ${orgProfile.cin}\nEmail: ${orgProfile.email} | Web: ${orgProfile.website}\n\nSUBMITTED TO:\n${clientName}\nAttention: Tender Committee & Procurement Board\nSubmission Date: ${todayStr}\nProposal Validity: 60 Calendar Days (Valid Until: ${validUntil})`,
     },
     {
       id: 'sec_exec_summary',
       type: 'text',
       title: '1. Executive Summary',
-      body: `Dezoryn Technology is honored to submit this comprehensive bid proposal to ${clientName} for the design, development, and enterprise rollout of ${projectName}. In today's digital economy, organizations require dependable, secure, and future-ready automation platforms to streamline operations and eliminate manual friction.\n\nOur proposed solution combines state-of-the-art intelligent processing with resilient microservices architecture, tailored precisely to meet ${clientName}'s strategic objectives. By partnering with Dezoryn Technology, ${clientName} secures a dedicated team of elite technologists, enterprise-grade SLA commitments, and a transparent delivery roadmap designed for maximum return on investment.`,
+      body: `${issuingCompanyName} is honored to submit this comprehensive bid proposal to ${clientName} for the design, development, and enterprise rollout of ${projectName}. In today's digital economy, organizations require dependable, secure, and future-ready automation platforms to streamline operations and eliminate manual friction.\n\nOur proposed solution combines state-of-the-art intelligent processing with resilient microservices architecture, tailored precisely to meet ${clientName}'s strategic objectives. By partnering with ${issuingCompanyName}, ${clientName} secures a dedicated team of elite technologists, enterprise-grade SLA commitments, and a transparent delivery roadmap designed for maximum return on investment.`,
     },
     {
-      id: 'sec_dezoryn_profile',
+      id: 'sec_company_profile',
       type: 'text',
-      title: '2. Dezoryn Technology Corporate Profile & Credentials',
-      body: `Dezoryn Technology is a premier enterprise software and AI solutions engineering firm headquartered in Pune, Maharashtra. We specialize in automated document intelligence, cognitive workflows, high-throughput backend systems, and mission-critical cloud deployments.\n\nKey Organizational Highlights:\n• Registered Legal Entity: Dezoryn Technology Pvt Ltd (CIN: ${orgProfile.cin})\n• Tax Compliance: Fully GST-registered (GSTIN: ${orgProfile.gstin}) and ISO/IEC 27001 compliant security protocols.\n• Proven Delivery Record: Successfully delivered over 150+ bespoke enterprise implementations across BFSI, Logistics, Manufacturing, and Healthcare.\n• Dedicated Engineering Team: Specialized solution architects, full-stack engineers, and cloud reliability specialists providing round-the-clock operational capability.`,
+      title: `2. ${issuingCompanyName} Corporate Profile & Credentials`,
+      body: `${issuingCompanyName} is a premier enterprise software and technology solutions engineering firm. We specialize in automated document intelligence, cognitive workflows, high-throughput backend systems, and mission-critical cloud deployments.\n\nKey Organizational Highlights:\n• Registered Legal Entity: ${issuingLegalName} (CIN: ${orgProfile.cin})\n• Tax Compliance: Fully GST-registered (GSTIN: ${orgProfile.gstin}) and ISO/IEC 27001 compliant security protocols.\n• Proven Delivery Record: Successfully delivered over 150+ bespoke enterprise implementations across BFSI, Logistics, Manufacturing, and Healthcare.\n• Dedicated Engineering Team: Specialized solution architects, full-stack engineers, and cloud reliability specialists providing round-the-clock operational capability.`,
     },
     {
       id: 'sec_client_requirements',
@@ -671,7 +678,7 @@ function generateHeuristicBidDocument(orgProfile, clientName, projectName, amoun
       id: 'sec_proposed_solution',
       type: 'text',
       title: '4. Proposed Solution Architecture',
-      body: `Dezoryn Technology proposes a modular, microservices-driven platform designed specifically for ${projectName}.\n\nArchitectural Tiers:\n• Client Experience Layer: High-performance, responsive web application built with Next.js, React, and Tailwind/Vanilla CSS tokens.\n• Application & Business Logic Tier: Robust Node.js / Express engine with strict input validation, domain-driven services, and role middleware.\n• Data Persistence Layer: Enterprise PostgreSQL database with Prisma ORM, multi-tenant indexing, and encrypted storage.\n• AI & Processing Gateway: Unified orchestration layer supporting OCR extraction, dynamic document rendering, and real-time validation.`,
+      body: `${issuingCompanyName} proposes a modular, microservices-driven platform designed specifically for ${projectName}.\n\nArchitectural Tiers:\n• Client Experience Layer: High-performance, responsive web application built with Next.js, React, and Tailwind/Vanilla CSS tokens.\n• Application & Business Logic Tier: Robust Node.js / Express engine with strict input validation, domain-driven services, and role middleware.\n• Data Persistence Layer: Enterprise PostgreSQL database with Prisma ORM, multi-tenant indexing, and encrypted storage.\n• AI & Processing Gateway: Unified orchestration layer supporting OCR extraction, dynamic document rendering, and real-time validation.`,
     },
     {
       id: 'sec_functional_capabilities',
@@ -683,7 +690,7 @@ function generateHeuristicBidDocument(orgProfile, clientName, projectName, amoun
       id: 'sec_scope_of_work',
       type: 'text',
       title: '6. Scope of Work & Deliverables',
-      body: `The complete scope of work executed by Dezoryn Technology encompasses:\n• Work Package 1: Architectural Blueprinting, Technical Specifications, and Database Schema Design.\n• Work Package 2: Backend API Development, Multi-Tenant Authentication, and RBAC Permission Matrix.\n• Work Package 3: Frontend Portal Engineering, Responsive Dashboards, and Live Document Previews.\n• Work Package 4: Third-Party Integrations (Email SMTP, Cloud Storage, and OCR Engines).\n• Work Package 5: Quality Assurance, Security Penetration Testing, and User Acceptance Testing (UAT).\n• Work Package 6: Production Cloud Deployment, Performance Tuning, and Admin Knowledge Transfer.`,
+      body: `The complete scope of work executed by ${issuingCompanyName} encompasses:\n• Work Package 1: Architectural Blueprinting, Technical Specifications, and Database Schema Design.\n• Work Package 2: Backend API Development, Multi-Tenant Authentication, and RBAC Permission Matrix.\n• Work Package 3: Frontend Portal Engineering, Responsive Dashboards, and Live Document Previews.\n• Work Package 4: Third-Party Integrations (Email SMTP, Cloud Storage, and OCR Engines).\n• Work Package 5: Quality Assurance, Security Penetration Testing, and User Acceptance Testing (UAT).\n• Work Package 6: Production Cloud Deployment, Performance Tuning, and Admin Knowledge Transfer.`,
     },
     {
       id: 'sec_timeline',
@@ -704,7 +711,7 @@ function generateHeuristicBidDocument(orgProfile, clientName, projectName, amoun
       id: 'sec_roles',
       type: 'text',
       title: '8. Roles, Responsibilities & Governance Matrix',
-      body: `A collaborative governance framework guarantees on-time delivery:\n• Dezoryn Technology Project Manager: Single point of contact for sprint planning, status reports, and escalation management.\n• Dezoryn Lead Architect: Oversees system integrity, security audits, and cloud reliability.\n• ${clientName} Project Sponsor: Provides strategic direction, review milestone sign-offs, and final acceptance.\n• Weekly Status Reviews: Formal virtual sprint reviews conducted every Friday with recorded action items.`,
+      body: `A collaborative governance framework guarantees on-time delivery:\n• ${issuingCompanyName} Project Manager: Single point of contact for sprint planning, status reports, and escalation management.\n• ${issuingCompanyName} Lead Architect: Oversees system integrity, security audits, and cloud reliability.\n• ${clientName} Project Sponsor: Provides strategic direction, review milestone sign-offs, and final acceptance.\n• Weekly Status Reviews: Formal virtual sprint reviews conducted every Friday with recorded action items.`,
     },
     {
       id: 'sec_assumptions_exclusions',
@@ -716,7 +723,7 @@ function generateHeuristicBidDocument(orgProfile, clientName, projectName, amoun
       id: 'sec_support_sla',
       type: 'text',
       title: '10. Support, SLA & Maintenance Framework',
-      body: `Dezoryn Technology provides comprehensive post-implementation support:\n• Complimentary Warranty: 60 calendar days of warranty support post-production launch.\n• SLA Response Times: Critical Severity 1 incidents responded to within 1 hour; Severity 2 within 4 hours; General queries within 1 business day.\n• Support Channels: Dedicated ticketing portal, enterprise email (${orgProfile.email}), and direct hotline (+91 98765 43210).`,
+      body: `${issuingCompanyName} provides comprehensive post-implementation support:\n• Complimentary Warranty: 60 calendar days of warranty support post-production launch.\n• SLA Response Times: Critical Severity 1 incidents responded to within 1 hour; Severity 2 within 4 hours; General queries within 1 business day.\n• Support Channels: Dedicated ticketing portal, enterprise email (${orgProfile.email}), and direct hotline (+91 98765 43210).`,
     },
     {
       id: 'sec_security',
@@ -747,7 +754,7 @@ function generateHeuristicBidDocument(orgProfile, clientName, projectName, amoun
       id: 'sec_payment_terms',
       type: 'terms',
       title: '14. Payment Schedule & Bank Information',
-      body: `Payment Milestones:\n1. 30% Advance upon Contract Execution & Kickoff.\n2. 40% upon successful completion of Core Modules & Mid-Project Demonstration.\n3. 30% upon Final UAT Sign-Off and Production Handover.\n\nBank Account Details for Remittance:\nAccount Name: Dezoryn Technology Pvt Ltd\nBank Name: ${orgProfile.paymentDetails.bankName}\nAccount Number: ${orgProfile.paymentDetails.accountNumber}\nIFSC Code: ${orgProfile.paymentDetails.ifscCode}\nBranch: ${orgProfile.paymentDetails.branch}`,
+      body: `Payment Milestones:\n1. 30% Advance upon Contract Execution & Kickoff.\n2. 40% upon successful completion of Core Modules & Mid-Project Demonstration.\n3. 30% upon Final UAT Sign-Off and Production Handover.\n\nBank Account Details for Remittance:\nAccount Name: ${issuingLegalName}\nBank Name: ${orgProfile.paymentDetails.bankName}\nAccount Number: ${orgProfile.paymentDetails.accountNumber}\nIFSC Code: ${orgProfile.paymentDetails.ifscCode}\nBranch: ${orgProfile.paymentDetails.branch}`,
     },
     {
       id: 'sec_legal_terms',
@@ -759,7 +766,7 @@ function generateHeuristicBidDocument(orgProfile, clientName, projectName, amoun
       id: 'sec_signatures',
       type: 'signature',
       title: '16. Bid Submission & Acceptance Sign-Off',
-      body: `Submitted on behalf of Dezoryn Technology by Authorized Signatory:\nAditya Sharma, Director & VP Enterprise Solutions\nDezoryn Technology Pvt Ltd\n\nAccepted & Acknowledged by:\nAuthorized Representative for ${clientName}`,
+      body: `Submitted on behalf of ${issuingCompanyName} by Authorized Signatory:\nAditya Sharma, Director & VP Enterprise Solutions\n${issuingLegalName}\n\nAccepted & Acknowledged by:\nAuthorized Representative for ${clientName}`,
     },
   ];
 
@@ -785,11 +792,13 @@ function generateHeuristicBidDocument(orgProfile, clientName, projectName, amoun
     title: `Bid Document for ${clientName} - ${projectName}`,
     documentType: 'Bid Document',
     category: 'Business',
-    companyName: 'Dezoryn Technology',
+    companyName: issuingCompanyName,
+    legalName: issuingLegalName,
     clientName,
     financialData: financials,
     variables: {
-      company_name: 'Dezoryn Technology',
+      company_name: issuingCompanyName,
+      legal_name: issuingLegalName,
       client_name: clientName,
       project_name: projectName,
       document_date: todayStr,
@@ -803,9 +812,9 @@ function generateHeuristicBidDocument(orgProfile, clientName, projectName, amoun
 
 /**
  * Generate Comprehensive Quotation Document
- * FROM Dezoryn Technology TO Client with exact base amount & tax calculation
+ * FROM issuingCompanyName TO Client with exact base amount & tax calculation
  */
-function generateHeuristicQuotationDocument(orgProfile, clientName, projectName, amount, currency, todayStr, validUntil, rawPrompt) {
+function generateHeuristicQuotationDocument(orgProfile, issuingCompanyName, issuingLegalName, clientName, projectName, amount, currency, todayStr, validUntil, rawPrompt) {
   const p1 = Math.round(amount * 0.5);
   const p2 = Math.round(amount * 0.3);
   const p3 = amount - (p1 + p2);
@@ -845,13 +854,13 @@ function generateHeuristicQuotationDocument(orgProfile, clientName, projectName,
       id: 'sec_overview',
       type: 'header',
       title: 'Official Quotation & Commercial Estimate',
-      body: `QUOTATION NUMBER: DT-QT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}\nDATE OF ISSUE: ${todayStr}\nVALIDITY: 30 Calendar Days (Valid until: ${validUntil})\n\nISSUED BY (SELLER / SERVICE PROVIDER):\nDezoryn Technology (Dezoryn Technology Pvt Ltd)\n${orgProfile.registeredAddress}\nGSTIN: ${orgProfile.gstin} | PAN: ${orgProfile.pan} | CIN: ${orgProfile.cin}\nEmail: ${orgProfile.email} | Phone: ${orgProfile.phone} | Website: ${orgProfile.website}\n\nISSUED TO (CLIENT / RECIPIENT):\n${clientName}\nAttention: Project / Procurement Team\nSubject: Commercial Quotation for ${projectName}`,
+      body: `QUOTATION NUMBER: QT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}\nDATE OF ISSUE: ${todayStr}\nVALIDITY: 30 Calendar Days (Valid until: ${validUntil})\n\nISSUED BY (SELLER / SERVICE PROVIDER):\n${issuingCompanyName} (${issuingLegalName})\n${orgProfile.registeredAddress}\nGSTIN: ${orgProfile.gstin} | PAN: ${orgProfile.pan} | CIN: ${orgProfile.cin}\nEmail: ${orgProfile.email} | Phone: ${orgProfile.phone} | Website: ${orgProfile.website}\n\nISSUED TO (CLIENT / RECIPIENT):\n${clientName}\nAttention: Project / Procurement Team\nSubject: Commercial Quotation for ${projectName}`,
     },
     {
       id: 'sec_scope',
       type: 'text',
       title: '1. Project Scope & Solution Description',
-      body: `Dezoryn Technology is pleased to present this formal quotation to ${clientName} for the implementation of ${projectName}.\n\nOur engagement includes full lifecycle delivery:\n• Solution architecture, system setup, and responsive UI components.\n• Robust backend API layer integrated with PostgreSQL and secure authentication.\n• High-fidelity vector PDF generation, dynamic live preview, and automated email transmission.\n• Strict multi-tenant isolation, data encryption at rest and in transit, and role-based access control.`,
+      body: `${issuingCompanyName} is pleased to present this formal quotation to ${clientName} for the implementation of ${projectName}.\n\nOur engagement includes full lifecycle delivery:\n• Solution architecture, system setup, and responsive UI components.\n• Robust backend API layer integrated with PostgreSQL and secure authentication.\n• High-fidelity vector PDF generation, dynamic live preview, and automated email transmission.\n• Strict multi-tenant isolation, data encryption at rest and in transit, and role-based access control.`,
     },
     {
       id: 'sec_table',
@@ -885,7 +894,7 @@ function generateHeuristicQuotationDocument(orgProfile, clientName, projectName,
       id: 'sec_payment_terms',
       type: 'terms',
       title: '5. Payment Terms & Bank Remittance Information',
-      body: `Payment Schedule:\n• 50% Advance upon quotation acceptance and project sign-off.\n• 50% upon milestone completion, UAT approval, and delivery.\n\nBank Account Details for NEFT / RTGS Remittance:\nBeneficiary Name: Dezoryn Technology Pvt Ltd\nBank Name: ${orgProfile.paymentDetails.bankName}\nAccount Number: ${orgProfile.paymentDetails.accountNumber}\nIFSC Code: ${orgProfile.paymentDetails.ifscCode}\nBranch: ${orgProfile.paymentDetails.branch}\nAccount Type: Current Account`,
+      body: `Payment Schedule:\n• 50% Advance upon quotation acceptance and project sign-off.\n• 50% upon milestone completion, UAT approval, and delivery.\n\nBank Account Details for NEFT / RTGS Remittance:\nBeneficiary Name: ${issuingLegalName}\nBank Name: ${orgProfile.paymentDetails.bankName}\nAccount Number: ${orgProfile.paymentDetails.accountNumber}\nIFSC Code: ${orgProfile.paymentDetails.ifscCode}\nBranch: ${orgProfile.paymentDetails.branch}\nAccount Type: Current Account`,
     },
     {
       id: 'sec_support_terms',
@@ -903,7 +912,7 @@ function generateHeuristicQuotationDocument(orgProfile, clientName, projectName,
       id: 'sec_signature',
       type: 'signature',
       title: '8. Authorization & Client Acceptance',
-      body: `ISSUED BY:\nFor Dezoryn Technology Pvt Ltd\nAditya Sharma, Director & Authorised Signatory\n\nACCEPTED & CONFIRMED BY:\nClient: ${clientName}\nAuthorized Signature: _______________________\nName & Designation: _______________________\nDate: _______________________`,
+      body: `ISSUED BY:\nFor ${issuingLegalName}\nAditya Sharma, Director & Authorised Signatory\n\nACCEPTED & CONFIRMED BY:\nClient: ${clientName}\nAuthorized Signature: _______________________\nName & Designation: _______________________\nDate: _______________________`,
     },
   ];
 
@@ -911,11 +920,13 @@ function generateHeuristicQuotationDocument(orgProfile, clientName, projectName,
     title: `Quotation for ${clientName} - ${projectName}`,
     documentType: 'Quotation',
     category: 'Sales',
-    companyName: 'Dezoryn Technology',
+    companyName: issuingCompanyName,
+    legalName: issuingLegalName,
     clientName,
     financialData: financials,
     variables: {
-      company_name: 'Dezoryn Technology',
+      company_name: issuingCompanyName,
+      legal_name: issuingLegalName,
       client_name: clientName,
       project_name: projectName,
       document_date: todayStr,
@@ -934,7 +945,7 @@ function generateHeuristicQuotationDocument(orgProfile, clientName, projectName,
 function generateHeuristicDocument(prompt, documentType, category, clientContext, templateContext, companyName, clientName, amount, projectName, orgProfile) {
   const entities = extractCommonEntities(prompt);
   const resolvedClientName = clientContext?.name || clientName || entities.clientName || 'Valued Partner';
-  const resolvedCompanyName = 'Dezoryn Technology';
+  const resolvedCompanyName = companyName || entities.companyName || 'Dezoryn Technology';
 
   switch (category) {
     case 'HR':
