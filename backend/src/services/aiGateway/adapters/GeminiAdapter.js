@@ -248,7 +248,7 @@ class GeminiAdapter extends AIProviderAdapter {
             method: "POST",
             body: JSON.stringify(body),
           },
-          12000
+          35000
         );
 
         if (res.ok) {
