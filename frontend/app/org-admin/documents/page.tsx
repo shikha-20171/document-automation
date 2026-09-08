@@ -42,9 +42,9 @@ interface DocumentMetrics {
 
 const STATUS_BADGE: Record<string, { bg: string; text: string; border: string; icon: any }> = {
   DRAFT: { bg: "bg-slate-100", text: "text-slate-700", border: "border-slate-200", icon: Clock },
-  GENERATED: { bg: "bg-indigo-50", text: "text-indigo-700", border: "border-indigo-200", icon: Sparkles },
+  GENERATED: { bg: "bg-[#274690]/10", text: "text-[#274690]", border: "border-[#274690]/20", icon: Sparkles },
   UNDER_REVIEW: { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", icon: Clock },
-  FINAL: { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200", icon: CheckSquare },
+  FINAL: { bg: "bg-[#274690]/10", text: "text-[#274690]", border: "border-[#274690]/20", icon: CheckSquare },
   SENT: { bg: "bg-cyan-50", text: "text-cyan-700", border: "border-cyan-200", icon: Send },
   VIEWED: { bg: "bg-purple-50", text: "text-purple-700", border: "border-purple-200", icon: FileText },
   ACCEPTED: { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", icon: CheckCircle2 },
@@ -168,10 +168,10 @@ export default function CentralDocumentsLibraryPage() {
       )}
 
       {/* Header Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 border-t-4 border-t-[#274690] shadow-sm">
         <div>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-600/20">
+            <div className="w-10 h-10 rounded-xl bg-[#274690] text-white flex items-center justify-center shadow-md shadow-[#274690]/20">
               <FileText className="w-5 h-5" />
             </div>
             <div>
@@ -203,7 +203,7 @@ export default function CentralDocumentsLibraryPage() {
 
           <Link
             href="/org-admin/ai-builder"
-            className="flex items-center gap-2 px-5 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md shadow-blue-600/20 transition group"
+            className="flex items-center gap-2 px-5 py-2.5 text-xs font-bold text-white bg-[#274690] hover:bg-[#1e3670] rounded-xl shadow-md shadow-[#274690]/20 transition group"
           >
             <Sparkles className="w-4 h-4 text-blue-200 group-hover:rotate-12 transition-transform" />
             <span>AI Document Builder</span>
@@ -227,7 +227,7 @@ export default function CentralDocumentsLibraryPage() {
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Sent & Viewed</div>
-          <div className="text-2xl font-bold text-blue-600">{(metrics?.sentCount || 0) + (metrics?.viewedCount || 0)}</div>
+          <div className="text-2xl font-bold text-[#274690]">{(metrics?.sentCount || 0) + (metrics?.viewedCount || 0)}</div>
           <div className="text-xs text-slate-400 mt-1">Dispatched via secure portals</div>
         </div>
 
@@ -249,7 +249,7 @@ export default function CentralDocumentsLibraryPage() {
                 onClick={() => setCategoryFilter(cat)}
                 className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition ${
                   categoryFilter === cat
-                    ? "bg-blue-600 text-white shadow-sm"
+                    ? "bg-[#274690] text-white shadow-sm"
                     : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
                 }`}
               >
@@ -266,7 +266,7 @@ export default function CentralDocumentsLibraryPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search title, document #, client..."
-              className="w-full pl-9 pr-4 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+              className="w-full pl-9 pr-4 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#274690]/20 focus:border-[#274690] transition"
             />
           </div>
         </div>
@@ -294,12 +294,12 @@ export default function CentralDocumentsLibraryPage() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         {loading ? (
           <div className="py-24 text-center">
-            <RefreshCw className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-3" />
+            <RefreshCw className="w-8 h-8 text-[#274690] animate-spin mx-auto mb-3" />
             <div className="text-sm font-semibold text-slate-600">Loading document library...</div>
           </div>
         ) : documents.length === 0 ? (
           <div className="py-20 text-center px-4">
-            <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-4">
+            <div className="w-16 h-16 rounded-2xl bg-[#274690]/10 text-[#274690] flex items-center justify-center mx-auto mb-4">
               <FileText className="w-8 h-8" />
             </div>
             <h3 className="text-base font-bold text-slate-900 mb-1">No Documents Found</h3>
@@ -310,7 +310,7 @@ export default function CentralDocumentsLibraryPage() {
             </p>
             <Link
               href="/org-admin/ai-builder"
-              className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm transition"
+              className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-bold text-white bg-[#274690] hover:bg-[#1e3670] rounded-xl shadow-sm shadow-[#274690]/20 transition"
             >
               <Sparkles className="w-4 h-4" />
               <span>Launch AI Builder</span>
@@ -340,7 +340,7 @@ export default function CentralDocumentsLibraryPage() {
                       <td className="py-3.5 px-4 whitespace-nowrap">
                         <Link
                           href={`/org-admin/ai-builder?id=${doc.id}`}
-                          className="font-mono font-bold text-blue-600 hover:underline flex items-center gap-1.5"
+                          className="font-mono font-bold text-[#274690] hover:underline flex items-center gap-1.5"
                         >
                           {doc.documentNumber}
                           <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -403,7 +403,7 @@ export default function CentralDocumentsLibraryPage() {
                             className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition"
                             title="Download PDF"
                           >
-                            <Download className="w-4 h-4 text-blue-600" />
+                            <Download className="w-4 h-4 text-[#274690]" />
                           </button>
 
                           <button
@@ -416,7 +416,7 @@ export default function CentralDocumentsLibraryPage() {
 
                           <button
                             onClick={() => handleCopyLink(doc.publicShareToken)}
-                            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                            className="p-1.5 text-slate-500 hover:text-[#274690] hover:bg-[#274690]/10 rounded-lg transition"
                             title="Copy Share Link"
                           >
                             <Copy className="w-4 h-4" />
