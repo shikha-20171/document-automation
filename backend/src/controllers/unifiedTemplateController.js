@@ -1,14 +1,22 @@
 const unifiedTemplateService = require('../services/unifiedTemplateService');
 
+function getOrgId(req) {
+  const resolved =
+    req.user?.organisationId ||
+    req.user?.organisation_id ||
+    req.user?.organization_id ||
+    (req.headers && req.headers['x-organisation-id'] ? parseInt(req.headers['x-organisation-id'], 10) : null) ||
+    1;
+  return Number(resolved) || 1;
+}
+
 const unifiedTemplateController = {
   /**
    * GET /api/unified-templates
    */
   async listTemplates(req, res) {
     try {
-      const orgId = req.user.organisationId;
-      if (!orgId) return res.status(400).json({ success: false, message: 'Organisation context required.' });
-
+      const orgId = getOrgId(req);
       const templates = await unifiedTemplateService.listTemplates(orgId, req.query);
       return res.json({ success: true, data: templates });
     } catch (err) {
@@ -22,7 +30,7 @@ const unifiedTemplateController = {
    */
   async getTemplate(req, res) {
     try {
-      const orgId = req.user.organisationId;
+      const orgId = getOrgId(req);
       const { id } = req.params;
 
       const template = await unifiedTemplateService.getTemplateById(id, orgId);
@@ -38,9 +46,7 @@ const unifiedTemplateController = {
    */
   async createTemplate(req, res) {
     try {
-      const orgId = req.user.organisationId;
-      if (!orgId) return res.status(400).json({ success: false, message: 'Organisation context required.' });
-
+      const orgId = getOrgId(req);
       const template = await unifiedTemplateService.createTemplate(orgId, req.body);
       return res.status(201).json({
         success: true,
@@ -58,7 +64,7 @@ const unifiedTemplateController = {
    */
   async updateTemplate(req, res) {
     try {
-      const orgId = req.user.organisationId;
+      const orgId = getOrgId(req);
       const { id } = req.params;
 
       const updated = await unifiedTemplateService.updateTemplate(id, orgId, req.body);
@@ -78,7 +84,7 @@ const unifiedTemplateController = {
    */
   async deleteTemplate(req, res) {
     try {
-      const orgId = req.user.organisationId;
+      const orgId = getOrgId(req);
       const { id } = req.params;
 
       await unifiedTemplateService.deleteTemplate(id, orgId);

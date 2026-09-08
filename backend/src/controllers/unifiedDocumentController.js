@@ -1,13 +1,34 @@
 const unifiedDocumentService = require('../services/unifiedDocumentService');
 const { detectDocumentIntent, generateStructuredDocumentFromAI, editDocumentWithAI } = require('../services/aiDocumentBuilderService');
 
+/**
+ * Extract resilient tenant organisation ID from user token or request headers
+ */
+function getOrgId(req) {
+  const resolved =
+    req.user?.organisationId ||
+    req.user?.organisation_id ||
+    req.user?.organization_id ||
+    (req.headers && req.headers['x-organisation-id'] ? parseInt(req.headers['x-organisation-id'], 10) : null) ||
+    1;
+  return Number(resolved) || 1;
+}
+
+function getUserId(req) {
+  return req.user?.id || req.user?.userId || 1;
+}
+
+function getUserName(req) {
+  return req.user?.full_name || req.user?.name || req.user?.email || 'User';
+}
+
 const unifiedDocumentController = {
   /**
    * GET /api/unified-documents
    */
   async listDocuments(req, res) {
     try {
-      const orgId = req.user.organisationId || req.user.organisation_id || req.user.organization_id || 1;
+      const orgId = getOrgId(req);
       const result = await unifiedDocumentService.listDocuments(orgId, req.query, req.user);
       return res.json({ success: true, ...result });
     } catch (err) {
@@ -21,9 +42,7 @@ const unifiedDocumentController = {
    */
   async getMetrics(req, res) {
     try {
-      const orgId = req.user.organisationId;
-      if (!orgId) return res.status(400).json({ success: false, message: 'Organisation context required.' });
-
+      const orgId = getOrgId(req);
       const metrics = await unifiedDocumentService.getDocumentMetrics(orgId);
       return res.json({ success: true, data: metrics });
     } catch (err) {
@@ -51,8 +70,8 @@ const unifiedDocumentController = {
    */
   async generateWithAi(req, res) {
     try {
-      const orgId = req.user.organisationId;
-      const userId = req.user.userId || req.user.id;
+      const orgId = getOrgId(req);
+      const userId = getUserId(req);
       const { prompt, clientContext, templateContext, documentTypeOverride, categoryOverride, companyName } = req.body;
       const effectiveCompany = companyName || req.body.companyContext?.name || null;
 
@@ -83,8 +102,8 @@ const unifiedDocumentController = {
    */
   async editWithAi(req, res) {
     try {
-      const orgId = req.user.organisationId;
-      const userId = req.user.userId || req.user.id;
+      const orgId = getOrgId(req);
+      const userId = getUserId(req);
       const { document, instruction, sectionId, action } = req.body;
 
       if (!document) {
@@ -112,7 +131,7 @@ const unifiedDocumentController = {
    */
   async getDocument(req, res) {
     try {
-      const orgId = req.user.organisationId;
+      const orgId = getOrgId(req);
       const { id } = req.params;
 
       const document = await unifiedDocumentService.getDocumentById(id, orgId);
@@ -128,11 +147,9 @@ const unifiedDocumentController = {
    */
   async createDocument(req, res) {
     try {
-      const orgId = req.user.organisationId;
-      const userId = req.user.userId || req.user.id;
-      const userName = req.user.name || req.user.email;
-
-      if (!orgId) return res.status(400).json({ success: false, message: 'Organisation context required.' });
+      const orgId = getOrgId(req);
+      const userId = getUserId(req);
+      const userName = getUserName(req);
 
       const newDoc = await unifiedDocumentService.createDocument(orgId, userId, userName, req.body, req);
       return res.status(201).json({
@@ -151,9 +168,9 @@ const unifiedDocumentController = {
    */
   async updateDocument(req, res) {
     try {
-      const orgId = req.user.organisationId;
-      const userId = req.user.userId || req.user.id;
-      const userName = req.user.name || req.user.email;
+      const orgId = getOrgId(req);
+      const userId = getUserId(req);
+      const userName = getUserName(req);
       const { id } = req.params;
 
       const updated = await unifiedDocumentService.updateDocument(id, orgId, userId, userName, req.body, req);
@@ -173,9 +190,9 @@ const unifiedDocumentController = {
    */
   async restoreVersion(req, res) {
     try {
-      const orgId = req.user.organisationId;
-      const userId = req.user.userId || req.user.id;
-      const userName = req.user.name || req.user.email;
+      const orgId = getOrgId(req);
+      const userId = getUserId(req);
+      const userName = getUserName(req);
       const { id, versionNumber } = req.params;
 
       const restored = await unifiedDocumentService.restoreDocumentVersion(
@@ -203,9 +220,9 @@ const unifiedDocumentController = {
    */
   async deleteDocument(req, res) {
     try {
-      const orgId = req.user.organisationId;
-      const userId = req.user.userId || req.user.id;
-      const userName = req.user.name || req.user.email;
+      const orgId = getOrgId(req);
+      const userId = getUserId(req);
+      const userName = getUserName(req);
       const { id } = req.params;
 
       const result = await unifiedDocumentService.deleteDocument(id, orgId, userId, userName, req);
@@ -221,9 +238,9 @@ const unifiedDocumentController = {
    */
   async duplicateDocument(req, res) {
     try {
-      const orgId = req.user.organisationId;
-      const userId = req.user.userId || req.user.id;
-      const userName = req.user.name || req.user.email;
+      const orgId = getOrgId(req);
+      const userId = getUserId(req);
+      const userName = getUserName(req);
       const { id } = req.params;
 
       const duplicate = await unifiedDocumentService.duplicateDocument(id, orgId, userId, userName, req);
@@ -243,7 +260,7 @@ const unifiedDocumentController = {
    */
   async saveAsTemplate(req, res) {
     try {
-      const orgId = req.user.organisationId;
+      const orgId = getOrgId(req);
       const { id } = req.params;
       const { name, category, description } = req.body;
 
@@ -264,9 +281,9 @@ const unifiedDocumentController = {
    */
   async sendEmail(req, res) {
     try {
-      const orgId = req.user.organisationId;
-      const userId = req.user.userId || req.user.id;
-      const userName = req.user.name || req.user.email;
+      const orgId = getOrgId(req);
+      const userId = getUserId(req);
+      const userName = getUserName(req);
       const { id } = req.params;
 
       const result = await unifiedDocumentService.sendDocumentEmail(id, orgId, userId, userName, req.body, req);
@@ -282,7 +299,7 @@ const unifiedDocumentController = {
    */
   async downloadPdf(req, res) {
     try {
-      const orgId = req.user.organisationId;
+      const orgId = getOrgId(req);
       const { id } = req.params;
 
       const pdfBuffer = await unifiedDocumentService.generatePdfForDocument(id, orgId);
@@ -303,7 +320,7 @@ const unifiedDocumentController = {
    */
   async downloadDocx(req, res) {
     try {
-      const orgId = req.user.organisationId;
+      const orgId = getOrgId(req);
       const { id } = req.params;
 
       const docxBuffer = await unifiedDocumentService.generateDocxForDocument(id, orgId);
@@ -324,7 +341,7 @@ const unifiedDocumentController = {
    */
   async assignDocument(req, res) {
     try {
-      const orgId = req.user.organisationId || req.user.organisation_id || req.user.organization_id || 1;
+      const orgId = getOrgId(req);
       const { id } = req.params;
       const updated = await unifiedDocumentService.assignDocument(id, orgId, req.body, req.user, req);
       return res.json({ success: true, message: 'Document assigned successfully.', data: updated });
@@ -339,7 +356,7 @@ const unifiedDocumentController = {
    */
   async shareDocument(req, res) {
     try {
-      const orgId = req.user.organisationId || req.user.organisation_id || req.user.organization_id || 1;
+      const orgId = getOrgId(req);
       const { id } = req.params;
       const share = await unifiedDocumentService.shareDocument(id, orgId, req.body, req.user, req);
       return res.json({ success: true, message: 'Document shared successfully.', data: share });
@@ -354,7 +371,7 @@ const unifiedDocumentController = {
    */
   async submitForApproval(req, res) {
     try {
-      const orgId = req.user.organisationId || req.user.organisation_id || req.user.organization_id || 1;
+      const orgId = getOrgId(req);
       const { id } = req.params;
       const result = await unifiedDocumentService.submitForApproval(id, orgId, req.body, req.user, req);
       return res.json({ success: true, message: 'Document submitted for approval.', data: result });
@@ -369,7 +386,7 @@ const unifiedDocumentController = {
    */
   async processApproval(req, res) {
     try {
-      const orgId = req.user.organisationId || req.user.organisation_id || req.user.organization_id || 1;
+      const orgId = getOrgId(req);
       const { id } = req.params;
       const result = await unifiedDocumentService.processApproval(id, orgId, req.body, req.user, req);
       return res.json({ success: true, message: `Approval action processed: ${req.body.action}`, data: result });
@@ -384,7 +401,7 @@ const unifiedDocumentController = {
    */
   async sendForSignature(req, res) {
     try {
-      const orgId = req.user.organisationId || req.user.organisation_id || req.user.organization_id || 1;
+      const orgId = getOrgId(req);
       const { id } = req.params;
       const envelope = await unifiedDocumentService.sendForSignature(id, orgId, req.body, req.user, req);
       return res.status(201).json({ success: true, message: 'Signature request dispatched.', data: envelope });
@@ -414,13 +431,12 @@ const unifiedDocumentController = {
     }
   },
 
-
   /**
    * POST /api/unified-documents/:id/archive
    */
   async archiveDocument(req, res) {
     try {
-      const orgId = req.user.organisationId || req.user.organisation_id || req.user.organization_id || 1;
+      const orgId = getOrgId(req);
       const { id } = req.params;
       const updated = await unifiedDocumentService.archiveDocument(id, orgId, req.user, req);
       return res.json({ success: true, message: 'Document archived.', data: updated });
@@ -435,7 +451,7 @@ const unifiedDocumentController = {
    */
   async restoreDocument(req, res) {
     try {
-      const orgId = req.user.organisationId || req.user.organisation_id || req.user.organization_id || 1;
+      const orgId = getOrgId(req);
       const { id } = req.params;
       const updated = await unifiedDocumentService.restoreDocument(id, orgId, req.user, req);
       return res.json({ success: true, message: 'Document restored.', data: updated });
@@ -450,7 +466,7 @@ const unifiedDocumentController = {
    */
   async addComment(req, res) {
     try {
-      const orgId = req.user.organisationId || req.user.organisation_id || req.user.organization_id || 1;
+      const orgId = getOrgId(req);
       const { id } = req.params;
       const comment = await unifiedDocumentService.addComment(id, orgId, req.body, req.user, req);
       return res.status(201).json({ success: true, message: 'Comment added.', data: comment });
@@ -465,7 +481,7 @@ const unifiedDocumentController = {
    */
   async getAuditLogs(req, res) {
     try {
-      const orgId = req.user.organisationId || req.user.organisation_id || req.user.organization_id || 1;
+      const orgId = getOrgId(req);
       const { id } = req.params;
       const logs = await unifiedDocumentService.getAuditLogs(id, orgId);
       return res.json({ success: true, data: logs });

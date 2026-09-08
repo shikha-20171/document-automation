@@ -149,16 +149,19 @@ export default function DocumentWorkspace({
           search: search.trim() || undefined,
           category: categoryFilter !== "All" ? categoryFilter : undefined,
         };
-        const [docsRes, metricsRes] = await Promise.all([
+        const [docsSettled, metricsSettled] = await Promise.allSettled([
           apiClient.get("/api/unified-documents", { params }),
           apiClient.get("/api/unified-documents/metrics"),
         ]);
 
-        if (docsRes.data?.success) {
-          setDocuments(docsRes.data.data || []);
+        if (docsSettled.status === "fulfilled" && docsSettled.value.data?.success) {
+          setDocuments(docsSettled.value.data.data || []);
+        } else if (docsSettled.status === "rejected") {
+          throw docsSettled.reason;
         }
-        if (metricsRes.data?.success) {
-          setMetrics(metricsRes.data.data);
+
+        if (metricsSettled.status === "fulfilled" && metricsSettled.value.data?.success) {
+          setMetrics(metricsSettled.value.data.data);
         }
       }
     } catch (err: any) {
