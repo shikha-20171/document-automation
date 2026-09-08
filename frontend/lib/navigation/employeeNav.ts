@@ -25,12 +25,17 @@ export const employeeNavItems: EmployeeNavItem[] = [
     icon: LayoutDashboard,
   },
   {
-    name: "My Documents",
+    name: "Documents",
     href: "/employee/documents",
     icon: FileText,
   },
   {
-    name: "Document Templates",
+    name: "Document Builder",
+    href: "/employee/ai-builder",
+    icon: Sparkles,
+  },
+  {
+    name: "Templates",
     href: "/employee/document-templates",
     icon: LayoutTemplate,
   },
@@ -43,11 +48,6 @@ export const employeeNavItems: EmployeeNavItem[] = [
     name: "Approvals",
     href: "/employee/approvals",
     icon: CheckCircle2,
-  },
-  {
-    name: "AI Tools",
-    href: "/employee/ai-tools",
-    icon: Sparkles,
   },
   {
     name: "Reports & Performance",
@@ -65,5 +65,4 @@ export const employeeNavItems: EmployeeNavItem[] = [
     icon: UserCheck,
   },
 ];
-
 

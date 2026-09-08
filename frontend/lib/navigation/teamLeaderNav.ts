@@ -28,19 +28,24 @@ export const teamLeaderNavItems: TeamLeaderNavItem[] = [
     icon: LayoutDashboard,
   },
   {
-    title: "My Team",
-    href: "/team-leader/my-team",
-    icon: Users,
-  },
-  {
     title: "Documents",
     href: "/team-leader/documents",
     icon: FileText,
   },
   {
-    title: "Document Templates",
+    title: "Document Builder",
+    href: "/team-leader/ai-builder",
+    icon: Sparkles,
+  },
+  {
+    title: "Templates",
     href: "/team-leader/document-templates",
     icon: Copy,
+  },
+  {
+    title: "My Team",
+    href: "/team-leader/my-team",
+    icon: Users,
   },
   {
     title: "Tasks",
@@ -51,17 +56,6 @@ export const teamLeaderNavItems: TeamLeaderNavItem[] = [
     title: "Approvals",
     href: "/team-leader/approvals",
     icon: CheckCircle,
-    badge: "2",
-  },
-  {
-    title: "Workflow",
-    href: "/team-leader/workflow",
-    icon: GitFork,
-  },
-  {
-    title: "AI Tools",
-    href: "/team-leader/ai-tools",
-    icon: Sparkles,
   },
   {
     title: "Reports",

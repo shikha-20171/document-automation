@@ -1,29 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense } from "react";
+import React, { Suspense } from "react";
+import CleanDocumentBuilder from "@/components/builder/CleanDocumentBuilder";
 
-function TeamLeaderAiBuilderRedirect() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
-  useEffect(() => {
-    const query = searchParams.toString();
-    router.replace(`/documents/editor${query ? `?${query}` : ""}`);
-  }, [router, searchParams]);
-
+export default function TeamLeaderDocumentBuilderPage() {
   return (
-    <div className="p-8 text-center text-slate-500">
-      Redirecting to Enterprise Document Editor...
-    </div>
-  );
-}
-
-export default function TeamLeaderAiBuilderPage() {
-  return (
-    <Suspense fallback={<div className="p-8 text-center text-slate-500">Loading...</div>}>
-      <TeamLeaderAiBuilderRedirect />
+    <Suspense fallback={<div className="p-8 text-center text-xs text-slate-400">Loading Document Builder...</div>}>
+      <CleanDocumentBuilder role="TEAM_LEADER" roleDisplayName="Team Lead" />
     </Suspense>
   );
 }
