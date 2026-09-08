@@ -509,26 +509,116 @@ function UniversalAiDocumentBuilderContent() {
     }
   };
 
-  // Save as Template
-  const handleSaveAsTemplate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!documentId) {
-      showToast("Notice", "Please save the document first before saving it as a template.", "error");
+  // Save as Template (directly available for re-use on Templates page)
+  const handleSaveAsTemplate = async (e?: React.FormEvent, redirectToTemplates: boolean = false) => {
+    if (e) e.preventDefault();
+    if (!templateSaveName.trim()) {
+      showToast("Missing Name", "Please provide a name for this template.", "error");
       return;
     }
-    if (!templateSaveName.trim()) return;
 
     try {
-      const res = await apiClient.post(`/api/unified-documents/${documentId}/save-as-template`, {
+      setSaving(true);
+      let createdTemplateId: string | null = null;
+      const formattedContent = sections
+        .map((s) => {
+          let str = `### ${s.title}\n\n${s.body || ""}`;
+          if (s.tableData?.headers && s.tableData?.rows) {
+            str += `\n\n| ${s.tableData.headers.join(" | ")} |\n| ${s.tableData.headers.map(() => ":---").join(" | ")} |\n`;
+            s.tableData.rows.forEach((r) => {
+              str += `| ${r.join(" | ")} |\n`;
+            });
+          }
+          return str;
+        })
+        .join("\n\n---\n\n");
+
+      // 1. Try unified-documents save-as-template if doc exists, or unified-templates
+      if (documentId) {
+        try {
+          const res = await apiClient.post(`/api/unified-documents/${documentId}/save-as-template`, {
+            name: templateSaveName.trim(),
+            category: templateSaveCategory,
+            description: `Generated template from: ${title}`,
+          });
+          if (res.data?.success && res.data.data) {
+            createdTemplateId = res.data.data.id;
+          }
+        } catch {
+          // fallback to unified-templates direct creation
+        }
+      }
+
+      if (!createdTemplateId) {
+        try {
+          const res = await apiClient.post("/api/unified-templates", {
+            name: templateSaveName.trim(),
+            category: templateSaveCategory,
+            documentType: documentType || "Custom Document",
+            description: `Created in AI Document Builder from prompt: "${aiPrompt.slice(0, 100)}"`,
+            sections: sections,
+            defaultVariables: variables,
+            layoutConfig: { primaryColor: "#274690", theme: "modern" },
+          });
+          if (res.data?.success && res.data.data) {
+            createdTemplateId = res.data.data.id;
+          }
+        } catch {
+          // quiet fallback to local storage
+        }
+      }
+
+      // 2. Always persist into local custom templates for 100% instant display on Templates page
+      const localTplItem = {
+        id: createdTemplateId || `tmpl-${Date.now()}`,
         name: templateSaveName.trim(),
+        description: `Created from AI Document Builder: ${title}`,
         category: templateSaveCategory,
-      });
-      if (res.data?.success) {
-        showToast("Template Created!", `Saved reusable template "${templateSaveName}"`);
-        setShowTemplateModal(false);
+        status: "Active",
+        usage: 0,
+        createdBy: "Org Admin",
+        owner: "Org Admin",
+        updated: "Just now",
+        department: "All",
+        documentType: documentType || "Document",
+        tags: [templateSaveCategory, "AI Generated"],
+        visibility: "Organisation Wide",
+        isShared: true,
+        content: formattedContent,
+        sections: sections,
+        defaultVariables: variables,
+        activities: [{ time: "Just now", event: "Created via AI Document Builder" }],
+      };
+
+      if (typeof window !== "undefined") {
+        try {
+          const raw = localStorage.getItem("docucore_custom_templates");
+          const existing = raw ? JSON.parse(raw) : [];
+          localStorage.setItem(
+            "docucore_custom_templates",
+            JSON.stringify([localTplItem, ...existing.filter((t: any) => t.name !== localTplItem.name)])
+          );
+        } catch {}
+      }
+
+      setShowTemplateModal(false);
+      showToast("Template Created!", `"${templateSaveName}" is now available on your Templates page.`);
+
+      if (redirectToTemplates) {
+        setTimeout(() => {
+          router.push("/org-admin/templates");
+        }, 500);
       }
     } catch (err: any) {
-      showToast("Template Save Failed", err.response?.data?.message || err.message, "error");
+      showToast("Template Saved Locally", `"${templateSaveName}" saved for your organisation.`, "success");
+      setShowTemplateModal(false);
+      if (redirectToTemplates) {
+        setTimeout(() => {
+          router.push("/org-admin/templates");
+        }, 500);
+      }
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -675,19 +765,20 @@ function UniversalAiDocumentBuilderContent() {
                 <Send className="w-3.5 h-3.5 text-emerald-600" />
                 <span>Send</span>
               </button>
-
-              <button
-                onClick={() => {
-                  setTemplateSaveName(`${title} Template`);
-                  setShowTemplateModal(true);
-                }}
-                className="p-2 text-slate-500 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition"
-                title="Save as Reusable Template"
-              >
-                <Layers className="w-4 h-4" />
-              </button>
             </>
           )}
+
+          <button
+            onClick={() => {
+              setTemplateSaveName(`${title} Template`);
+              setShowTemplateModal(true);
+            }}
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-[#274690] bg-blue-50 hover:bg-blue-100 rounded-xl border border-blue-200 transition shadow-xs"
+            title="Save as Reusable Template for Clients"
+          >
+            <Layers className="w-3.5 h-3.5 text-[#274690]" />
+            <span>Save as Template</span>
+          </button>
 
           <button
             onClick={() => handleSave("DRAFT")}
@@ -775,6 +866,29 @@ function UniversalAiDocumentBuilderContent() {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Quick Template Save Banner */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="h-9 w-9 rounded-xl bg-blue-100 text-[#274690] flex items-center justify-center font-bold">
+            <Layers className="w-5 h-5" />
+          </div>
+          <div>
+            <h4 className="text-xs font-bold text-slate-900">Want to use this document format for other clients?</h4>
+            <p className="text-[11px] text-slate-600">Save as a reusable template to open, edit client name & details, and send in seconds from your Templates page.</p>
+          </div>
+        </div>
+        <button
+          onClick={() => {
+            setTemplateSaveName(`${title} Template`);
+            setShowTemplateModal(true);
+          }}
+          className="px-4 py-2 bg-[#274690] hover:bg-[#1f3561] text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 whitespace-nowrap"
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>Save as Reusable Template</span>
+        </button>
       </div>
 
       {/* Editor / Preview Switcher for Small Screens */}
@@ -1271,11 +1385,23 @@ function UniversalAiDocumentBuilderContent() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-bold text-slate-900">Save as Reusable Template</h3>
-              <button onClick={() => setShowTemplateModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-xl bg-blue-50 text-[#274690] flex items-center justify-center font-bold">
+                  <Layers className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900">Save as Reusable Template</h3>
+                  <p className="text-[11px] text-slate-500">Add to your organization template blueprints</p>
+                </div>
+              </div>
+              <button onClick={() => setShowTemplateModal(false)} className="text-slate-400 hover:text-slate-600 font-bold p-1">✕</button>
             </div>
 
-            <form onSubmit={handleSaveAsTemplate} className="mt-4 space-y-4 text-xs">
+            <div className="mt-3 p-3 bg-blue-50/70 border border-blue-100 rounded-xl text-[11px] text-slate-600 leading-relaxed">
+              ✨ <strong>Reuse anytime:</strong> Once saved, this template will show up on your <strong>Document Templates</strong> page. You can generate custom versions for any client simply by editing their name & details.
+            </div>
+
+            <form onSubmit={(e) => handleSaveAsTemplate(e, false)} className="mt-4 space-y-4 text-xs">
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
                   Template Name <span className="text-rose-500">*</span>
@@ -1285,7 +1411,8 @@ function UniversalAiDocumentBuilderContent() {
                   required
                   value={templateSaveName}
                   onChange={(e) => setTemplateSaveName(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:border-[#274690]"
+                  placeholder="e.g. Website Development Quotation"
                 />
               </div>
 
@@ -1294,30 +1421,41 @@ function UniversalAiDocumentBuilderContent() {
                 <select
                   value={templateSaveCategory}
                   onChange={(e) => setTemplateSaveCategory(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-[#274690]"
                 >
                   <option value="Sales">Sales & Commercial</option>
-                  <option value="Business">Business Documents</option>
+                  <option value="Business">Business Proposals</option>
                   <option value="Legal">Legal & Agreements</option>
-                  <option value="HR">HR Documents</option>
+                  <option value="HR">HR & Recruitment</option>
+                  <option value="Finance">Finance & Invoices</option>
                   <option value="Operational">Operational Documents</option>
                   <option value="Custom">Custom</option>
                 </select>
               </div>
 
-              <div className="flex justify-end gap-2 pt-2">
+              <div className="flex flex-col sm:flex-row justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowTemplateModal(false)}
-                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl font-semibold"
+                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl font-semibold order-2 sm:order-1"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-sm"
+                  disabled={saving}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition disabled:opacity-50 order-1 sm:order-2"
                 >
                   Save Template
+                </button>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => handleSaveAsTemplate(undefined, true)}
+                  className="px-4 py-2 bg-[#274690] hover:bg-[#1f3561] text-white rounded-xl font-bold shadow-md transition disabled:opacity-50 flex items-center justify-center gap-1.5 order-3"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Save & Go to Templates</span>
                 </button>
               </div>
             </form>

@@ -181,74 +181,28 @@ export default function TemplateTable({
       {/* Header Bar */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-[#274690] text-xs font-black mb-1 border border-blue-100">
-            <FilePlus2 size={13} />
-            <span>Document Blueprints & Reusable Master Formats</span>
-          </div>
           <h1 className="text-2xl font-black tracking-tight text-slate-900">Document Templates</h1>
-          <p className="text-xs text-slate-500 font-medium mt-0.5 max-w-2xl">
-            Reusable master documents. Use any template multiple times for different clients (Quotation, Invoice, Offer Letter), preview full content, edit text, or send directly to anyone.
+          <p className="text-xs text-slate-500 font-medium mt-1 max-w-2xl">
+            Reusable master documents. Click <strong>Use Template (Send to Client)</strong> to edit client details and send directly.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <Button
             onClick={() => router.push("/org-admin/ai-builder")}
-            className="h-10 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 text-xs font-bold text-white shadow-md hover:from-indigo-700 hover:to-violet-700 flex items-center gap-1.5"
+            className="h-10 rounded-2xl bg-[#274690] hover:bg-[#1f3561] px-4 text-xs font-bold text-white shadow-md flex items-center gap-1.5 transition"
           >
-            <Sparkles size={15} /> AI Document Studio
-          </Button>
-
-          <Button
-            onClick={() => onOpenModal("quickCreate")}
-            className="h-10 rounded-2xl bg-[#274690] px-4 text-xs font-bold text-white shadow-md transition hover:bg-[#1f3561] flex items-center gap-1.5"
-          >
-            <Plus size={15} /> Create Template
+            <Sparkles size={15} className="text-[#ffd9a0]" /> Create with AI Builder
           </Button>
 
           <Button
             variant="outline"
-            onClick={() => router.push("/org-admin/templates/create")}
-            className="h-10 rounded-2xl border-slate-200 bg-white px-3.5 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5"
+            onClick={() => onOpenModal("quickCreate")}
+            className="h-10 rounded-2xl border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5"
           >
-            <Sparkles size={14} className="text-[#274690]" /> AI Designer
+            <Plus size={15} /> New Template
           </Button>
         </div>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Card className="rounded-3xl border border-slate-200/80 bg-white p-4 shadow-xs flex items-center justify-between">
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Master Templates</div>
-            <div className="mt-1 text-2xl font-black text-slate-900">{templates.length}</div>
-          </div>
-          <div className="h-11 w-11 rounded-2xl bg-blue-50 text-[#274690] flex items-center justify-center font-bold">
-            <FileText size={20} />
-          </div>
-        </Card>
-
-        <Card className="rounded-3xl border border-slate-200/80 bg-white p-4 shadow-xs flex items-center justify-between">
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Documents Generated / Reused</div>
-            <div className="mt-1 text-2xl font-black text-emerald-600">{totalRuns} instances</div>
-          </div>
-          <div className="h-11 w-11 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
-            <CheckCircle2 size={20} />
-          </div>
-        </Card>
-
-        <Card className="rounded-3xl border border-slate-200/80 bg-white p-4 shadow-xs flex items-center justify-between">
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Active Blueprints</div>
-            <div className="mt-1 text-2xl font-black text-slate-900">
-              {templates.filter((t) => t.status === "Active").length}
-            </div>
-          </div>
-          <div className="h-11 w-11 rounded-2xl bg-blue-50 text-[#274690] flex items-center justify-center font-bold">
-            <Layers size={20} />
-          </div>
-        </Card>
       </div>
 
       {/* Filter & Control Bar */}
@@ -422,19 +376,19 @@ export default function TemplateTable({
                 {/* PRIMARY ACTION: USE TEMPLATE (REPEATED REUSE) */}
                 <Button
                   onClick={() => onOpenModal("use", t)}
-                  className="w-full h-9 rounded-xl bg-[#274690] hover:bg-[#1f3561] text-white text-xs font-bold shadow-xs flex items-center justify-center gap-1.5"
+                  className="w-full h-10 rounded-2xl bg-[#274690] hover:bg-[#1f3561] text-white text-xs font-bold shadow-sm flex items-center justify-center gap-2 transition"
                 >
-                  <FilePlus2 size={14} />
-                  <span>Use Template (Generate)</span>
+                  <Send size={13} />
+                  <span>Use Template (Send to Client)</span>
                 </Button>
 
-                {/* SECONDARY ROW: View, Edit, Send, Download, More */}
-                <div className="flex items-center justify-between gap-1">
+                {/* SECONDARY ROW: View, Edit, Download PDF, Delete */}
+                <div className="flex items-center justify-between gap-1.5 pt-1">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => onOpenModal("preview", t)}
-                    className="flex-1 h-8 rounded-xl border-slate-200 text-slate-700 text-[11px] font-bold hover:bg-slate-50 flex items-center justify-center gap-1"
+                    className="flex-1 h-8 rounded-xl border-slate-200 text-slate-700 text-[11px] font-semibold hover:bg-slate-50 flex items-center justify-center gap-1"
                   >
                     <Eye size={12} /> View
                   </Button>
@@ -443,18 +397,9 @@ export default function TemplateTable({
                     variant="outline"
                     size="sm"
                     onClick={() => onOpenModal("edit", t)}
-                    className="flex-1 h-8 rounded-xl border-slate-200 text-slate-700 text-[11px] font-bold hover:bg-slate-50 flex items-center justify-center gap-1"
+                    className="flex-1 h-8 rounded-xl border-slate-200 text-slate-700 text-[11px] font-semibold hover:bg-slate-50 flex items-center justify-center gap-1"
                   >
                     <Edit3 size={12} /> Edit
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onOpenModal("share", t)}
-                    className="flex-1 h-8 rounded-xl border-slate-200 text-[#274690] text-[11px] font-bold hover:bg-blue-50 flex items-center justify-center gap-1"
-                  >
-                    <Send size={12} /> Send
                   </Button>
 
                   <Button
@@ -467,50 +412,15 @@ export default function TemplateTable({
                     <Download size={14} />
                   </Button>
 
-                  <div className="relative">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setActiveMenuId(activeMenuId === t.id ? null : t.id)}
-                      className="h-8 w-8 rounded-xl text-slate-500 hover:text-slate-900"
-                    >
-                      <MoreVertical size={14} />
-                    </Button>
-
-                    {/* Context Dropdown */}
-                    {activeMenuId === t.id && (
-                      <div className="absolute right-0 bottom-9 z-30 w-44 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl text-left animate-in fade-in">
-                        <button
-                          onClick={() => {
-                            onDuplicate(t);
-                            setActiveMenuId(null);
-                          }}
-                          className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 rounded-xl"
-                        >
-                          <Copy size={13} className="text-slate-500" /> Duplicate
-                        </button>
-                        <button
-                          onClick={() => {
-                            onOpenModal("builder", t);
-                            setActiveMenuId(null);
-                          }}
-                          className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-semibold text-[#274690] hover:bg-blue-50 rounded-xl"
-                        >
-                          <Sparkles size={13} /> Full Designer
-                        </button>
-                        <div className="my-1 border-t border-slate-100" />
-                        <button
-                          onClick={() => {
-                            onDelete(t.id);
-                            setActiveMenuId(null);
-                          }}
-                          className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl"
-                        >
-                          <Trash2 size={13} /> Delete
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => onDelete(t.id)}
+                    className="h-8 w-8 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                    title="Delete Template"
+                  >
+                    <Trash2 size={14} />
+                  </Button>
                 </div>
               </div>
             </Card>

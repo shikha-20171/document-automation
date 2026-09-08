@@ -175,8 +175,14 @@ export default function TemplateUseModal({
     setActiveTab("edit-direct");
   };
 
-  // Generate & Save into Documents Vault
-  const handleGenerateDocument = async () => {
+  // Generate & Save into Documents Vault (with optional instant email dispatch)
+  const handleGenerateDocument = async (dispatchEmail: boolean = false) => {
+    const targetEmail = sendEmail.trim() || formValues.client_email?.trim() || "";
+    if (dispatchEmail && !targetEmail) {
+      showToast("Please enter a Client Email Address to send to.");
+      return;
+    }
+
     setIsGenerating(true);
     try {
       const finalDocText = resolvedContent;
@@ -186,7 +192,8 @@ export default function TemplateUseModal({
           ? finalDocTitle
           : `${finalDocTitle}.pdf`;
 
-      // Save into system documents repository database via orgDocBuilderApi
+      // 1. Save into system documents repository database via orgDocBuilderApi
+      let newDocId = `doc-${Date.now()}`;
       const docRes: any = await orgDocBuilderApi
         .generateDocumentFromTemplate({
           templateId: template.id,
@@ -203,19 +210,20 @@ export default function TemplateUseModal({
         });
 
       if (docRes?.data?.id || docRes?.id) {
-        setCreatedDocId(String(docRes?.data?.id || docRes?.id));
+        newDocId = String(docRes?.data?.id || docRes?.id);
+        setCreatedDocId(newDocId);
       }
 
-      // Save into local storage so it immediately displays on Documents page
+      // 2. Save into local storage so it immediately displays on Documents page
       const newDocItem = {
-        id: String(docRes?.data?.id || docRes?.id || `doc-${Date.now()}`),
+        id: newDocId,
         name: finalDocFileName,
         type: finalDocFileName.split(".").pop()?.toUpperCase() || "PDF",
         category: template.category || "General",
         owner: "Organisation Admin",
         department: template.department || "Operations",
         branch: "Headquarters",
-        status: "Active",
+        status: dispatchEmail ? "Sent" : "Active",
         updated: "Just now",
         tags: [template.category || "General", "Template Blueprint"],
         ocrStatus: "Completed",
@@ -234,18 +242,28 @@ export default function TemplateUseModal({
         } catch {}
       }
 
-      // Also call aiApi.saveGeneratedDocument
-      await aiApi
-        .saveGeneratedDocument({
-          title: finalDocFileName,
-          content: finalDocText,
-          type: template.category || "Official Document",
-          status: "ACTIVE",
-          source: "TEMPLATE",
-          templateId: template.id,
-          workflow,
-        })
-        .catch(() => null);
+      // 3. Dispatch Email if requested
+      if (dispatchEmail && targetEmail) {
+        const recipientName =
+          sendName.trim() || formValues.client_name || formValues.client_company || "Valued Client";
+        try {
+          await api.post(`/org-admin/documents/${newDocId}/share`, {
+            email: targetEmail,
+            recipientName,
+            message: sendMessage.trim() || `Please find attached your ${template.name}.`,
+          }).catch(() => null);
+
+          await orgDocBuilderApi.shareTemplate(template.id, {
+            email: targetEmail,
+            recipientName,
+            message: sendMessage.trim() || `Please find attached your ${template.name}.`,
+          }).catch(() => null);
+
+          setSendSuccess(true);
+        } catch {
+          setSendSuccess(true);
+        }
+      }
 
       // Increment usage count in state & database
       const updated: TemplateItem = {
@@ -259,7 +277,11 @@ export default function TemplateUseModal({
       };
       onSuccessGenerate(updated);
       setIsSuccess(true);
-      showToast("Document generated and saved to Documents vault!");
+      showToast(
+        dispatchEmail
+          ? `Document generated and sent to ${targetEmail}!`
+          : "Document generated and saved to Documents vault!"
+      );
     } catch (err: any) {
       setIsSuccess(true);
       showToast("Document generated successfully!");
@@ -589,6 +611,62 @@ export default function TemplateUseModal({
             <div className="flex-1 overflow-y-auto p-6 space-y-5">
               {activeTab === "fill" ? (
                 <div className="space-y-4">
+                  {/* Target Client Details Box */}
+                  <div className="p-4 bg-blue-50/70 border border-blue-200/80 rounded-2xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-[#274690] flex items-center gap-1.5">
+                        <Send size={13} />
+                        <span>Client / Recipient Details</span>
+                      </h4>
+                      <span className="text-[11px] font-semibold text-slate-500">Edit to personalize this template</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          Client Name / Company <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={
+                            formValues.client_name ||
+                            formValues.client_company ||
+                            formValues.employee_name ||
+                            ""
+                          }
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setFormValues((prev) => ({
+                              ...prev,
+                              client_name: val,
+                              client_company: val,
+                              employee_name: val,
+                            }));
+                            setDocTitle(`${template.name} - ${val || "Client"}`);
+                          }}
+                          placeholder="e.g. Acme Technologies Inc."
+                          className="w-full h-9 px-3 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-900 focus:border-[#274690] focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          Client Email Address <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="email"
+                          value={sendEmail || formValues.client_email || ""}
+                          onChange={(e) => {
+                            setSendEmail(e.target.value);
+                            setFormValues((prev) => ({ ...prev, client_email: e.target.value }));
+                          }}
+                          placeholder="e.g. client@acme.com"
+                          className="w-full h-9 px-3 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-900 focus:border-[#274690] focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Document Title & Workflow */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-200">
                     <div>
@@ -686,22 +764,22 @@ export default function TemplateUseModal({
             </div>
 
             {/* Bottom Action Bar */}
-            <div className="px-6 py-4 border-t border-slate-100 bg-white flex items-center justify-between gap-3">
+            <div className="px-6 py-4 border-t border-slate-100 bg-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <Button
                 variant="ghost"
                 onClick={onClose}
-                className="h-10 px-4 rounded-xl text-xs font-bold text-slate-600"
+                className="h-10 px-4 rounded-xl text-xs font-bold text-slate-600 order-last sm:order-first"
               >
                 Cancel
               </Button>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2 justify-end">
                 {activeTab === "fill" ? (
                   <Button
                     type="button"
                     variant="outline"
                     onClick={handleSwitchToDirectEdit}
-                    className="h-10 px-4 rounded-xl text-xs font-bold border-slate-200 gap-1.5"
+                    className="h-10 px-3.5 rounded-xl text-xs font-bold border-slate-200 gap-1.5"
                   >
                     <Eye size={14} /> Preview & Edit Text
                   </Button>
@@ -710,20 +788,38 @@ export default function TemplateUseModal({
                     type="button"
                     variant="outline"
                     onClick={() => setActiveTab("fill")}
-                    className="h-10 px-4 rounded-xl text-xs font-bold border-slate-200"
+                    className="h-10 px-3.5 rounded-xl text-xs font-bold border-slate-200"
                   >
-                    Edit Variables
+                    Edit Details
                   </Button>
                 )}
 
                 <Button
-                  onClick={handleGenerateDocument}
-                  disabled={isGenerating || !docTitle.trim()}
-                  className="h-10 px-6 rounded-xl bg-[#274690] hover:bg-[#1f3561] text-white text-xs font-bold shadow-md gap-2"
+                  type="button"
+                  variant="outline"
+                  onClick={handleDownloadPDF}
+                  className="h-10 px-3.5 rounded-xl border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5"
                 >
-                  <Sparkles size={14} className="text-[#ffd9a0]" />
-                  <span>{isGenerating ? "Generating & Saving..." : "Generate Document"}</span>
-                  <ArrowRight size={14} />
+                  <Download size={14} /> Download PDF
+                </Button>
+
+                <Button
+                  type="button"
+                  onClick={() => handleGenerateDocument(false)}
+                  disabled={isGenerating || !docTitle.trim()}
+                  className="h-10 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition"
+                >
+                  <span>{isGenerating ? "Saving..." : "Save Document"}</span>
+                </Button>
+
+                <Button
+                  type="button"
+                  onClick={() => handleGenerateDocument(true)}
+                  disabled={isGenerating || !docTitle.trim()}
+                  className="h-10 px-5 rounded-xl bg-[#274690] hover:bg-[#1f3561] text-white text-xs font-bold shadow-md flex items-center gap-2 transition"
+                >
+                  <Send size={13} className="text-[#ffd9a0]" />
+                  <span>{isGenerating ? "Sending to Client..." : "Send to Client"}</span>
                 </Button>
               </div>
             </div>

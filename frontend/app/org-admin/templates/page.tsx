@@ -10,6 +10,7 @@ import TemplateTable, {
 } from "./_components/TemplateTable";
 import TemplateModals from "./_components/TemplateModals";
 import { orgDocBuilderApi } from "@/services/templatesApi";
+import apiClient from "@/lib/axios";
 
 const categorySeed = [
   "Sales",
@@ -109,37 +110,80 @@ export default function OrgAdminTemplatesPage() {
 
   const loadTemplates = async () => {
     let apiItems: TemplateItem[] = [];
+
+    // 1. Fetch real unified templates from PostgreSQL database
     try {
-      const res = await orgDocBuilderApi.getTemplates();
-      if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
-        apiItems = res.data.map((t: any, idx: number) => ({
-          id: t.id || idx + 1,
-          name: t.name,
-          description: t.description || "",
-          category: t.category || "General",
-          status: (t.status === "DRAFT" || t.status === "Draft"
-            ? "Draft"
-            : t.status === "ARCHIVED" || t.status === "Archived"
-            ? "Archived"
-            : "Active") as TemplateStatus,
-          usage: t.usage || 0,
-          createdBy: t.createdBy || "Org Admin",
-          owner: t.createdBy || "Org Admin",
-          updated: t.updatedAt ? new Date(t.updatedAt).toLocaleDateString("en-GB") : "Recently",
-          department: t.department || "All",
-          documentType: t.documentType || "Document",
-          tags: t.tags || [t.category || "General"],
-          visibility: (t.visibility || "Organisation Wide") as Visibility,
-          isShared: true,
-          content: t.content || "",
-          activities: t.activities || [{ time: "Just now", event: "Template active" }],
-        }));
+      const res = await apiClient.get("/api/unified-templates").catch(() => null);
+      if (res?.data?.data && Array.isArray(res.data.data) && res.data.data.length > 0) {
+        apiItems = res.data.data.map((t: any, idx: number) => {
+          let content = typeof t.content === "string" && t.content.trim() ? t.content : "";
+          if (!content && Array.isArray(t.sections) && t.sections.length > 0) {
+            content = t.sections
+              .map((sec: any) => {
+                let part = `### ${sec.title || "Section"}\n\n${sec.body || ""}`;
+                if (sec.tableData?.headers && sec.tableData?.rows) {
+                  part += `\n\n| ${sec.tableData.headers.join(" | ")} |\n| ${sec.tableData.headers.map(() => ":---").join(" | ")} |\n`;
+                  sec.tableData.rows.forEach((r: any) => {
+                    part += `| ${Array.isArray(r) ? r.join(" | ") : r} |\n`;
+                  });
+                }
+                return part;
+              })
+              .join("\n\n---\n\n");
+          }
+
+          return {
+            id: t.id || `tpl-${idx + 1}`,
+            name: t.name,
+            description: t.description || `Reusable master ${t.documentType || "document"} blueprint.`,
+            category: t.category || "General",
+            status: "Active" as TemplateStatus,
+            usage: t._count?.documents || t.usage || 0,
+            createdBy: t.isStandard ? "System Master" : "Organisation",
+            owner: "Organisation",
+            updated: t.updatedAt ? new Date(t.updatedAt).toLocaleDateString("en-GB") : "Recently",
+            department: "All",
+            documentType: t.documentType || "Document",
+            tags: [t.category || "General"],
+            visibility: "Organisation Wide" as Visibility,
+            isShared: true,
+            content: content || `# ${t.name}\n\nStandard template clauses.`,
+            activities: [{ time: "Active", event: "Template available" }],
+          };
+        });
       }
     } catch (err) {
-      console.warn("Failed to load templates from API, using cached fallback:", err);
+      console.warn("Unified templates database fetch warning:", err);
     }
 
-    // Read any local custom templates created by user
+    // 2. Fetch from builder api fallback if empty
+    if (apiItems.length === 0) {
+      try {
+        const res = await orgDocBuilderApi.getTemplates().catch(() => null);
+        if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
+          apiItems = res.data.map((t: any, idx: number) => ({
+            id: t.id || idx + 1,
+            name: t.name,
+            description: t.description || "",
+            category: t.category || "General",
+            status: "Active" as TemplateStatus,
+            usage: t.usage || 0,
+            createdBy: t.createdBy || "Org Admin",
+            owner: t.createdBy || "Org Admin",
+            updated: t.updatedAt ? new Date(t.updatedAt).toLocaleDateString("en-GB") : "Recently",
+            department: t.department || "All",
+            documentType: t.documentType || "Document",
+            tags: t.tags || [t.category || "General"],
+            visibility: "Organisation Wide" as Visibility,
+            isShared: true,
+            content: t.content || "",
+            activities: t.activities || [{ time: "Just now", event: "Template active" }],
+          }));
+        }
+      } catch {}
+    }
+
+    // 3. Read any local custom templates created by user in AI Builder
     let localItems: TemplateItem[] = [];
     if (typeof window !== "undefined") {
       try {
@@ -150,17 +194,22 @@ export default function OrgAdminTemplatesPage() {
       } catch {}
     }
 
-    // Merge: templateSeed -> apiItems -> localItems (ensuring user creations are always preserved!)
+    // 4. Merge: templateSeed -> apiItems -> localItems (user creations take absolute precedence)
     const mergedMap = new Map<string, TemplateItem>();
-    templateSeed.forEach((t) => mergedMap.set(String(t.name.toLowerCase()), t));
-    apiItems.forEach((t) => mergedMap.set(String(t.name.toLowerCase()), t));
-    localItems.forEach((t) => mergedMap.set(String(t.name.toLowerCase()), t));
+    templateSeed.forEach((t) => mergedMap.set(String(t.name.toLowerCase().trim()), t));
+    apiItems.forEach((t) => mergedMap.set(String(t.name.toLowerCase().trim()), t));
+    localItems.forEach((t) => mergedMap.set(String(t.name.toLowerCase().trim()), t));
 
     setTemplates(Array.from(mergedMap.values()));
   };
 
   useEffect(() => {
     void loadTemplates();
+
+    // Re-check when window regains focus (e.g. returning from AI Builder tab)
+    const onFocus = () => void loadTemplates();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
   }, []);
 
   const handleOpenModal = (kind: ModalKind, template?: TemplateItem) => {
