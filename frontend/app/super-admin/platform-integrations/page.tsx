@@ -29,7 +29,9 @@ import integrationsApi, {
 } from "@/services/integrationsApi";
 
 export default function SuperAdminPlatformIntegrationsPage() {
-  const [providers, setProviders] = useState<PlatformProviderMeta[]>(DEFAULT_PLATFORM_INTEGRATIONS);
+  const [providers, setProviders] = useState<PlatformProviderMeta[]>(
+    DEFAULT_PLATFORM_INTEGRATIONS.filter((p) => p.id !== "SMTP_EMAIL")
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -52,7 +54,7 @@ export default function SuperAdminPlatformIntegrationsPage() {
     try {
       const res = await integrationsApi.getPlatformIntegrations();
       if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
-        setProviders(res.data);
+        setProviders(res.data.filter((p: PlatformProviderMeta) => p.id !== "SMTP_EMAIL"));
       }
     } catch (err: any) {
       console.warn("Notice loading platform integrations:", err);
@@ -210,7 +212,7 @@ export default function SuperAdminPlatformIntegrationsPage() {
         />
       );
     }
-    if (provider.id === "SMTP_EMAIL") return <Mail className="h-9 w-9 text-indigo-600 p-1.5 bg-indigo-50 rounded-lg" />;
+    if (provider.id === "BREVO") return <Mail className="h-9 w-9 text-indigo-600 p-1.5 bg-indigo-50 rounded-lg" />;
     if (provider.id === "WHATSAPP_BUSINESS") return <Smartphone className="h-9 w-9 text-emerald-600 p-1.5 bg-emerald-50 rounded-lg" />;
     if (provider.id === "AWS_S3") return <Cloud className="h-9 w-9 text-amber-600 p-1.5 bg-amber-50 rounded-lg" />;
     return <Layers className="h-9 w-9 text-slate-600 p-1.5 bg-slate-50 rounded-lg" />;
