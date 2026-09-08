@@ -79,7 +79,7 @@ export default function ReviewPublishStep({
         <head>
           <title>${documentName}</title>
           <style>
-            body { font-family: Georgia, Cambria, 'Times New Roman', Times, serif; padding: 40px; color: #1e293b; line-height: 1.6; font-size: 13px; }
+            body { font-family: 'Lora', Georgia, Cambria, 'Times New Roman', Times, serif; padding: 40px; color: #1e293b; line-height: 1.6; font-size: 13px; }
             h1, h2, h3 { color: #0f172a; margin-top: 24px; margin-bottom: 8px; }
             .header { border-bottom: 2px solid #274690; padding-bottom: 16px; margin-bottom: 24px; }
             .company { font-size: 18px; font-weight: bold; color: #274690; text-transform: uppercase; }

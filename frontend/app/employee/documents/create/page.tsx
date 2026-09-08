@@ -89,7 +89,7 @@ const documentTypeOptions: Array<{
   { id: "upload", title: "Upload & Convert", subtitle: "Upload a file and continue as an editable draft.", icon: UploadCloud },
 ];
 
-const fontFamilies = ["Georgia", "Times New Roman", "Lora", "Merriweather", "Garamond", "serif"];
+const fontFamilies = ["Lora", "Georgia", "Times New Roman", "Merriweather", "Garamond", "serif"];
 const fontSizes = [12, 14, 16, 18, 20];
 const draftStorageKey = "employee-create-document-draft";
 
@@ -152,7 +152,7 @@ export default function DocumentCreatePage() {
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [autosaveState, setAutosaveState] = useState("Saved");
 
-  const [editorFont, setEditorFont] = useState("Georgia");
+  const [editorFont, setEditorFont] = useState("Lora");
   const [editorFontSize, setEditorFontSize] = useState(14);
   const [editorTextColor, setEditorTextColor] = useState("#1e293b");
   const [editorAlignment, setEditorAlignment] = useState<"left" | "center" | "right">("left");

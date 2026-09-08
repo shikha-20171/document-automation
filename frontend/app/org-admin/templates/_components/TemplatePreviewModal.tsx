@@ -97,7 +97,7 @@ export default function TemplatePreviewModal({
     pageSize: "A4",
     orientation: "portrait",
     margins: "normal",
-    fontFamily: "Georgia",
+    fontFamily: "Lora",
     fontSize: "13px",
     lineSpacing: "1.6",
   },

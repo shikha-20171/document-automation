@@ -133,7 +133,7 @@ export default function TemplateDesigner({
   const [copiedVariable, setCopiedVariable] = useState<string | null>(null);
 
   // Formatting & Page Settings
-  const [fontFamily, setFontFamily] = useState<string>("Georgia");
+  const [fontFamily, setFontFamily] = useState<string>("Lora");
   const [fontSize, setFontSize] = useState<string>("13px");
   const [lineSpacing, setLineSpacing] = useState<string>("1.6");
   const [pageSize, setPageSize] = useState<"A4" | "Letter" | "Legal">("A4");
@@ -1014,9 +1014,10 @@ export default function TemplateDesigner({
                       onChange={(e) => setFontFamily(e.target.value)}
                       className="w-full h-8 rounded-xl border border-slate-200 bg-slate-50 px-2.5 text-xs font-semibold focus:border-[#274690] focus:outline-none"
                     >
+                      <option value="Lora">Lora (Standard Platform Serif - Default)</option>
+                      <option value="Georgia">Georgia (Classic Editorial Serif)</option>
                       <option value="Inter">Inter (Clean Modern Sans)</option>
                       <option value="Roboto">Roboto (Enterprise Standard)</option>
-                      <option value="Georgia">Georgia (Classic Editorial Serif)</option>
                       <option value="Playfair Display">Playfair Display (Executive Serif)</option>
                       <option value="Courier New">Courier New (Monospace Legal)</option>
                     </select>
