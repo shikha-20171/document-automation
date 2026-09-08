@@ -184,9 +184,13 @@ class AuditLogService {
   }
 
   /**
-   * Helper alias for createAuditLog
+   * Helper alias for createAuditLog / logAction
    */
   static async createAuditLog(params) {
+    return this.log(params);
+  }
+
+  static async logAction(params) {
     return this.log(params);
   }
 

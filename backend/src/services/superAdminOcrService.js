@@ -1,19 +1,34 @@
 const prisma = require("../config/prismaClient");
 const { encryptApiKey, decryptApiKey, maskApiKey } = require("../utils/aiEncryption");
 const AuditLogService = require("./auditLogService");
+const tesseractService = require("./ocr/tesseractService");
+const googleDocumentAIService = require("./ocr/googleDocumentAIService");
+const ocrRouter = require("./ocr/ocrRouter");
 
-// Initial 3 OCR Providers only
+// Initial OCR Providers
 const INITIAL_OCR_PROVIDERS = [
   {
-    providerName: "Google Cloud Vision / Document AI",
+    providerName: "Tesseract OCR",
+    providerCode: "tesseract",
+    description: "Built-in local high-performance OCR engine with multi-language and layout analysis.",
+    apiEndpoint: "local://tesseract",
+    authType: "LOCAL_BINARY",
+    region: "local",
+    priority: 1,
+    isEnabled: true,
+    isDefault: true,
+    supportedFormats: ["PDF", "PNG", "JPG", "TIFF", "WEBP", "BMP"],
+  },
+  {
+    providerName: "Google Cloud Document AI",
     providerCode: "google_document_ai",
     description: "Enterprise multi-lingual document parsing, key-value pair detection, and OCR vision pipeline.",
     apiEndpoint: "https://documentai.googleapis.com/v1",
     authType: "SERVICE_ACCOUNT",
-    region: "us-central1",
-    priority: 1,
-    isEnabled: true,
-    isDefault: true,
+    region: "us",
+    priority: 2,
+    isEnabled: false,
+    isDefault: false,
     supportedFormats: ["PDF", "PNG", "JPG", "TIFF", "WEBP"],
   },
   {
@@ -843,6 +858,419 @@ class SuperAdminOcrService {
     }
 
     return results;
+  }
+
+  /**
+   * Complete unified OCR configuration for Super Admin AI Automation -> OCR section
+   */
+  static async getOcrFullConfig() {
+    await this.ensureOcrSeeded();
+    const tesseractStatus = tesseractService.getStatus();
+
+    let googleProvider = await prisma.oCRProvider.findFirst({
+      where: { providerCode: { in: ["google_document_ai", "GOOGLE_DOCUMENT_AI"] } },
+    });
+
+    const routingConfig = await ocrRouter.getRoutingConfig();
+
+    return {
+      tesseract: {
+        installed: tesseractStatus.installed,
+        isNative: tesseractStatus.isNative,
+        version: tesseractStatus.version,
+        status: tesseractStatus.installed ? "Active" : "Unavailable",
+        executablePath: tesseractStatus.executablePath,
+        availableLanguages: tesseractStatus.languages,
+        lastHealthCheck: tesseractStatus.lastHealthCheck,
+        lastProcessingTimeMs: tesseractStatus.lastProcessingTimeMs,
+        defaultLanguage: routingConfig.defaultLanguage || "eng",
+        autoRotate: routingConfig.autoRotate,
+        deskew: routingConfig.deskew,
+        denoise: routingConfig.denoise,
+        enhanceImage: routingConfig.enhanceImage,
+        confidenceThreshold: routingConfig.confidenceThreshold,
+        layoutDetection: routingConfig.layoutDetection,
+        tableDetection: routingConfig.tableDetection,
+      },
+      googleDocumentAI: {
+        id: googleProvider?.id,
+        providerName: "Google Cloud Document AI",
+        providerCode: "google_document_ai",
+        status: googleProvider?.status || "INACTIVE",
+        connectionStatus: googleProvider?.connectionStatus || "DISCONNECTED",
+        projectId: googleProvider?.projectId || "",
+        location: googleProvider?.location || "us",
+        processorId: googleProvider?.processorId || "",
+        processorType: googleProvider?.processorType || "OCR_PROCESSOR",
+        isConfigured: Boolean(googleProvider?.projectId && googleProvider?.processorId && googleProvider?.credentialsEncrypted),
+        credentialsMasked: googleProvider?.credentialsEncrypted ? "Credentials Configured ✓" : "Not Configured",
+        lastTestedAt: googleProvider?.lastTestedAt,
+        lastTestStatus: googleProvider?.lastTestStatus,
+        lastError: googleProvider?.lastError,
+        lastUsedAt: googleProvider?.lastUsedAt,
+      },
+      routing: routingConfig,
+    };
+  }
+
+  /**
+   * Update OCR Routing Configuration (primary engine, fallback engine, fallback toggle, Tesseract options)
+   */
+  static async updateOcrRoutingConfig(data = {}, userEmail = "superadmin@documentautomation.ai") {
+    const config = await ocrRouter.getRoutingConfig();
+
+    // Prevent unconfigured Google Document AI from being set as primary engine
+    if (data.primaryEngineCode === "GOOGLE_DOCUMENT_AI") {
+      const googleProvider = await prisma.oCRProvider.findFirst({
+        where: { providerCode: { in: ["google_document_ai", "GOOGLE_DOCUMENT_AI"] } },
+      });
+      const isReady = Boolean(
+        googleProvider &&
+        googleProvider.status === "ACTIVE" &&
+        googleProvider.connectionStatus === "CONNECTED" &&
+        googleProvider.credentialsEncrypted
+      );
+      if (!isReady) {
+        throw new Error("Cannot set Google Cloud Document AI as primary engine: Provider is not configured or connection test has failed.");
+      }
+    }
+
+    const updated = await prisma.oCRRoutingConfig.update({
+      where: { id: config.id },
+      data: {
+        primaryEngineCode: data.primaryEngineCode || config.primaryEngineCode,
+        fallbackEngineCode: data.fallbackEngineCode !== undefined ? data.fallbackEngineCode : config.fallbackEngineCode,
+        fallbackEnabled: data.fallbackEnabled !== undefined ? Boolean(data.fallbackEnabled) : config.fallbackEnabled,
+        defaultLanguage: data.defaultLanguage || config.defaultLanguage,
+        autoRotate: data.autoRotate !== undefined ? Boolean(data.autoRotate) : config.autoRotate,
+        deskew: data.deskew !== undefined ? Boolean(data.deskew) : config.deskew,
+        denoise: data.denoise !== undefined ? Boolean(data.denoise) : config.denoise,
+        enhanceImage: data.enhanceImage !== undefined ? Boolean(data.enhanceImage) : config.enhanceImage,
+        confidenceThreshold: data.confidenceThreshold !== undefined ? Number(data.confidenceThreshold) : config.confidenceThreshold,
+        layoutDetection: data.layoutDetection !== undefined ? Boolean(data.layoutDetection) : config.layoutDetection,
+        tableDetection: data.tableDetection !== undefined ? Boolean(data.tableDetection) : config.tableDetection,
+        updatedBy: userEmail,
+      },
+    });
+
+    await AuditLogService.logAction({
+      action: "UPDATE_OCR_ROUTING",
+      entityType: "OCR_ROUTING",
+      entityId: config.id,
+      actorType: "SUPER_ADMIN",
+      actorId: userEmail,
+      details: {
+        primaryEngineCode: updated.primaryEngineCode,
+        fallbackEngineCode: updated.fallbackEngineCode,
+        fallbackEnabled: updated.fallbackEnabled,
+      },
+    }).catch(() => {});
+
+    return updated;
+  }
+
+  /**
+   * Execute real backend test for local Tesseract OCR
+   */
+  static async testTesseractConnection(settings = {}, userEmail = "superadmin@documentautomation.ai") {
+    const result = await tesseractService.testTesseract(settings);
+
+    await AuditLogService.logAction({
+      action: "TEST_TESSERACT_OCR",
+      entityType: "OCR_PROVIDER",
+      entityId: "tesseract",
+      actorType: "SUPER_ADMIN",
+      actorId: userEmail,
+      details: {
+        status: result.status,
+        latencyMs: result.latencyMs,
+        version: result.version,
+      },
+    }).catch(() => {});
+
+    return result;
+  }
+
+  /**
+   * Configure Google Cloud Document AI credentials and processor settings
+   */
+  static async configureGoogleDocumentAI(data = {}, userEmail = "superadmin@documentautomation.ai") {
+    const { projectId, location = "us", processorId, processorType = "OCR_PROCESSOR", credentials } = data;
+
+    if (!projectId || !projectId.trim()) throw new Error("Google Cloud Project ID is required.");
+    if (!processorId || !processorId.trim()) throw new Error("Processor ID is required.");
+
+    let googleProvider = await prisma.oCRProvider.findFirst({
+      where: { providerCode: { in: ["google_document_ai", "GOOGLE_DOCUMENT_AI"] } },
+    });
+
+    let encryptedCreds = googleProvider?.credentialsEncrypted;
+    if (credentials && credentials.trim()) {
+      encryptedCreds = encryptApiKey(credentials.trim());
+    }
+
+    if (!googleProvider) {
+      googleProvider = await prisma.oCRProvider.create({
+        data: {
+          providerName: "Google Cloud Document AI",
+          providerCode: "google_document_ai",
+          description: "Enterprise Document AI parser with OCR, layout, and structured extraction.",
+          projectId: projectId.trim(),
+          location: location.trim().toLowerCase(),
+          processorId: processorId.trim(),
+          processorType: processorType.trim(),
+          credentialsEncrypted: encryptedCreds,
+          authType: "SERVICE_ACCOUNT",
+          region: location.trim(),
+          status: "INACTIVE",
+          connectionStatus: "DISCONNECTED",
+          priority: 2,
+        },
+      });
+    } else {
+      googleProvider = await prisma.oCRProvider.update({
+        where: { id: googleProvider.id },
+        data: {
+          projectId: projectId.trim(),
+          location: location.trim().toLowerCase(),
+          processorId: processorId.trim(),
+          processorType: processorType.trim(),
+          credentialsEncrypted: encryptedCreds,
+        },
+      });
+    }
+
+    await AuditLogService.logAction({
+      action: "CONFIGURE_GOOGLE_DOCUMENT_AI",
+      entityType: "OCR_PROVIDER",
+      entityId: googleProvider.id,
+      actorType: "SUPER_ADMIN",
+      actorId: userEmail,
+      details: {
+        projectId: googleProvider.projectId,
+        location: googleProvider.location,
+        processorId: googleProvider.processorId,
+        processorType: googleProvider.processorType,
+        hasCredentials: Boolean(encryptedCreds),
+      },
+    }).catch(() => {});
+
+    return {
+      success: true,
+      message: "Google Cloud Document AI configured successfully",
+      provider: {
+        id: googleProvider.id,
+        projectId: googleProvider.projectId,
+        location: googleProvider.location,
+        processorId: googleProvider.processorId,
+        processorType: googleProvider.processorType,
+        status: googleProvider.status,
+        connectionStatus: googleProvider.connectionStatus,
+        credentialsMasked: encryptedCreds ? "Credentials Configured ✓" : "Not Configured",
+      },
+    };
+  }
+
+  /**
+   * Real backend connection test for Google Cloud Document AI
+   */
+  static async testGoogleDocumentAIConnection(params = {}, userEmail = "superadmin@documentautomation.ai") {
+    let googleProvider = await prisma.oCRProvider.findFirst({
+      where: { providerCode: { in: ["google_document_ai", "GOOGLE_DOCUMENT_AI"] } },
+    });
+
+    const projectId = params.projectId || googleProvider?.projectId;
+    const location = params.location || googleProvider?.location || "us";
+    const processorId = params.processorId || googleProvider?.processorId;
+    
+    let rawCreds = params.credentials;
+    if (!rawCreds && googleProvider?.credentialsEncrypted) {
+      try {
+        rawCreds = decryptApiKey(googleProvider.credentialsEncrypted);
+      } catch (err) {
+        throw new Error("Failed to decrypt stored Google Cloud credentials.");
+      }
+    }
+
+    const testRes = await googleDocumentAIService.testConnection({
+      projectId,
+      location,
+      processorId,
+      credentials: rawCreds,
+    });
+
+    if (googleProvider) {
+      await prisma.oCRProvider.update({
+        where: { id: googleProvider.id },
+        data: {
+          connectionStatus: testRes.success ? "CONNECTED" : "FAILED",
+          lastTestedAt: new Date(),
+          lastTestStatus: testRes.status,
+          lastError: testRes.success ? null : testRes.message,
+        },
+      }).catch(() => {});
+    }
+
+    await AuditLogService.logAction({
+      action: "TEST_GOOGLE_DOCUMENT_AI",
+      entityType: "OCR_PROVIDER",
+      entityId: googleProvider?.id || "google_document_ai",
+      actorType: "SUPER_ADMIN",
+      actorId: userEmail,
+      details: {
+        success: testRes.success,
+        status: testRes.status,
+        responseTimeMs: testRes.responseTimeMs,
+        message: testRes.message,
+      },
+    }).catch(() => {});
+
+    return testRes;
+  }
+
+  /**
+   * Activate Google Cloud Document AI provider
+   */
+  static async activateGoogleDocumentAI(userEmail = "superadmin@documentautomation.ai") {
+    let googleProvider = await prisma.oCRProvider.findFirst({
+      where: { providerCode: { in: ["google_document_ai", "GOOGLE_DOCUMENT_AI"] } },
+    });
+    if (!googleProvider || !googleProvider.credentialsEncrypted) {
+      throw new Error("Cannot activate Google Cloud Document AI: Please configure credentials first.");
+    }
+
+    const updated = await prisma.oCRProvider.update({
+      where: { id: googleProvider.id },
+      data: { status: "ACTIVE" },
+    });
+
+    await AuditLogService.logAction({
+      action: "ACTIVATE_GOOGLE_DOCUMENT_AI",
+      entityType: "OCR_PROVIDER",
+      entityId: googleProvider.id,
+      actorType: "SUPER_ADMIN",
+      actorId: userEmail,
+      details: { status: "ACTIVE" },
+    }).catch(() => {});
+
+    return updated;
+  }
+
+  /**
+   * Deactivate Google Cloud Document AI provider
+   */
+  static async deactivateGoogleDocumentAI(userEmail = "superadmin@documentautomation.ai") {
+    let googleProvider = await prisma.oCRProvider.findFirst({
+      where: { providerCode: { in: ["google_document_ai", "GOOGLE_DOCUMENT_AI"] } },
+    });
+    if (!googleProvider) throw new Error("Google Cloud Document AI provider not found.");
+
+    const updated = await prisma.oCRProvider.update({
+      where: { id: googleProvider.id },
+      data: { status: "INACTIVE" },
+    });
+
+    // If routing had Google Document AI as primary, revert to Tesseract
+    const routing = await ocrRouter.getRoutingConfig();
+    if (routing.primaryEngineCode === "GOOGLE_DOCUMENT_AI") {
+      await prisma.oCRRoutingConfig.update({
+        where: { id: routing.id },
+        data: { primaryEngineCode: "TESSERACT" },
+      });
+    }
+
+    await AuditLogService.logAction({
+      action: "DEACTIVATE_GOOGLE_DOCUMENT_AI",
+      entityType: "OCR_PROVIDER",
+      entityId: googleProvider.id,
+      actorType: "SUPER_ADMIN",
+      actorId: userEmail,
+      details: { status: "INACTIVE" },
+    }).catch(() => {});
+
+    return updated;
+  }
+
+  /**
+   * Set Default OCR Engine
+   */
+  static async setDefaultOcrEngine(engineCode, userEmail = "superadmin@documentautomation.ai") {
+    const cleanCode = (engineCode || "TESSERACT").toUpperCase();
+    if (cleanCode !== "TESSERACT" && cleanCode !== "GOOGLE_DOCUMENT_AI") {
+      throw new Error("Invalid OCR engine code. Supported: TESSERACT, GOOGLE_DOCUMENT_AI");
+    }
+
+    if (cleanCode === "GOOGLE_DOCUMENT_AI") {
+      const googleProvider = await prisma.oCRProvider.findFirst({
+        where: { providerCode: { in: ["google_document_ai", "GOOGLE_DOCUMENT_AI"] } },
+      });
+      const isReady = Boolean(
+        googleProvider &&
+        googleProvider.status === "ACTIVE" &&
+        googleProvider.connectionStatus === "CONNECTED" &&
+        googleProvider.credentialsEncrypted
+      );
+      if (!isReady) {
+        throw new Error("Cannot set Google Cloud Document AI as default engine: Provider is not configured or connection test has failed.");
+      }
+    }
+
+    const config = await ocrRouter.getRoutingConfig();
+    const updated = await prisma.oCRRoutingConfig.update({
+      where: { id: config.id },
+      data: {
+        primaryEngineCode: cleanCode,
+        updatedBy: userEmail,
+      },
+    });
+
+    await AuditLogService.logAction({
+      action: "SET_DEFAULT_OCR_ENGINE",
+      entityType: "OCR_ROUTING",
+      entityId: config.id,
+      actorType: "SUPER_ADMIN",
+      actorId: userEmail,
+      details: { defaultEngine: cleanCode },
+    }).catch(() => {});
+
+    return updated;
+  }
+
+  /**
+   * Combined Health Check for Tesseract and Google Document AI
+   */
+  static async getIntegratedHealth() {
+    const tesseractStatus = tesseractService.getStatus();
+    const googleProvider = await prisma.oCRProvider.findFirst({
+      where: { providerCode: { in: ["google_document_ai", "GOOGLE_DOCUMENT_AI"] } },
+    });
+
+    const isGoogleHealthy = googleProvider?.connectionStatus === "CONNECTED" && googleProvider?.status === "ACTIVE";
+
+    return {
+      tesseract: {
+        engine: "Tesseract Local OCR",
+        status: tesseractStatus.installed ? "HEALTHY" : "UNAVAILABLE",
+        version: tesseractStatus.version,
+        isNative: tesseractStatus.isNative,
+        executablePath: tesseractStatus.executablePath,
+        languages: tesseractStatus.languages,
+        workerStatus: "READY",
+        lastHealthCheck: tesseractStatus.lastHealthCheck,
+      },
+      googleDocumentAI: {
+        engine: "Google Cloud Document AI",
+        status: isGoogleHealthy ? "HEALTHY" : googleProvider?.status === "ACTIVE" ? "WARNING" : "NOT_CONFIGURED",
+        configured: Boolean(googleProvider?.projectId && googleProvider?.processorId && googleProvider?.credentialsEncrypted),
+        project: googleProvider?.projectId || "None",
+        location: googleProvider?.location || "us",
+        processor: googleProvider?.processorId || "None",
+        connectionStatus: googleProvider?.connectionStatus || "DISCONNECTED",
+        lastTestedAt: googleProvider?.lastTestedAt,
+        lastTestStatus: googleProvider?.lastTestStatus,
+        lastError: googleProvider?.lastError,
+      },
+    };
   }
 }
 

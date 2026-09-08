@@ -56,6 +56,18 @@ router.post("/providers/:id/models/sync", superAdminAiController.syncModels);
 router.get("/routing", superAdminAiController.getRoutingConfig);
 router.put("/routing", superAdminAiController.updateRoutingConfig);
 
+// Integrated OCR Management
+const superAdminOcrController = require("../controllers/superAdminOcrController");
+router.get("/ocr", superAdminOcrController.getOcrFullConfig);
+router.put("/ocr/config", superAdminOcrController.updateOcrRoutingConfig);
+router.post("/ocr/test/tesseract", superAdminOcrController.testTesseract);
+router.post("/ocr/test/google-document-ai", superAdminOcrController.testGoogleDocumentAI);
+router.post("/ocr/google/configure", superAdminOcrController.configureGoogleDocumentAI);
+router.post("/ocr/google/activate", superAdminOcrController.activateGoogleDocumentAI);
+router.post("/ocr/google/deactivate", superAdminOcrController.deactivateGoogleDocumentAI);
+router.put("/ocr/default-engine", superAdminOcrController.setDefaultEngine);
+router.get("/ocr/health", superAdminOcrController.getIntegratedHealth);
+
 // Models
 router.get("/models", superAdminAiController.getModels);
 router.post("/models", superAdminAiController.createModel);

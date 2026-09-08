@@ -123,8 +123,7 @@ export default function SuperAdminHeader({ onMenuClick }: SuperAdminHeaderProps)
   const getPageTitle = () => {
     if (pathname.includes("/dashboard")) return "Executive Platform Overview";
     if (pathname.includes("/organisations")) return "Tenant Organizations Management";
-    if (pathname.includes("/ai-automation") || pathname.includes("/ai-management")) return "AI Automation Engine";
-    if (pathname.includes("/ocr-management")) return "OCR Management & Processing Pipeline";
+    if (pathname.includes("/ai-automation") || pathname.includes("/ai-management")) return "AI & OCR Automation Engine";
     if (pathname.includes("/storage")) return "Storage Infrastructure & Quotas";
     if (pathname.includes("/support")) return "Customer Support & Service Desk";
     if (pathname.includes("/audit-logs") || pathname.includes("/security")) return "Audit & Security Governance";

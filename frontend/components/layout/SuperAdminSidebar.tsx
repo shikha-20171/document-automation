@@ -80,12 +80,6 @@ export const superAdminNavSections: MenuSection[] = [
         hasSubmodules: true,
       },
       {
-        title: "OCR Management",
-        href: "/super-admin/ocr-management",
-        icon: ScanText,
-        hasSubmodules: true,
-      },
-      {
         title: "Storage Management",
         href: "/super-admin/storage",
         icon: HardDrive,

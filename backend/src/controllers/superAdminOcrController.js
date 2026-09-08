@@ -189,6 +189,95 @@ const testAllHealth = async (req, res, next) => {
   }
 };
 
+const getOcrFullConfig = async (req, res, next) => {
+  try {
+    const data = await SuperAdminOcrService.getOcrFullConfig();
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const updateOcrRoutingConfig = async (req, res, next) => {
+  try {
+    const userEmail = req.user?.email || "superadmin@documentautomation.ai";
+    const data = await SuperAdminOcrService.updateOcrRoutingConfig(req.body, userEmail);
+    res.status(200).json({ success: true, message: "OCR routing configuration updated", data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const testTesseract = async (req, res, next) => {
+  try {
+    const userEmail = req.user?.email || "superadmin@documentautomation.ai";
+    const data = await SuperAdminOcrService.testTesseractConnection(req.body, userEmail);
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const testGoogleDocumentAI = async (req, res, next) => {
+  try {
+    const userEmail = req.user?.email || "superadmin@documentautomation.ai";
+    const data = await SuperAdminOcrService.testGoogleDocumentAIConnection(req.body, userEmail);
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const configureGoogleDocumentAI = async (req, res, next) => {
+  try {
+    const userEmail = req.user?.email || "superadmin@documentautomation.ai";
+    const data = await SuperAdminOcrService.configureGoogleDocumentAI(req.body, userEmail);
+    res.status(200).json(data);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const activateGoogleDocumentAI = async (req, res, next) => {
+  try {
+    const userEmail = req.user?.email || "superadmin@documentautomation.ai";
+    const data = await SuperAdminOcrService.activateGoogleDocumentAI(userEmail);
+    res.status(200).json({ success: true, message: "Google Cloud Document AI activated", data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const deactivateGoogleDocumentAI = async (req, res, next) => {
+  try {
+    const userEmail = req.user?.email || "superadmin@documentautomation.ai";
+    const data = await SuperAdminOcrService.deactivateGoogleDocumentAI(userEmail);
+    res.status(200).json({ success: true, message: "Google Cloud Document AI deactivated", data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const setDefaultEngine = async (req, res, next) => {
+  try {
+    const userEmail = req.user?.email || "superadmin@documentautomation.ai";
+    const engineCode = req.body.defaultEngine || req.body.engineCode;
+    const data = await SuperAdminOcrService.setDefaultOcrEngine(engineCode, userEmail);
+    res.status(200).json({ success: true, message: `Default OCR engine set to ${engineCode}`, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getIntegratedHealth = async (req, res, next) => {
+  try {
+    const data = await SuperAdminOcrService.getIntegratedHealth();
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getOverview,
   getProviders,
@@ -211,4 +300,13 @@ module.exports = {
   getLogs,
   getHealth,
   testAllHealth,
+  getOcrFullConfig,
+  updateOcrRoutingConfig,
+  testTesseract,
+  testGoogleDocumentAI,
+  configureGoogleDocumentAI,
+  activateGoogleDocumentAI,
+  deactivateGoogleDocumentAI,
+  setDefaultEngine,
+  getIntegratedHealth,
 };

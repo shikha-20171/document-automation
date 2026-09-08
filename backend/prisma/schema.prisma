@@ -848,6 +848,14 @@ model OCRProvider {
   credentialsEncrypted String?             @db.Text
   authType             String              @default("API_KEY") @db.VarChar(50) // API_KEY, SERVICE_ACCOUNT, AWS_IAM, AZURE_SECRET
   region               String?             @default("global") @db.VarChar(100)
+  projectId            String?             @db.VarChar(100)
+  location             String?             @default("us") @db.VarChar(50)
+  processorId          String?             @db.VarChar(100)
+  processorType        String?             @db.VarChar(100)
+  lastTestStatus       String?             @db.VarChar(50)
+  lastTestedAt         DateTime?
+  lastError            String?             @db.Text
+  lastUsedAt           DateTime?
   status               OCRProviderStatus   @default(ACTIVE)
   connectionStatus     OCRConnectionStatus @default(CONNECTED)
   priority             Int                 @default(1)
@@ -867,6 +875,30 @@ model OCRProvider {
   @@index([status])
   @@index([connectionStatus])
   @@map("ocr_providers")
+}
+
+// ===================================
+// OCR ROUTING CONFIG
+// ===================================
+
+model OCRRoutingConfig {
+  id                   String   @id @default(uuid())
+  primaryEngineCode    String   @default("TESSERACT") @db.VarChar(50) // TESSERACT, GOOGLE_DOCUMENT_AI
+  fallbackEngineCode   String?  @default("TESSERACT") @db.VarChar(50)
+  fallbackEnabled      Boolean  @default(true)
+  defaultLanguage      String   @default("eng") @db.VarChar(50)
+  autoRotate           Boolean  @default(true)
+  deskew               Boolean  @default(true)
+  denoise              Boolean  @default(true)
+  enhanceImage         Boolean  @default(true)
+  confidenceThreshold  Float    @default(80.0)
+  layoutDetection      Boolean  @default(true)
+  tableDetection       Boolean  @default(true)
+  updatedBy            String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@map("ocr_routing_configs")
 }
 
 // ===================================

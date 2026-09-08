@@ -118,8 +118,10 @@ export interface AIOverviewData {
   requestsToday: number;
   activeAiJobs: number;
   averageProcessingTimeMs: number;
+  averageLatencyMs?: number;
   totalTokenUsage: number;
   aiCostUsd: number;
+  totalCostUsd?: number;
   successRate: number;
   failureRate: number;
   charts: {
@@ -194,8 +196,8 @@ export const superAdminAiApi = {
     return data;
   },
 
-  deactivateProvider: async (id: string): Promise<ApiResponse<AIProviderItem>> => {
-    const { data } = await api.post<ApiResponse<AIProviderItem>>(`/super-admin/ai/providers/${id}/deactivate`);
+  deactivateProvider: async (id: string, reason?: string): Promise<ApiResponse<AIProviderItem>> => {
+    const { data } = await api.post<ApiResponse<AIProviderItem>>(`/super-admin/ai/providers/${id}/deactivate`, { reason });
     return data;
   },
 
@@ -315,6 +317,147 @@ export const superAdminAiApi = {
     const { data } = await api.post<ApiResponse<any[]>>("/super-admin/ai/health/test-all");
     return data;
   },
+
+  // ─── OCR Management Endpoints ──────────────────────────────────────────
+  getOcrConfig: async (): Promise<ApiResponse<OCRFullConfigResponse>> => {
+    const { data } = await api.get<ApiResponse<OCRFullConfigResponse>>("/super-admin/ai/ocr");
+    return data;
+  },
+
+  updateOcrRoutingConfig: async (payload: Partial<OCRRoutingConfig>): Promise<ApiResponse<OCRRoutingConfig>> => {
+    const { data } = await api.put<ApiResponse<OCRRoutingConfig>>("/super-admin/ai/ocr/config", payload);
+    return data;
+  },
+
+  testTesseract: async (settings: any = {}): Promise<ApiResponse<TesseractTestResult>> => {
+    const { data } = await api.post<ApiResponse<TesseractTestResult>>("/super-admin/ai/ocr/test/tesseract", settings);
+    return data;
+  },
+
+  testGoogleDocumentAI: async (params: any = {}): Promise<ApiResponse<GoogleDocAITestResult>> => {
+    const { data } = await api.post<ApiResponse<GoogleDocAITestResult>>("/super-admin/ai/ocr/test/google-document-ai", params);
+    return data;
+  },
+
+  configureGoogleDocumentAI: async (payload: {
+    projectId: string;
+    location: string;
+    processorId: string;
+    processorType: string;
+    credentials?: string;
+  }): Promise<ApiResponse<any>> => {
+    const { data } = await api.post<ApiResponse<any>>("/super-admin/ai/ocr/google/configure", payload);
+    return data;
+  },
+
+  activateGoogleDocumentAI: async (): Promise<ApiResponse<any>> => {
+    const { data } = await api.post<ApiResponse<any>>("/super-admin/ai/ocr/google/activate");
+    return data;
+  },
+
+  deactivateGoogleDocumentAI: async (): Promise<ApiResponse<any>> => {
+    const { data } = await api.post<ApiResponse<any>>("/super-admin/ai/ocr/google/deactivate");
+    return data;
+  },
+
+  setDefaultOcrEngine: async (engineCode: string): Promise<ApiResponse<any>> => {
+    const { data } = await api.put<ApiResponse<any>>("/super-admin/ai/ocr/default-engine", { defaultEngine: engineCode });
+    return data;
+  },
+
+  getIntegratedOcrHealth: async (): Promise<ApiResponse<any>> => {
+    const { data } = await api.get<ApiResponse<any>>("/super-admin/ai/ocr/health");
+    return data;
+  },
 };
+
+export interface OCRRoutingConfig {
+  id?: string;
+  primaryEngineCode: "TESSERACT" | "GOOGLE_DOCUMENT_AI";
+  fallbackEngineCode?: "TESSERACT" | "GOOGLE_DOCUMENT_AI" | null;
+  fallbackEnabled: boolean;
+  defaultLanguage: string;
+  autoRotate: boolean;
+  deskew: boolean;
+  denoise: boolean;
+  enhanceImage: boolean;
+  confidenceThreshold: number;
+  layoutDetection: boolean;
+  tableDetection: boolean;
+  updatedBy?: string | null;
+  updatedAt?: string;
+}
+
+export interface TesseractStatus {
+  installed: boolean;
+  isNative: boolean;
+  version: string;
+  status: "Active" | "Unavailable";
+  executablePath: string;
+  availableLanguages: string[];
+  lastHealthCheck?: string | null;
+  lastProcessingTimeMs?: number | null;
+  defaultLanguage: string;
+  autoRotate: boolean;
+  deskew: boolean;
+  denoise: boolean;
+  enhanceImage: boolean;
+  confidenceThreshold: number;
+  layoutDetection: boolean;
+  tableDetection: boolean;
+}
+
+export interface GoogleDocAIStatus {
+  id?: string;
+  providerName: string;
+  providerCode: string;
+  status: "ACTIVE" | "INACTIVE" | "MAINTENANCE";
+  connectionStatus: "CONNECTED" | "DISCONNECTED" | "FAILED" | "TESTING";
+  projectId: string;
+  location: string;
+  processorId: string;
+  processorType: string;
+  isConfigured: boolean;
+  credentialsMasked: string;
+  lastTestedAt?: string | null;
+  lastTestStatus?: string | null;
+  lastError?: string | null;
+  lastUsedAt?: string | null;
+}
+
+export interface OCRFullConfigResponse {
+  tesseract: TesseractStatus;
+  googleDocumentAI: GoogleDocAIStatus;
+  routing: OCRRoutingConfig;
+}
+
+export interface TesseractTestResult {
+  success: boolean;
+  status: string;
+  engine: string;
+  version: string;
+  testedLanguage: string;
+  latencyMs: number;
+  testedAt: string;
+  confidence: number;
+  recognizedText: string;
+  message: string;
+}
+
+export interface GoogleDocAITestResult {
+  success: boolean;
+  status: string;
+  provider: string;
+  project?: string;
+  location?: string;
+  processor?: string;
+  processorDisplayName?: string;
+  processorType?: string;
+  processorState?: string;
+  errorCategory?: string;
+  message: string;
+  responseTimeMs: number;
+  testedAt: string;
+}
 
 export default superAdminAiApi;

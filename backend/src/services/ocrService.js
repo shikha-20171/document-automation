@@ -154,20 +154,37 @@ class OCRService {
       }
     }
 
-    // ─── 4. Tesseract OCR (Only for valid image buffers) ─────────────────
-    if (isImage) {
+    // ─── 4. Dynamic OCR Router (Google Document AI or Local Tesseract) ──
+    if (isImage || (isPdf && (!text || text.length < 20))) {
       try {
-        const lang = language === "English" || language === "eng" ? "eng" : language;
-        const result = await Tesseract.recognize(fileBuffer, lang, {
-          logger: () => {},
+        const ocrRouter = require("./ocr/ocrRouter");
+        const ocrRes = await ocrRouter.processDocument({
+          buffer: fileBuffer,
+          mimeType: isPdf ? "application/pdf" : mimeType || "image/jpeg",
+          language: language === "English" || language === "eng" ? "eng" : language,
+          documentId: null,
+          organisationId: 1,
         });
-        if (result?.data?.text?.trim()) {
-          text = result.data.text.trim();
-          confidence = (result.data.confidence || 90) / 100;
-          extractionMethod = "TESSERACT_OCR";
+
+        if (ocrRes?.text?.trim()) {
+          text = ocrRes.text.trim();
+          confidence = ocrRes.confidence || 0.95;
+          extractionMethod = ocrRes.engine === "GOOGLE_DOCUMENT_AI" ? "GOOGLE_DOCUMENT_AI" : "TESSERACT_OCR";
+          pageCount = ocrRes.pageCount || pageCount;
         }
-      } catch (tessErr) {
-        console.warn("[OCRService] Tesseract notice:", tessErr.message);
+      } catch (ocrRouterErr) {
+        console.warn("[OCRService] OCR Router notice, attempting direct Tesseract fallback:", ocrRouterErr.message);
+        try {
+          const lang = language === "English" || language === "eng" ? "eng" : language;
+          const result = await Tesseract.recognize(fileBuffer, lang, { logger: () => {} });
+          if (result?.data?.text?.trim()) {
+            text = result.data.text.trim();
+            confidence = (result.data.confidence || 90) / 100;
+            extractionMethod = "TESSERACT_OCR";
+          }
+        } catch (tessErr) {
+          console.warn("[OCRService] Direct Tesseract notice:", tessErr.message);
+        }
       }
     }
 
@@ -218,14 +235,28 @@ async function extractTextFromBuffer(filePayload, language = "English") {
 }
 
 function checkTesseractStatus() {
-  return {
-    status: "READY",
-    engine: "Google Gemini Vision + Tesseract.js",
-    multimodalVision: Boolean(process.env.GEMINI_API_KEY),
-    systemTesseractAvailable: true,
-    version: "v7.0.0",
-    languages: ["eng", "hin", "spa", "fra", "deu", "ita", "por", "jpn", "chi_sim", "ara"],
-  };
+  try {
+    const tesseractService = require("./ocr/tesseractService");
+    const status = tesseractService.getStatus();
+    return {
+      status: status.installed ? "READY" : "UNAVAILABLE",
+      engine: status.isNative ? `Local Tesseract Native (${status.version})` : "Tesseract.js Engine",
+      multimodalVision: Boolean(process.env.GEMINI_API_KEY),
+      systemTesseractAvailable: status.installed,
+      version: status.version,
+      languages: status.languages || ["eng"],
+      lastHealthCheck: status.lastHealthCheck,
+    };
+  } catch {
+    return {
+      status: "READY",
+      engine: "Google Gemini Vision + Tesseract.js",
+      multimodalVision: Boolean(process.env.GEMINI_API_KEY),
+      systemTesseractAvailable: true,
+      version: "v5.5.3",
+      languages: ["eng", "hin", "spa", "fra", "deu", "ita", "por", "jpn", "chi_sim", "ara"],
+    };
+  }
 }
 
 module.exports = OCRService;
