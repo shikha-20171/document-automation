@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { SuperAdminHeader, SuperAdminSidebar } from "@/components/layout";
+import SuperAdminHeader from "@/components/layout/SuperAdminHeader";
+import SuperAdminSidebar from "@/components/layout/SuperAdminSidebar";
 
 export default function SuperAdminLayout({
   children,

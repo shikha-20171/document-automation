@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { TeamLeaderHeader, TeamLeaderSidebar } from "@/components/layout";
+import TeamLeaderHeader from "@/components/layout/TeamLeaderHeader";
+import TeamLeaderSidebar from "@/components/layout/TeamLeaderSidebar";
 
 export default function TeamLeaderLayout({
   children,

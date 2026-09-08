@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { EmployeeHeader, EmployeeSidebar } from "@/components/layout";
+import EmployeeHeader from "@/components/layout/EmployeeHeader";
+import EmployeeSidebar from "@/components/layout/EmployeeSidebar";
 
 export default function EmployeeLayout({
   children,

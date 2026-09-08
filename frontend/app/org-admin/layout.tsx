@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { OrgAdminSidebar, ThemeToggle } from "@/components/layout";
+import OrgAdminSidebar from "@/components/layout/OrgAdminSidebar";
+import ThemeToggle from "@/components/layout/ThemeToggle";
 import { Search, Bell, Menu } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import apiClient from "@/lib/axios";

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { DepartmentManagerHeader, DepartmentManagerSidebar } from "@/components/layout";
+import DepartmentManagerHeader from "@/components/layout/DepartmentManagerHeader";
+import DepartmentManagerSidebar from "@/components/layout/DepartmentManagerSidebar";
 
 export default function DepartmentManagerLayout({
   children,

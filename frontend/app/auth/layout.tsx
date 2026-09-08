@@ -1,4 +1,4 @@
-import { ThemeToggle } from "@/components/layout";
+import ThemeToggle from "@/components/layout/ThemeToggle";
 
 export default function AuthLayout({
   children,
