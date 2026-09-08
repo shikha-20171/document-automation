@@ -5,6 +5,7 @@ import {
   CheckSquare,
   CheckCircle2,
   Sparkles,
+  Bot,
   Bell,
   UserCheck,
   BarChart3,
@@ -38,6 +39,11 @@ export const employeeNavItems: EmployeeNavItem[] = [
     name: "Templates",
     href: "/employee/document-templates",
     icon: LayoutTemplate,
+  },
+  {
+    name: "AI Tools",
+    href: "/employee/ai-tools",
+    icon: Bot,
   },
   {
     name: "My Tasks",

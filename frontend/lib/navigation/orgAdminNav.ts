@@ -36,6 +36,7 @@ export const orgAdminNavSections: OrgAdminNavSection[] = [
       { title: "Documents", href: "/org-admin/documents", icon: FileText },
       { title: "Document Builder", href: "/org-admin/ai-builder", icon: Sparkles },
       { title: "Templates", href: "/org-admin/templates", icon: Layout },
+      { title: "AI Tools", href: "/org-admin/ai-tools", icon: Bot },
       { title: "Approvals", href: "/org-admin/approvals", icon: GitBranch },
       { title: "Clients & CRM", href: "/org-admin/clients-crm", icon: Users2 },
       { title: "Governance", href: "/org-admin/governance", icon: ShieldCheck },

@@ -7,6 +7,7 @@ import {
   CheckCircle,
   GitFork,
   Sparkles,
+  Bot,
   BarChart3,
   Bell,
   User,
@@ -41,6 +42,11 @@ export const teamLeaderNavItems: TeamLeaderNavItem[] = [
     title: "Templates",
     href: "/team-leader/document-templates",
     icon: Copy,
+  },
+  {
+    title: "AI Tools",
+    href: "/team-leader/ai-tools",
+    icon: Bot,
   },
   {
     title: "My Team",
