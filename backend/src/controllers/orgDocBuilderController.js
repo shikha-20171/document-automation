@@ -838,6 +838,7 @@ const createTemplate = async (req, res) => {
     const { orgId, userId } = await resolveOrgAndUser(req);
     const {
       name,
+      title,
       description = "",
       category = "General",
       documentType = "Document",
@@ -845,11 +846,12 @@ const createTemplate = async (req, res) => {
       status = "ACTIVE",
     } = req.body;
 
-    if (!name || !name.trim()) {
+    const templateName = (name || title || "").trim();
+    if (!templateName) {
       return res.status(400).json({ success: false, message: "Template name is required." });
     }
 
-    const cleanName = name.trim();
+    const cleanName = templateName;
     const cleanContent = content || `# ${cleanName}\n\nStandard template content.`;
 
     const template = await prisma.documentTemplate.create({
@@ -1093,18 +1095,40 @@ const restoreTemplateVersion = async (req, res) => {
 const generateDocumentFromTemplate = async (req, res) => {
   try {
     const { orgId, userId, userName } = await resolveOrgAndUser(req);
+    const targetTemplateId = req.params.id || req.body.templateId;
     const {
-      templateId,
       docTitle,
+      title,
       name,
       content = "",
       category = "General",
       documentType = "Document",
       fieldValues = {},
+      variables = {},
       workflow = "Standard Two-Level Approval",
     } = req.body;
 
-    const rawTitle = (docTitle || name || "Generated Document").trim();
+    let baseContent = content;
+    let templateRecord = null;
+
+    if (targetTemplateId) {
+      templateRecord = await prisma.documentTemplate.findUnique({
+        where: { id: String(targetTemplateId) },
+      });
+      if (templateRecord) {
+        baseContent = templateRecord.content || content;
+      }
+    }
+
+    // Merge fieldValues and variables
+    const mergeData = { ...fieldValues, ...variables };
+    let renderedContent = baseContent;
+    for (const [key, val] of Object.entries(mergeData)) {
+      const regex = new RegExp(`{{\\s*${key}\\s*}}`, "g");
+      renderedContent = renderedContent.replace(regex, String(val));
+    }
+
+    const rawTitle = (docTitle || title || name || templateRecord?.name || "Generated Document").trim();
     const finalDocFileName = rawTitle.endsWith(".pdf") || rawTitle.endsWith(".docx") || rawTitle.endsWith(".txt")
       ? rawTitle
       : `${rawTitle}.pdf`;
@@ -1120,15 +1144,15 @@ const generateDocumentFromTemplate = async (req, res) => {
         mime_type: "application/pdf",
         status: "ACTIVE",
         uploaded_by: userName,
-        size: Math.max(1024, Buffer.byteLength(String(content), "utf8")),
+        size: Math.max(1024, Buffer.byteLength(String(renderedContent), "utf8")),
       },
     });
 
     // 2. Increment template usage if templateId is provided
-    if (templateId) {
+    if (targetTemplateId) {
       try {
         await prisma.documentTemplate.update({
-          where: { id: String(templateId) },
+          where: { id: String(targetTemplateId) },
           data: { updatedAt: new Date() },
         });
       } catch (tmplErr) {}
@@ -1149,6 +1173,7 @@ const generateDocumentFromTemplate = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: `Document "${finalDocFileName}" generated and saved into Documents vault successfully!`,
+      renderedContent,
       data: {
         id: String(createdDoc.id),
         name: createdDoc.name,
@@ -1156,7 +1181,8 @@ const generateDocumentFromTemplate = async (req, res) => {
         status: createdDoc.status,
         owner: createdDoc.uploaded_by,
         createdAt: createdDoc.created_at,
-        content,
+        content: renderedContent,
+        renderedContent,
       },
     });
   } catch (error) {

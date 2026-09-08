@@ -189,8 +189,22 @@ app.use("/auth/invitation", require("./routes/invitationRoutes"));
 app.use("/api/auth", authRoutes);
 app.use("/api/auth/invitation", require("./routes/invitationRoutes"));
 
-app.use("/api/organisations", organisationRoutes);
-app.use("/organisations", organisationRoutes);
+const verifyTokenMiddleware = require("./middleware/authMiddleware");
+const requireSuperAdminPrivileges = (req, res, next) => {
+  const role = (req.user?.role || req.user?.rawRole || "").toUpperCase().replace(/\s+/g, "_");
+  if (role === "SUPER_ADMIN" || role === "SUPERADMIN") {
+    return next();
+  }
+  return res.status(403).json({
+    success: false,
+    code: "FORBIDDEN",
+    message: "Access forbidden. Super Admin privileges required.",
+  });
+};
+
+// Global Super Admin Organisation Management (Strict RBAC)
+app.use("/api/organisations", verifyTokenMiddleware, requireSuperAdminPrivileges, organisationRoutes);
+app.use("/organisations", verifyTokenMiddleware, requireSuperAdminPrivileges, organisationRoutes);
 app.use("/api/organisation-admins", organisationAdminRoutes);
 app.use("/api/companies", companyRoutes);
 app.use("/companies", companyRoutes);
@@ -199,10 +213,11 @@ app.use("/api/ai/providers", aiProviderRoutes);
 app.use("/api/ai/models", aiModelRoutes);
 app.use("/api/public", require("./routes/publicSubscriptionRoutes"));
 app.use("/api/organisation", require("./routes/organisationSubscriptionRoutes"));
+
+/*  Super Admin Module Routes (Strict RBAC Guard)  */
+app.use("/api/super-admin", verifyTokenMiddleware, requireSuperAdminPrivileges);
 app.use("/api/super-admin/ai", require("./routes/superAdminAiRoutes"));
 app.use("/api/super-admin/ocr", require("./routes/superAdminOcrRoutes"));
-
-/*  Super Admin Module Routes  */
 app.use("/api/super-admin/dashboard", superAdminDashboardRoutes);
 app.use("/api/super-admin/organisations", organisationRoutes);
 app.use("/api/super-admin/storage", superAdminStorageRoutes);

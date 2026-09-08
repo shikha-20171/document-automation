@@ -179,8 +179,8 @@ async function createQuotation(organisationId, userId, userName, payload, req = 
     clientContactPerson,
     currency = 'INR',
     taxRate = 18,
-    discountType = 'PERCENTAGE',
-    discountValue = 0,
+    discountType,
+    discountValue,
     items = [],
     issueDate,
     expiryDate,
@@ -198,10 +198,16 @@ async function createQuotation(organisationId, userId, userName, payload, req = 
     throw new Error('Client name is required.');
   }
 
-  // Calculate financials strictly
+  // Calculate financials strictly with support for both discountValue and discount
+  const effectiveDiscountValue = discountValue !== undefined
+    ? Number(discountValue)
+    : (payload.discount !== undefined ? Number(payload.discount) : 0);
+
+  const effectiveDiscountType = discountType || payload.discountType || (effectiveDiscountValue > 100 ? 'FIXED' : 'PERCENTAGE');
+
   const financials = calculateQuotationFinancials(items, {
-    discountType,
-    discountValue,
+    discountType: effectiveDiscountType,
+    discountValue: effectiveDiscountValue,
     taxRate,
   });
 
@@ -324,13 +330,17 @@ async function updateQuotation(id, organisationId, userId, userName, payload, re
 
   // Recalculate financials if items or financial fields are updated
   const rawItems = payload.items !== undefined ? payload.items : existing.items;
-  const discountType = payload.discountType !== undefined ? payload.discountType : existing.discountType;
-  const discountValue = payload.discountValue !== undefined ? payload.discountValue : existing.discountValue;
+  const effectiveDiscountVal = payload.discountValue !== undefined
+    ? Number(payload.discountValue)
+    : (payload.discount !== undefined ? Number(payload.discount) : existing.discountValue);
+  const effectiveDiscountTyp = payload.discountType !== undefined
+    ? payload.discountType
+    : (payload.discount !== undefined ? (effectiveDiscountVal > 100 ? 'FIXED' : 'PERCENTAGE') : existing.discountType);
   const taxRate = payload.taxRate !== undefined ? payload.taxRate : existing.taxRate;
 
   const financials = calculateQuotationFinancials(rawItems, {
-    discountType,
-    discountValue,
+    discountType: effectiveDiscountTyp,
+    discountValue: effectiveDiscountVal,
     taxRate,
   });
 

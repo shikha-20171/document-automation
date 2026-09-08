@@ -37,6 +37,9 @@ router.get("/recipients", getCrmRecipients);
 router.post("/generate-document", generateDocumentFromTemplate);
 router.post("/templates/generate-document", generateDocumentFromTemplate);
 router.post("/templates/:id/generate", generateDocumentFromTemplate);
+router.post("/templates/:id/render", generateDocumentFromTemplate);
+router.post("/:id/generate", generateDocumentFromTemplate);
+router.post("/:id/render", generateDocumentFromTemplate);
 
 // Templates Library Management (supporting both / and /templates paths)
 router.get("/templates", getTemplates);
