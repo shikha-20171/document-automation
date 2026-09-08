@@ -300,20 +300,31 @@ export default function TemplateTable({
 
       {/* Main Content Area: Cards View or Table View */}
       {paged.length === 0 ? (
-        <Card className="rounded-3xl border border-slate-200/80 bg-white p-12 text-center shadow-xs">
-          <div className="h-12 w-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
-            <FileText size={24} />
+        <Card className="rounded-3xl border border-slate-200/80 bg-white p-12 text-center shadow-xs max-w-2xl mx-auto my-6">
+          <div className="h-14 w-14 rounded-2xl bg-blue-50 text-[#274690] flex items-center justify-center mx-auto mb-4 border border-blue-100">
+            <Sparkles size={28} className="text-[#274690]" />
           </div>
-          <h3 className="text-base font-bold text-slate-900">No document templates found</h3>
-          <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-            Try adjusting your search query or create a new template blueprint to get started.
+          <h3 className="text-lg font-black text-slate-900">No Templates Saved Yet</h3>
+          <p className="text-xs text-slate-600 mt-2 max-w-md mx-auto leading-relaxed">
+            Your template library is currently empty. Generate new documents in the <strong>AI Document Builder</strong>, review them, and click <strong>Save as Reusable Template</strong>. Saved templates appear here where you can customize client names and details to send to any client.
           </p>
-          <Button
-            onClick={() => onOpenModal("quickCreate")}
-            className="mt-4 rounded-xl bg-[#274690] text-white text-xs font-bold h-9 px-4"
-          >
-            + Create First Template
-          </Button>
+          <div className="flex items-center justify-center gap-3 mt-6">
+            <Button
+              onClick={() => router.push("/org-admin/ai-builder")}
+              className="rounded-xl bg-[#274690] hover:bg-[#1f3561] text-white text-xs font-bold h-10 px-5 shadow-sm flex items-center gap-2"
+            >
+              <Sparkles size={14} className="text-[#ffd9a0]" />
+              <span>Generate with AI Builder</span>
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => onOpenModal("quickCreate")}
+              className="rounded-xl border-slate-200 text-slate-700 text-xs font-bold h-10 px-4 hover:bg-slate-50 flex items-center gap-1.5"
+            >
+              <Plus size={14} />
+              <span>Blank Template</span>
+            </Button>
+          </div>
         </Card>
       ) : viewMode === "grid" ? (
         /* CARDS GRID VIEW */

@@ -113,6 +113,9 @@ function UniversalAiDocumentBuilderContent() {
   const [currentVersion, setCurrentVersion] = useState<number>(1);
   const [publicShareToken, setPublicShareToken] = useState<string>("");
 
+  // Issuing Company & Counterparty Details
+  const [companyName, setCompanyName] = useState<string>("Enterprise Solutions Tech Pvt Ltd");
+
   // Client Details
   const [clientId, setClientId] = useState<string>("");
   const [clientName, setClientName] = useState<string>("");
@@ -205,15 +208,21 @@ function UniversalAiDocumentBuilderContent() {
     setTimeout(() => setToastMessage(null), 4500);
   };
 
-  // Load CRM Clients & Templates
+  // Load CRM Clients, Templates & Organisation Info
   useEffect(() => {
     async function fetchCatalogs() {
       try {
-        const [clientRes, tplRes] = await Promise.all([
+        const [clientRes, tplRes, meRes] = await Promise.all([
           apiClient.get("/api/crm/clients").catch(() => ({ data: { data: [] } })),
           apiClient.get("/api/unified-templates").catch(() => ({ data: { data: [] } })),
+          apiClient.get("/api/auth/me").catch(() => ({ data: null })),
         ]);
         if (clientRes.data?.data) setCrmClients(clientRes.data.data);
+        const userOrg = meRes.data?.data?.organisation || meRes.data?.organisation;
+        if (userOrg?.name) {
+          setCompanyName(userOrg.name);
+          setVariables((prev) => ({ ...prev, company_name: userOrg.name }));
+        }
         if (tplRes.data?.data) {
           setTemplates(tplRes.data.data);
           if (templateIdParam) {
@@ -259,6 +268,7 @@ function UniversalAiDocumentBuilderContent() {
     setClientEmail(doc.clientEmail || "");
     setClientPhone(doc.clientPhone || "");
     setClientAddress(doc.clientAddress || "");
+    if (doc.variables?.company_name) setCompanyName(doc.variables.company_name);
     if (Array.isArray(doc.content)) setSections(doc.content);
     if (doc.financialData) setFinancialData(doc.financialData);
     if (doc.variables) setVariables(doc.variables);
@@ -333,6 +343,7 @@ function UniversalAiDocumentBuilderContent() {
       setGeneratingAi(true);
       const res = await apiClient.post("/api/unified-documents/ai-generate", {
         prompt: aiPrompt.trim(),
+        companyName: companyName.trim(),
         clientContext: clientId ? crmClients.find((c) => c.id === clientId) : null,
         documentTypeOverride: detectedType?.type || documentType,
         categoryOverride: detectedType?.category || category,
@@ -343,14 +354,31 @@ function UniversalAiDocumentBuilderContent() {
         setTitle(gen.title);
         setDocumentType(gen.documentType);
         setCategory(gen.category);
-        if (gen.clientName && !clientName) setClientName(gen.clientName);
-        if (gen.clientEmail && !clientEmail) setClientEmail(gen.clientEmail);
-        if (gen.clientContactPerson && !clientContactPerson) setClientContactPerson(gen.clientContactPerson);
+
+        // Dynamic Entity Resolution: Always update company name and client name from AI
+        const resolvedCompany = gen.companyName || gen.variables?.company_name || companyName;
+        const resolvedClient = gen.clientName || gen.variables?.client_name || clientName;
+
+        setCompanyName(resolvedCompany);
+        setClientName(resolvedClient);
+
+        if (gen.clientEmail) setClientEmail(gen.clientEmail);
+        if (gen.clientContactPerson) setClientContactPerson(gen.clientContactPerson);
         if (Array.isArray(gen.content) && gen.content.length > 0) setSections(gen.content);
         if (gen.financialData) setFinancialData(gen.financialData);
-        if (gen.variables) setVariables((prev) => ({ ...prev, ...gen.variables }));
+        if (gen.variables) {
+          setVariables((prev) => ({
+            ...prev,
+            ...gen.variables,
+            company_name: resolvedCompany,
+            client_name: resolvedClient,
+          }));
+        }
 
-        showToast("Document Generated!", `AI structured a ${gen.documentType} with ${gen.content.length} sections.`);
+        showToast(
+          "Document Generated!",
+          `AI created ${gen.documentType} by ${resolvedCompany} for ${resolvedClient || "Client"}.`
+        );
       }
     } catch (err: any) {
       showToast("AI Generation Failed", err.response?.data?.message || err.message, "error");
@@ -586,7 +614,7 @@ function UniversalAiDocumentBuilderContent() {
         isShared: true,
         content: formattedContent,
         sections: sections,
-        defaultVariables: variables,
+        defaultVariables: { ...variables, company_name: companyName, client_name: clientName },
         activities: [{ time: "Just now", event: "Created via AI Document Builder" }],
       };
 
@@ -989,6 +1017,33 @@ function UniversalAiDocumentBuilderContent() {
             </div>
           </div>
 
+          {/* Issuing Organisation / Company Details */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2 flex items-center justify-between">
+              <span>Issuing Company (Top Header)</span>
+              <Building2 className="w-3.5 h-3.5 text-blue-600" />
+            </h3>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                Company Name (Document Creator)
+              </label>
+              <input
+                type="text"
+                value={companyName}
+                onChange={(e) => {
+                  setCompanyName(e.target.value);
+                  setVariables((prev) => ({ ...prev, company_name: e.target.value }));
+                }}
+                placeholder="e.g. Acme Corp Tech Pvt Ltd"
+                className="w-full px-3 py-1.5 text-xs font-semibold text-slate-900 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <p className="text-[10px] text-slate-400 mt-1 leading-tight">
+                Appears prominently in the top header and authorized signature block.
+              </p>
+            </div>
+          </div>
+
           {/* CRM Client Picker */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
             <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2 flex items-center justify-between">
@@ -1016,14 +1071,17 @@ function UniversalAiDocumentBuilderContent() {
 
             <div>
               <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                Client / Counterparty Name
+                Client / Counterparty / Candidate Name
               </label>
               <input
                 type="text"
                 value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
-                placeholder="e.g. ABC Technologies"
-                className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg"
+                onChange={(e) => {
+                  setClientName(e.target.value);
+                  setVariables((prev) => ({ ...prev, client_name: e.target.value }));
+                }}
+                placeholder="e.g. Tata Motors / ABC Tech"
+                className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg font-semibold text-slate-900"
               />
             </div>
 
@@ -1238,8 +1296,10 @@ function UniversalAiDocumentBuilderContent() {
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 md:p-12 space-y-8 max-w-4xl mx-auto">
               <div className="flex justify-between items-start border-b border-slate-200 pb-6">
                 <div>
-                  <div className="text-2xl font-bold text-slate-900">Enterprise Solutions Tech Pvt Ltd</div>
-                  <div className="text-xs text-slate-500 mt-0.5">Corporate Headquarters • Technology Division</div>
+                  <div className="text-2xl font-bold text-slate-900">
+                    {companyName || variables.company_name || "Your Company Name"}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-0.5">Corporate Headquarters • Official Business Document</div>
                 </div>
 
                 <div className="text-right">
@@ -1317,12 +1377,14 @@ function UniversalAiDocumentBuilderContent() {
                   {sec.type === "signature" && (
                     <div className="pt-6 grid grid-cols-2 gap-8">
                       <div className="border-t border-slate-300 pt-2">
-                        <div className="font-bold text-slate-900">For Enterprise Solutions</div>
+                        <div className="font-bold text-slate-900">
+                          For {companyName || variables.company_name || "Authorized Company"}
+                        </div>
                         <div className="text-slate-400 text-[11px]">Authorized Signatory</div>
                       </div>
                       <div className="border-t border-slate-300 pt-2">
                         <div className="font-bold text-slate-900">
-                          Accepted by: {clientName || "Counterparty"}
+                          Accepted by: {clientName || variables.client_name || "Counterparty"}
                         </div>
                         <div className="text-slate-400 text-[11px]">Authorized Signatory</div>
                       </div>

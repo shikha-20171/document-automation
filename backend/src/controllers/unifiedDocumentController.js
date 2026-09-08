@@ -60,7 +60,8 @@ const unifiedDocumentController = {
     try {
       const orgId = req.user.organisationId;
       const userId = req.user.userId || req.user.id;
-      const { prompt, clientContext, templateContext, documentTypeOverride, categoryOverride } = req.body;
+      const { prompt, clientContext, templateContext, documentTypeOverride, categoryOverride, companyName } = req.body;
+      const effectiveCompany = companyName || req.body.companyContext?.name || null;
 
       if (!prompt || !prompt.trim()) {
         return res.status(400).json({ success: false, message: 'Please describe the document you want to create.' });
@@ -71,6 +72,7 @@ const unifiedDocumentController = {
         organisationId: orgId,
         userId,
         clientContext,
+        companyName: effectiveCompany,
         templateContext,
         documentTypeOverride,
         categoryOverride,

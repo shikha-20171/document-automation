@@ -1,4 +1,5 @@
 const AIGateway = require('./aiGateway/AIGateway');
+const prisma = require('../config/prismaClient');
 const { calculateQuotationFinancials, round2 } = require('../utils/pricingCalculator');
 
 /**
@@ -110,10 +111,11 @@ function detectDocumentIntent(prompt) {
 }
 
 /**
- * Extract entities from raw text (Amounts, Client/Person names, Dates)
+ * Extract entities from raw text (Company, Client/Person names, Amounts, Dates, Roles)
  */
 function extractCommonEntities(text) {
   const res = {
+    companyName: null,
     clientName: null,
     amount: null,
     currency: 'INR',
@@ -121,14 +123,17 @@ function extractCommonEntities(text) {
     role: null,
   };
 
+  const clean = (text || '').trim();
+  if (!clean) return res;
+
   // Currency
-  if (/\$|usd|dollar/i.test(text)) res.currency = 'USD';
-  else if (/€|eur|euro/i.test(text)) res.currency = 'EUR';
-  else if (/£|gbp/i.test(text)) res.currency = 'GBP';
+  if (/\$|usd|dollar/i.test(clean)) res.currency = 'USD';
+  else if (/€|eur|euro/i.test(clean)) res.currency = 'EUR';
+  else if (/£|gbp/i.test(clean)) res.currency = 'GBP';
 
   // Amount
-  const lakhMatch = text.match(/(?:₹|rs\.?|inr)?\s*(\d+(?:\.\d+)?)\s*(?:lakh|lakhs|lac|lacs)/i);
-  const rawNumMatch = text.match(/(?:₹|rs\.?|\$|€|£)?\s*([\d,]+(?:\.\d+)?)/i);
+  const lakhMatch = clean.match(/(?:₹|rs\.?|inr)?\s*(\d+(?:\.\d+)?)\s*(?:lakh|lakhs|lac|lacs)/i);
+  const rawNumMatch = clean.match(/(?:₹|rs\.?|\$|€|£)?\s*([\d,]+(?:\.\d+)?)/i);
   if (lakhMatch && lakhMatch[1]) {
     res.amount = parseFloat(lakhMatch[1]) * 100000;
   } else if (rawNumMatch && rawNumMatch[1]) {
@@ -136,20 +141,104 @@ function extractCommonEntities(text) {
     if (!isNaN(num) && num > 50) res.amount = num;
   }
 
-  // Client / Partner Name
-  const clientMatch = text.match(/(?:for|between|with|to)\s+([A-Za-z0-9\s&]+?)(?:\s+(?:worth|for|regarding|with|at|amount|to|dated|\.|$))/i);
-  if (clientMatch && clientMatch[1]) {
-    const raw = clientMatch[1].trim();
-    if (!['a', 'an', 'the', 'website', 'app', 'software', 'project', 'company'].includes(raw.toLowerCase())) {
-      res.clientName = raw;
+  // 1. Hindi Pairwise: "X ki taraf se Y ke liye"
+  const hindiTarafLiye = clean.match(/([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,4})\s+ki\s+taraf\s+se\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,4})\s+ke\s+liye/i);
+  if (hindiTarafLiye) {
+    res.companyName = hindiTarafLiye[1].trim();
+    res.clientName = hindiTarafLiye[2].trim();
+  }
+
+  // 2. Hindi Pairwise: "Y ke liye X ki taraf se"
+  if (!res.companyName || !res.clientName) {
+    const hindiLiyeTaraf = clean.match(/([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,4})\s+ke\s+liye\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,4})\s+ki\s+taraf\s+se/i);
+    if (hindiLiyeTaraf) {
+      if (!res.clientName) res.clientName = hindiLiyeTaraf[1].trim();
+      if (!res.companyName) res.companyName = hindiLiyeTaraf[2].trim();
+    }
+  }
+
+  // 3. English Pairwise: "between X and Y"
+  if (!res.companyName || !res.clientName) {
+    const betweenMatch = clean.match(/between\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,4})\s+(?:and|&)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,4})/i);
+    if (betweenMatch) {
+      const c1 = betweenMatch[1].trim();
+      const c2 = betweenMatch[2].trim();
+      const blacklist = ['a', 'an', 'the', 'us', 'them', 'both'];
+      if (!blacklist.includes(c1.toLowerCase()) && !res.companyName) res.companyName = c1;
+      if (!blacklist.includes(c2.toLowerCase()) && !res.clientName) res.clientName = c2;
+    }
+  }
+
+  // 4. English Pairwise: "from/by X for/to Y"
+  if (!res.companyName || !res.clientName) {
+    const mFromFor = clean.match(/(?:from|by)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,4})\s+(?:for|to)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,4})/i);
+    if (mFromFor) {
+      if (!res.companyName) res.companyName = mFromFor[1].trim();
+      if (!res.clientName) res.clientName = mFromFor[2].trim();
+    }
+  }
+
+  // 5. English Pairwise: "for/to Y from/by X"
+  if (!res.companyName || !res.clientName) {
+    const mForFrom = clean.match(/(?:for|to)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,4})\s+(?:from|by)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,4})/i);
+    if (mForFrom) {
+      if (!res.clientName) res.clientName = mForFrom[1].trim();
+      if (!res.companyName) res.companyName = mForFrom[2].trim();
+    }
+  }
+
+  // 6. Standalone Company patterns
+  if (!res.companyName) {
+    const standaloneFrom = clean.match(/(?:from|by|on\s+behalf\s+of|issued\s+by|company[:\s]+|disclosing\s+party[:\s]+)\s+([A-Za-z0-9\s&.,'-]+?)(?:\s+(?:for|to|ke\s+liye|regarding|worth|with|dated|\.|$))/i);
+    if (standaloneFrom && standaloneFrom[1]) {
+      const rawComp = standaloneFrom[1].trim();
+      const blacklist = ['a', 'an', 'the', 'website', 'app', 'software', 'project', 'company', 'scratch', 'template', 'ai'];
+      if (!blacklist.includes(rawComp.toLowerCase())) {
+        res.companyName = rawComp;
+      }
+    }
+  }
+
+  if (!res.companyName) {
+    const standaloneTaraf = clean.match(/([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,4})\s+ki\s+taraf\s+se/i);
+    if (standaloneTaraf && standaloneTaraf[1]) {
+      const rawComp = standaloneTaraf[1].trim();
+      const blacklist = ['a', 'an', 'the', 'website', 'app', 'software', 'project', 'company'];
+      if (!blacklist.includes(rawComp.toLowerCase())) {
+        res.companyName = rawComp;
+      }
+    }
+  }
+
+  // 7. Standalone Client patterns
+  if (!res.clientName) {
+    const standaloneClient = clean.match(/(?:for|to|client[:\s]+|customer[:\s]+|recipient[:\s]+|candidate[:\s]+)\s+([A-Za-z0-9\s&.,'-]+?)(?:\s+(?:from|by|ki\s+taraf\s+se|worth|regarding|with|at|amount|dated|\.|$))/i);
+    if (standaloneClient && standaloneClient[1]) {
+      const raw = standaloneClient[1].trim();
+      const blacklist = ['a', 'an', 'the', 'website', 'app', 'software', 'project', 'company', 'client', 'employee', 'candidate', 'developer'];
+      if (!blacklist.includes(raw.toLowerCase())) {
+        res.clientName = raw;
+      }
+    }
+  }
+
+  if (!res.clientName) {
+    const standaloneLiye = clean.match(/([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,4})\s+ke\s+liye/i);
+    if (standaloneLiye && standaloneLiye[1]) {
+      const raw = standaloneLiye[1].trim();
+      const blacklist = ['a', 'an', 'the', 'website', 'app', 'software', 'project', 'company', 'document', 'quotation'];
+      if (!blacklist.includes(raw.toLowerCase())) {
+        res.clientName = raw;
+      }
     }
   }
 
   // Role / Position (for HR)
-  const roleMatch = text.match(/(?:for\s+(?:a|an)?\s*)(frontend developer|backend developer|full stack developer|software engineer|product manager|ui\/ux designer|sales manager|marketing specialist|accountant|consultant)/i);
+  const roleMatch = clean.match(/(?:for\s+(?:a|an)?\s*)(frontend developer|backend developer|full stack developer|software engineer|product manager|ui\/ux designer|sales manager|marketing specialist|accountant|consultant)/i);
   if (roleMatch && roleMatch[1]) {
     res.role = roleMatch[1].trim();
   }
+
 
   return res;
 }
@@ -162,6 +251,7 @@ async function generateStructuredDocumentFromAI({
   organisationId,
   userId,
   clientContext = null,
+  companyName = null,
   templateContext = null,
   documentTypeOverride = null,
   categoryOverride = null,
@@ -171,8 +261,29 @@ async function generateStructuredDocumentFromAI({
     throw new Error('Prompt is required to generate document.');
   }
 
-  // 1. Detect Intent
+  // 1. Fetch user's organisation name if available
+  let defaultOrgName = 'Enterprise Solutions Tech Pvt Ltd';
+  if (organisationId) {
+    try {
+      const org = await prisma.organisation.findUnique({
+        where: { id: parseInt(organisationId, 10) },
+        select: { name: true },
+      });
+      if (org && org.name) {
+        defaultOrgName = org.name;
+      }
+    } catch (e) {
+      // quiet fallback
+    }
+  }
+
+  // 2. Detect Intent & Extract Entities
   const detected = detectDocumentIntent(cleanPrompt);
+  const entities = extractCommonEntities(cleanPrompt);
+
+  const effectiveCompanyName = (companyName || entities.companyName || defaultOrgName).trim();
+  const effectiveClientName = (clientContext?.name || entities.clientName || 'Valued Client').trim();
+
   const documentType = documentTypeOverride || templateContext?.documentType || detected.documentType;
   const category = categoryOverride || templateContext?.category || detected.category;
 
@@ -181,20 +292,23 @@ You are an Enterprise AI Document Architect.
 Your task is to take a natural language instruction and generate a complete, professional, highly-structured business document.
 
 The requested document type is: "${documentType}" (Category: "${category}").
+Issuing Company (Party Creating Document): "${effectiveCompanyName}"
+Client / Counterparty (Recipient Party): "${effectiveClientName}"
 
 You MUST return ONLY valid JSON matching this schema:
 {
   "title": "Clear, professional document title (e.g. 'Software Services Agreement', 'Employment Offer Letter')",
   "documentType": "${documentType}",
   "category": "${category}",
-  "clientName": "Extracted or inferred client/company/candidate name",
+  "companyName": "${effectiveCompanyName}",
+  "clientName": "${effectiveClientName}",
   "clientEmail": "Extracted email or null",
   "clientPhone": "Extracted phone or null",
   "clientAddress": "Extracted address or null",
   "clientContactPerson": "Contact person name or null",
   "variables": {
-    "company_name": "Company Name",
-    "client_name": "Client or Candidate Name",
+    "company_name": "${effectiveCompanyName}",
+    "client_name": "${effectiveClientName}",
     "document_date": "Today's Date",
     "valid_until": "Expiry Date (if applicable)",
     "amount": "Total Amount or Salary (if applicable)",
@@ -211,8 +325,8 @@ You MUST return ONLY valid JSON matching this schema:
     {
       "id": "sec_1",
       "type": "header",
-      "title": "Document Heading / Metadata",
-      "body": "Opening statement or recital..."
+      "title": "Document Heading & Overview",
+      "body": "Official document prepared by ${effectiveCompanyName} for ${effectiveClientName}..."
     },
     {
       "id": "sec_2",
@@ -241,7 +355,7 @@ You MUST return ONLY valid JSON matching this schema:
       "id": "sec_5",
       "type": "signature",
       "title": "Authorized Signatures",
-      "body": "Sign-off agreement block for both parties."
+      "body": "Sign-off block between ${effectiveCompanyName} and ${effectiveClientName}."
     }
   ]
 }
@@ -249,8 +363,9 @@ You MUST return ONLY valid JSON matching this schema:
 RULES:
 1. Generate realistic, comprehensive, enterprise-grade business clauses and paragraphs, not placeholders.
 2. If the document has a financial component (Quotation, Invoice, Purchase Order, Offer Letter salary), structure the tables and calculate numbers realistically.
-3. If clientContext or templateContext are provided, weave them seamlessly into the content.
-4. Output ONLY the raw JSON object.
+3. CRITICAL: The document header section ("sec_1") MUST prominently display "${effectiveCompanyName}" as the issuing creator company and "${effectiveClientName}" as the client/recipient.
+4. CRITICAL: The signature section ("sec_5") MUST explicitly state "For ${effectiveCompanyName} (Authorized Signatory)" and "Accepted by: ${effectiveClientName}".
+5. Output ONLY the raw JSON object.
 `.trim();
 
   let contextDescription = '';
@@ -264,6 +379,8 @@ RULES:
   const userPrompt = `
 User Instruction:
 "${cleanPrompt}"
+Issuing Company: "${effectiveCompanyName}"
+Recipient/Client: "${effectiveClientName}"
 ${contextDescription}
 `.trim();
 
@@ -293,8 +410,12 @@ ${contextDescription}
 
   // Fallback to rich heuristic generator if AI output is empty or malformed
   if (!parsed || !parsed.content || !Array.isArray(parsed.content) || parsed.content.length === 0) {
-    parsed = generateHeuristicDocument(cleanPrompt, documentType, category, clientContext, templateContext);
+    parsed = generateHeuristicDocument(cleanPrompt, documentType, category, clientContext, templateContext, effectiveCompanyName, effectiveClientName);
   }
+
+  // Ensure top-level companyName and clientName are strictly assigned
+  parsed.companyName = parsed.companyName || effectiveCompanyName;
+  parsed.clientName = parsed.clientName || effectiveClientName;
 
   // Apply Client Context overrides if specified
   if (clientContext) {
@@ -310,13 +431,14 @@ ${contextDescription}
   // Ensure variables object is populated
   const todayStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   parsed.variables = {
-    company_name: parsed.variables?.company_name || 'Enterprise Solutions',
-    client_name: parsed.clientName || 'Valued Client',
+    company_name: parsed.companyName || effectiveCompanyName,
+    client_name: parsed.clientName || effectiveClientName,
     client_address: parsed.clientAddress || '',
     document_date: todayStr,
     valid_until: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
     ...(parsed.variables || {}),
   };
+
 
   // If financial data exists with table rows, recalculate deterministically
   if (parsed.financialData && (category === 'Sales' || parsed.financialData.total > 0)) {
@@ -358,7 +480,8 @@ ${contextDescription}
     title: parsed.title || `${documentType} - ${parsed.clientName || 'General'}`,
     documentType,
     category,
-    clientName: parsed.clientName || null,
+    companyName: parsed.companyName || effectiveCompanyName,
+    clientName: parsed.clientName || effectiveClientName,
     clientEmail: parsed.clientEmail || null,
     clientPhone: parsed.clientPhone || null,
     clientAddress: parsed.clientAddress || null,
@@ -399,35 +522,39 @@ function extractJsonFromText(text) {
 /**
  * Resilient Heuristic Generator covering all 5 core domains & custom types
  */
-function generateHeuristicDocument(prompt, documentType, category, clientContext, templateContext) {
+function generateHeuristicDocument(prompt, documentType, category, clientContext, templateContext, companyName, clientName) {
   const entities = extractCommonEntities(prompt);
-  const clientName = clientContext?.name || entities.clientName || 'Valued Partner';
+  const resolvedClientName = clientContext?.name || clientName || entities.clientName || 'Valued Partner';
+  const resolvedCompanyName = companyName || entities.companyName || 'Enterprise Solutions Tech Pvt Ltd';
   const amount = entities.amount || 150000;
   const currency = entities.currency || 'INR';
 
   switch (category) {
     case 'HR':
-      return generateHeuristicHrDocument(documentType, clientName, entities);
+      return generateHeuristicHrDocument(documentType, resolvedCompanyName, resolvedClientName, entities);
     case 'Legal':
-      return generateHeuristicLegalDocument(documentType, clientName, entities);
+      return generateHeuristicLegalDocument(documentType, resolvedCompanyName, resolvedClientName, entities);
     case 'Sales':
-      return generateHeuristicSalesDocument(documentType, clientName, amount, currency);
+      return generateHeuristicSalesDocument(documentType, resolvedCompanyName, resolvedClientName, amount, currency);
     case 'Operational':
-      return generateHeuristicOperationalDocument(documentType, clientName, entities);
+      return generateHeuristicOperationalDocument(documentType, resolvedCompanyName, resolvedClientName, entities);
     default:
-      return generateHeuristicBusinessDocument(documentType, clientName, amount, currency);
+      return generateHeuristicBusinessDocument(documentType, resolvedCompanyName, resolvedClientName, amount, currency);
   }
 }
 
-function generateHeuristicHrDocument(documentType, candidateName, entities) {
+function generateHeuristicHrDocument(documentType, companyName, candidateName, entities) {
   const role = entities.role || 'Software Engineer';
   return {
     title: `${documentType} - ${candidateName}`,
     documentType,
     category: 'HR',
+    companyName,
     clientName: candidateName,
     variables: {
+      company_name: companyName,
       candidate_name: candidateName,
+      client_name: candidateName,
       designation: role,
       joining_date: '1st of next month',
       salary: entities.amount ? `₹${entities.amount.toLocaleString('en-IN')} per annum` : '₹12,00,000 per annum (CTC)',
@@ -437,13 +564,13 @@ function generateHeuristicHrDocument(documentType, candidateName, entities) {
         id: 'sec_1',
         type: 'header',
         title: 'Employment Offer & Appointment Terms',
-        body: `Dear ${candidateName},\n\nWe are pleased to offer you the position of ${role} with our organization. Following your interviews, we were thoroughly impressed by your credentials and look forward to welcoming you to our engineering division.`,
+        body: `Dear ${candidateName},\n\nWe at ${companyName} are pleased to offer you the position of ${role} with our organization. Following your interviews, we were thoroughly impressed by your credentials and look forward to welcoming you to our team.`,
       },
       {
         id: 'sec_2',
         type: 'text',
         title: 'Role, Responsibilities & Reporting',
-        body: `1. You will report directly to the Director of Engineering.\n2. Your work location will be Hybrid / Head Office.\n3. Standard working hours are Monday through Friday, 9:30 AM to 6:30 PM.\n4. You will be responsible for system architecture, scalable software modules, and pair code reviews.`,
+        body: `1. You will report directly to the Director of Engineering at ${companyName}.\n2. Your work location will be Hybrid / Head Office.\n3. Standard working hours are Monday through Friday, 9:30 AM to 6:30 PM.\n4. You will be responsible for system architecture, scalable software modules, and quality deliverables.`,
       },
       {
         id: 'sec_3',
@@ -470,21 +597,24 @@ function generateHeuristicHrDocument(documentType, candidateName, entities) {
         id: 'sec_5',
         type: 'signature',
         title: 'Acceptance & Sign-Off',
-        body: `I, ${candidateName}, accept the offer on the terms and conditions outlined above and confirm my joining date.`,
+        body: `Signed by Authorized Signatory for ${companyName} and accepted by ${candidateName}.`,
       },
     ],
   };
 }
 
-function generateHeuristicLegalDocument(documentType, partnerName, entities) {
+function generateHeuristicLegalDocument(documentType, companyName, partnerName, entities) {
   return {
-    title: `${documentType} between Enterprise Solutions and ${partnerName}`,
+    title: `${documentType} between ${companyName} and ${partnerName}`,
     documentType,
     category: 'Legal',
+    companyName,
     clientName: partnerName,
     variables: {
-      disclosing_party: 'Enterprise Solutions Tech Pvt Ltd',
+      company_name: companyName,
+      disclosing_party: companyName,
       receiving_party: partnerName,
+      client_name: partnerName,
       effective_date: new Date().toLocaleDateString('en-GB'),
       term_period: '3 (three) years',
     },
@@ -493,7 +623,7 @@ function generateHeuristicLegalDocument(documentType, partnerName, entities) {
         id: 'sec_1',
         type: 'header',
         title: 'Parties & Recitals',
-        body: `This Non-Disclosure & Confidentiality Agreement is entered into as of ${new Date().toLocaleDateString('en-GB')} by and between:\n\n1. Enterprise Solutions Tech Pvt Ltd ("Disclosing Party"), and\n2. ${partnerName} ("Receiving Party").\n\nThe parties intend to discuss commercial collaboration and service provision requiring disclosure of proprietary information.`,
+        body: `This Non-Disclosure & Confidentiality Agreement is entered into as of ${new Date().toLocaleDateString('en-GB')} by and between:\n\n1. ${companyName} ("Disclosing Party"), and\n2. ${partnerName} ("Receiving Party").\n\nThe parties intend to discuss commercial collaboration and service provision requiring disclosure of proprietary information.`,
       },
       {
         id: 'sec_2',
@@ -517,21 +647,22 @@ function generateHeuristicLegalDocument(documentType, partnerName, entities) {
         id: 'sec_5',
         type: 'signature',
         title: 'Authorized Execution',
-        body: 'In witness whereof, the parties have executed this Agreement by their authorized representatives.',
+        body: `In witness whereof, ${companyName} and ${partnerName} have executed this Agreement by their authorized representatives.`,
       },
     ],
   };
 }
 
-function generateHeuristicSalesDocument(documentType, clientName, amount, currency) {
+function generateHeuristicSalesDocument(documentType, companyName, clientName, amount, currency) {
   const p1 = round2(amount * 0.3);
   const p2 = round2(amount * 0.5);
   const p3 = round2(amount - (p1 + p2));
 
   return {
-    title: `${documentType} for ${clientName}`,
+    title: `${documentType} - ${clientName}`,
     documentType,
     category: 'Sales',
+    companyName,
     clientName,
     financialData: {
       currency,
@@ -543,6 +674,7 @@ function generateHeuristicSalesDocument(documentType, clientName, amount, curren
       total: round2(amount * 1.18),
     },
     variables: {
+      company_name: companyName,
       client_name: clientName,
       amount: String(amount),
       payment_terms: '50% advance on sign-off, 50% upon milestone completion',
@@ -551,8 +683,8 @@ function generateHeuristicSalesDocument(documentType, clientName, amount, curren
       {
         id: 'sec_1',
         type: 'header',
-        title: `${documentType} Specification`,
-        body: `Commercial deliverable schedule and investment proposal prepared for ${clientName}.`,
+        title: `${documentType} Overview`,
+        body: `Commercial deliverable schedule and investment proposal prepared by ${companyName} for ${clientName}.`,
       },
       {
         id: 'sec_2',
@@ -577,19 +709,21 @@ function generateHeuristicSalesDocument(documentType, clientName, amount, curren
         id: 'sec_4',
         type: 'signature',
         title: 'Authorized Signatures',
-        body: 'Client sign-off confirms acceptance of the scope and payment schedule outlined.',
+        body: `Prepared by ${companyName}. Client sign-off confirms acceptance by ${clientName}.`,
       },
     ],
   };
 }
 
-function generateHeuristicOperationalDocument(documentType, clientName, entities) {
+function generateHeuristicOperationalDocument(documentType, companyName, clientName, entities) {
   return {
     title: `${documentType} - ${clientName}`,
     documentType,
     category: 'Operational',
+    companyName,
     clientName,
     variables: {
+      company_name: companyName,
       client_name: clientName,
       completion_date: new Date().toLocaleDateString('en-GB'),
       signoff_status: 'Completed & Accepted',
@@ -599,7 +733,7 @@ function generateHeuristicOperationalDocument(documentType, clientName, entities
         id: 'sec_1',
         type: 'header',
         title: `${documentType} Summary`,
-        body: `Official operational record certifying the execution, verification, and handover of services for ${clientName}.`,
+        body: `Official operational record certifying the execution, verification, and handover of services by ${companyName} for ${clientName}.`,
       },
       {
         id: 'sec_2',
@@ -624,19 +758,21 @@ function generateHeuristicOperationalDocument(documentType, clientName, entities
         id: 'sec_4',
         type: 'signature',
         title: 'Handover & Acceptance Signatures',
-        body: 'Signed by Project Lead and Client Operational Sponsor.',
+        body: `Signed by Project Lead for ${companyName} and Client Operational Sponsor for ${clientName}.`,
       },
     ],
   };
 }
 
-function generateHeuristicBusinessDocument(documentType, clientName, amount, currency) {
+function generateHeuristicBusinessDocument(documentType, companyName, clientName, amount, currency) {
   return {
     title: `${documentType} for ${clientName}`,
     documentType,
     category: 'Business',
+    companyName,
     clientName,
     variables: {
+      company_name: companyName,
       client_name: clientName,
       project_name: 'Strategic Implementation & Engineering',
       duration: '60 Calendar Days',
@@ -646,7 +782,7 @@ function generateHeuristicBusinessDocument(documentType, clientName, amount, cur
         id: 'sec_1',
         type: 'header',
         title: 'Executive Summary',
-        body: `This proposal outlines our strategic approach to delivering high-impact technological solutions for ${clientName}. Our engineering methodologies ensure rapid time-to-market and robust scalability.`,
+        body: `This proposal outlines the strategic approach of ${companyName} to delivering high-impact technological solutions for ${clientName}. Our engineering methodologies ensure rapid time-to-market and robust scalability.`,
       },
       {
         id: 'sec_2',
@@ -677,7 +813,7 @@ function generateHeuristicBusinessDocument(documentType, clientName, amount, cur
         id: 'sec_5',
         type: 'signature',
         title: 'Authorization & Sign-Off',
-        body: 'Signatures indicate mutual approval of the project objectives and timeline.',
+        body: `Authorized by ${companyName} and Approved by ${clientName}.`,
       },
     ],
   };
