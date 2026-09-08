@@ -195,13 +195,58 @@ function extractCommonEntities(text) {
     if (!isNaN(num) && num >= 100) res.amount = Math.round(num);
   }
 
-  // 3. Client Name Extraction
-  // Pattern A: "Create a quotation for ABC Pvt Ltd for ₹5,00,000 for AI Document Automation"
-  const quotationForPattern = clean.match(/(?:quotation|bid|proposal|estimate|invoice|document|agreement)\s+(?:for|to)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,4}?)(?:\s+(?:for\s+(?:₹|rs|[\d,]+|our)|worth|costing|with|dated|\.|$))/i);
-  if (quotationForPattern && quotationForPattern[1]) {
-    const candidate = quotationForPattern[1].trim();
-    if (!['our', 'the', 'a', 'an', 'ai', 'software', 'project'].includes(candidate.toLowerCase())) {
-      res.clientName = candidate;
+  // 3. Pairwise Company Extraction:
+  // Pairwise 1: "from/by X for/to Y"
+  const fromToMatch = clean.match(/(?:from|by|on\s+behalf\s+of)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,3}?)\s+(?:for|to)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,3}?)(?:\s+(?:for|worth|costing|dated|\.|$))/i);
+  if (fromToMatch) {
+    const c1 = fromToMatch[1].trim();
+    const c2 = fromToMatch[2].trim();
+    const blacklist = ['a', 'an', 'the', 'our', 'my', 'us'];
+    if (!blacklist.includes(c1.toLowerCase())) res.companyName = c1;
+    if (!blacklist.includes(c2.toLowerCase())) res.clientName = c2;
+  }
+
+  // Pairwise 2: "between X and Y"
+  if (!res.clientName) {
+    const betweenMatch = clean.match(/between\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,3}?)\s+(?:and|&)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,3}?)(?:\s+(?:for|worth|dated|\.|$))/i);
+    if (betweenMatch) {
+      const c1 = betweenMatch[1].trim();
+      const c2 = betweenMatch[2].trim();
+      const blacklist = ['a', 'an', 'the', 'both'];
+      if (!blacklist.includes(c1.toLowerCase())) res.companyName = c1;
+      if (!blacklist.includes(c2.toLowerCase())) res.clientName = c2;
+    }
+  }
+
+  // Pairwise 3: "for/to Y from/by X"
+  if (!res.clientName) {
+    const forByMatch = clean.match(/(?:for|to)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,3}?)\s+(?:from|by)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,3}?)(?:\s+(?:for|worth|dated|\.|$))/i);
+    if (forByMatch) {
+      const c1 = forByMatch[1].trim();
+      const c2 = forByMatch[2].trim();
+      const blacklist = ['a', 'an', 'the', 'our'];
+      if (!blacklist.includes(c1.toLowerCase())) res.clientName = c1;
+      if (!blacklist.includes(c2.toLowerCase())) res.companyName = c2;
+    }
+  }
+
+  // Pairwise 4: Hindi "X ki taraf se Y ke liye"
+  if (!res.clientName) {
+    const hindiMatch = clean.match(/([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,3}?)\s+ki\s+taraf\s+se\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,3}?)\s+ke\s+liye/i);
+    if (hindiMatch) {
+      res.companyName = hindiMatch[1].trim();
+      res.clientName = hindiMatch[2].trim();
+    }
+  }
+
+  // Standalone Client Name Extraction (if not matched above)
+  if (!res.clientName) {
+    const quotationForPattern = clean.match(/(?:quotation|bid|proposal|estimate|invoice|document|agreement)\s+(?:for|to)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,4}?)(?:\s+(?:for\s+(?:₹|rs|[\d,]+|our)|worth|costing|with|dated|\.|$))/i);
+    if (quotationForPattern && quotationForPattern[1]) {
+      const candidate = quotationForPattern[1].trim();
+      if (!['our', 'the', 'a', 'an', 'ai', 'software', 'project'].includes(candidate.toLowerCase())) {
+        res.clientName = candidate;
+      }
     }
   }
 
@@ -287,14 +332,18 @@ async function generateStructuredDocumentFromAI({
     throw new Error('Prompt is required to generate document.');
   }
 
-  // 1. Fetch Dezoryn Technology Corporate Profile
+  // 1. Fetch Corporate Profile & Resolve Issuing Company
   const orgProfile = await getOrganisationCompanyProfile(organisationId);
-  const issuingCompanyName = 'Dezoryn Technology';
-  const issuingLegalName = orgProfile.legalName || 'Dezoryn Technology Pvt Ltd';
-
-  // 2. Detect Intent & Extract Entities
   const detected = detectDocumentIntent(cleanPrompt);
   const entities = extractCommonEntities(cleanPrompt);
+
+  const explicitCompany = (companyName || entities.companyName || '').trim();
+  const issuingCompanyName = explicitCompany && explicitCompany !== 'Dezoryn Technology'
+    ? explicitCompany
+    : (orgProfile.companyName || 'Dezoryn Technology');
+  const issuingLegalName = explicitCompany && explicitCompany !== 'Dezoryn Technology'
+    ? (explicitCompany.toLowerCase().includes('ltd') ? explicitCompany : `${explicitCompany} Pvt Ltd`)
+    : (orgProfile.legalName || 'Dezoryn Technology Pvt Ltd');
 
   const documentType = documentTypeOverride || templateContext?.documentType || detected.documentType;
   const category = categoryOverride || templateContext?.category || detected.category;
