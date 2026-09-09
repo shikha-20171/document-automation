@@ -10,7 +10,6 @@ import {
   Plug,
   Server,
   Layers,
-  Wrench,
   CheckCircle2,
   AlertTriangle,
   RefreshCw,
@@ -22,7 +21,6 @@ import {
   MessageSquare,
   Shield,
   Trash2,
-  RotateCcw,
   Eye,
   EyeOff,
 } from "lucide-react";
@@ -33,7 +31,7 @@ import axios from "@/lib/axios";
 
 export default function SuperAdminSettingsPage() {
   const [activeTab, setActiveTab] = useState<
-    "general" | "documents" | "ai" | "notifications" | "integrations" | "system" | "jobs" | "maintenance"
+    "general" | "documents" | "ai" | "notifications" | "integrations" | "system"
   >("general");
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -85,9 +83,7 @@ export default function SuperAdminSettingsPage() {
     workers: "8 Active",
   });
 
-  // Maintenance Flags
-  const [maintenanceMode, setMaintenanceMode] = useState(false);
-  const [cachePurged, setCachePurged] = useState(false);
+
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -202,20 +198,7 @@ export default function SuperAdminSettingsPage() {
     }
   };
 
-  const handlePurgeCache = () => {
-    setCachePurged(true);
-    showToast("Redis cache flushed and re-indexed.");
-    setTimeout(() => setCachePurged(false), 3000);
-  };
 
-  const toggleMaintenanceMode = () => {
-    const next = !maintenanceMode;
-    if (next && !confirm("Are you sure you want to enable Maintenance Mode? Tenant users will see a maintenance banner.")) {
-      return;
-    }
-    setMaintenanceMode(next);
-    showToast(next ? "⚠️ Platform Maintenance Mode ENABLED" : "Platform returned to Operational status");
-  };
 
   return (
     <div className="space-y-6 pb-12">
@@ -233,7 +216,7 @@ export default function SuperAdminSettingsPage() {
             Platform Global Settings & System Architecture
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-            Platform branding, document constraints, AI defaults, live service health, queue workers, and maintenance controls
+            Platform branding, document constraints, AI defaults, live service health, and platform integrations
           </p>
         </div>
 
@@ -243,7 +226,7 @@ export default function SuperAdminSettingsPage() {
         </Badge>
       </div>
 
-      {/* 8 Tab Navigation */}
+      {/* 6 Tab Navigation */}
       <div className="flex items-center gap-1.5 overflow-x-auto border-b border-slate-200 dark:border-slate-800 pb-2 text-xs font-bold">
         {[
           { id: "general", label: "General & Branding" },
@@ -252,8 +235,6 @@ export default function SuperAdminSettingsPage() {
           { id: "notifications", label: "Notifications & Channels" },
           { id: "integrations", label: "Platform Integrations" },
           { id: "system", label: "System Health (/health)" },
-          { id: "jobs", label: "Background Jobs & Queue" },
-          { id: "maintenance", label: "Maintenance & Cache" },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -644,70 +625,7 @@ export default function SuperAdminSettingsPage() {
         </div>
       )}
 
-      {/* TAB 7: JOBS */}
-      {activeTab === "jobs" && (
-        <Card className="rounded-3xl border-slate-200/80 dark:border-slate-800 p-6 max-w-2xl space-y-4 text-xs">
-          <CardTitle className="text-base font-black text-slate-900 dark:text-slate-100">
-            Background Queue & Worker Policy
-          </CardTitle>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800">
-              <span className="font-bold text-slate-500">MAX RETRIES</span>
-              <p className="text-lg font-black text-slate-900 dark:text-slate-100 mt-1">3 Attempts</p>
-            </div>
-            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800">
-              <span className="font-bold text-slate-500">DEAD LETTER QUEUE</span>
-              <p className="text-lg font-black text-slate-900 dark:text-slate-100 mt-1">Enabled (dlq_events)</p>
-            </div>
-            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800">
-              <span className="font-bold text-slate-500">WORKER CONCURRENCY</span>
-              <p className="text-lg font-black text-slate-900 dark:text-slate-100 mt-1">8 Parallel Threads</p>
-            </div>
-            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800">
-              <span className="font-bold text-slate-500">QUEUE DRIVER</span>
-              <p className="text-lg font-black text-slate-900 dark:text-slate-100 mt-1">Redis BullMQ</p>
-            </div>
-          </div>
-        </Card>
-      )}
 
-      {/* TAB 8: MAINTENANCE */}
-      {activeTab === "maintenance" && (
-        <Card className="rounded-3xl border-slate-200/80 dark:border-slate-800 p-6 max-w-2xl space-y-4 text-xs">
-          <CardTitle className="text-base font-black text-slate-900 dark:text-slate-100">
-            Platform Maintenance & Operational Controls
-          </CardTitle>
-
-          <div className="p-4 rounded-2xl border border-amber-200 bg-amber-50/60 dark:bg-amber-950/20 flex items-center justify-between">
-            <div>
-              <p className="font-bold text-amber-900 dark:text-amber-300">Platform Maintenance Mode</p>
-              <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-0.5">
-                Displays scheduled maintenance notice to all tenant workspaces.
-              </p>
-            </div>
-            <Button
-              size="sm"
-              variant={maintenanceMode ? "default" : "outline"}
-              onClick={toggleMaintenanceMode}
-              className={`text-xs font-bold h-8 ${maintenanceMode ? "bg-amber-600 text-white" : ""}`}
-            >
-              {maintenanceMode ? "Disable Maintenance" : "Enable Maintenance"}
-            </Button>
-          </div>
-
-          <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between">
-            <div>
-              <p className="font-bold text-slate-900 dark:text-slate-100">Redis Cache & Query Invalidation</p>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                Flushes transient cache keys and re-indexes metadata tables.
-              </p>
-            </div>
-            <Button size="sm" onClick={handlePurgeCache} className="bg-[#274690] text-white text-xs font-bold h-8">
-              <RotateCcw size={13} className="mr-1" /> Purge Cache
-            </Button>
-          </div>
-        </Card>
-      )}
     </div>
   );
 }

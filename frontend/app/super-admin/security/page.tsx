@@ -5,7 +5,6 @@ import apiClient from "@/lib/axios";
 import {
   Shield,
   Lock,
-  Key,
   CheckCircle2,
   AlertTriangle,
   Sparkles,
@@ -13,7 +12,6 @@ import {
   LogOut,
   Eye,
   EyeOff,
-  Smartphone,
   Mail,
   Clock,
   Monitor,
@@ -100,9 +98,7 @@ export default function SuperAdminSecurityCenterPage() {
   const [showCurrentPw, setShowCurrentPw] = useState(false);
   const [showNewPw, setShowNewPw] = useState(false);
 
-  // MFA state
-  const [mfaEnabled, setMfaEnabled] = useState(true);
-  const [mfaMethod, setMfaMethod] = useState<"authenticator" | "email">("authenticator");
+
 
   // Session Security state
   const [sessionTimeoutMin, setSessionTimeoutMin] = useState(30);
@@ -124,7 +120,6 @@ export default function SuperAdminSecurityCenterPage() {
         const res = await apiClient.get("/super-admin/platform/settings");
         if (res.data?.data) {
           const s = res.data.data;
-          if (s.mfaRequired !== undefined) setMfaEnabled(Boolean(s.mfaRequired));
           if (s.sessionTimeoutMinutes) setSessionTimeoutMin(Number(s.sessionTimeoutMinutes));
         }
       } catch {
@@ -168,7 +163,7 @@ export default function SuperAdminSecurityCenterPage() {
     setConfirmPw("");
   };
 
-  const overallProtected = mfaEnabled && accountStatus === "Active";
+  const overallProtected = accountStatus === "Active";
 
   return (
     <div className="min-h-screen bg-slate-50/70 dark:bg-[#0b1020] p-4 sm:p-6 space-y-5 font-sans text-slate-800 dark:text-slate-200">
@@ -189,14 +184,14 @@ export default function SuperAdminSecurityCenterPage() {
               Super Admin
             </Badge>
             <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-              ● MFA Enforced
+              ● Protected
             </span>
           </div>
           <h1 className="text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight mt-1">
             Security Center
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Account security, MFA, session settings, login protection &amp; activity log.
+            Account security, session settings, login protection &amp; activity log.
           </p>
         </div>
       </div>
@@ -235,10 +230,9 @@ export default function SuperAdminSecurityCenterPage() {
         {/* Status pills */}
         <div className="flex flex-wrap gap-3 sm:ml-auto">
           {[
-            { label: "MFA",        value: mfaEnabled ? "Enabled" : "Disabled",  ok: mfaEnabled },
-            { label: "Password",   value: "Strong",                              ok: true },
-            { label: "Session",    value: "Active",                              ok: true },
-            { label: "Last Login", value: "Today, 2:30 PM",                     ok: true },
+            { label: "Password",   value: "Strong",          ok: true },
+            { label: "Session",    value: "Active",          ok: true },
+            { label: "Last Login", value: "Today, 2:30 PM",  ok: true },
           ].map((item) => (
             <div
               key={item.label}
@@ -379,137 +373,11 @@ export default function SuperAdminSecurityCenterPage() {
         </div>
       </Section>
 
-      {/* ── 2. MFA / TWO-FACTOR AUTHENTICATION ─────────────────────────────── */}
-      <Section
-        id="mfa"
-        icon={Key}
-        title="2. MFA / Two-Factor Authentication ⭐"
-        subtitle="Mandatory two-factor authentication for Super Admin account"
-      >
-        {/* MFA status banner */}
-        <div
-          className={`flex items-center justify-between p-4 rounded-xl border ${
-            mfaEnabled
-              ? "bg-emerald-50/70 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/40"
-              : "bg-rose-50/70 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800/40"
-          }`}
-        >
-          <div className="flex items-center gap-3">
-            <Dot on={mfaEnabled} />
-            <div>
-              <p className="text-xs font-extrabold text-slate-900 dark:text-slate-100">
-                MFA Status
-              </p>
-              <p
-                className={`text-xs font-bold ${
-                  mfaEnabled
-                    ? "text-emerald-700 dark:text-emerald-400"
-                    : "text-rose-600"
-                }`}
-              >
-                {mfaEnabled ? "Enabled — Account is protected" : "Disabled — Account at risk"}
-              </p>
-            </div>
-          </div>
-          <Badge
-            className={`text-[10px] font-extrabold px-2.5 py-1 ${
-              mfaEnabled
-                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                : "bg-rose-500/10 text-rose-600"
-            }`}
-          >
-            {mfaEnabled ? "🔒 MFA ON" : "⚠ MFA OFF"}
-          </Badge>
-        </div>
-
-        {/* Preferred method */}
-        <div className="space-y-2">
-          <label className="text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-            Preferred Method
-          </label>
-          <div className="flex gap-3">
-            <button
-              onClick={() => setMfaMethod("authenticator")}
-              className={`flex-1 flex items-center gap-3 p-3.5 rounded-xl border text-xs font-bold transition-all ${
-                mfaMethod === "authenticator"
-                  ? "bg-[#274690] text-white border-[#274690] shadow-md shadow-[#274690]/20"
-                  : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-[#274690]/50"
-              }`}
-            >
-              <Smartphone size={16} className={mfaMethod === "authenticator" ? "text-[#8fb1ec]" : "text-slate-400"} />
-              <div className="text-left">
-                <p className="font-extrabold">Authenticator App</p>
-                <p className={`text-[10px] font-normal ${mfaMethod === "authenticator" ? "text-white/70" : "text-slate-400"}`}>
-                  Google Authenticator / Authy
-                </p>
-              </div>
-              {mfaMethod === "authenticator" && <CheckCircle2 size={15} className="ml-auto text-[#8fb1ec]" />}
-            </button>
-
-            <button
-              onClick={() => setMfaMethod("email")}
-              className={`flex-1 flex items-center gap-3 p-3.5 rounded-xl border text-xs font-bold transition-all ${
-                mfaMethod === "email"
-                  ? "bg-[#274690] text-white border-[#274690] shadow-md shadow-[#274690]/20"
-                  : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-[#274690]/50"
-              }`}
-            >
-              <Mail size={16} className={mfaMethod === "email" ? "text-[#8fb1ec]" : "text-slate-400"} />
-              <div className="text-left">
-                <p className="font-extrabold">Email OTP</p>
-                <p className={`text-[10px] font-normal ${mfaMethod === "email" ? "text-white/70" : "text-slate-400"}`}>
-                  One-time code via email
-                </p>
-              </div>
-              {mfaMethod === "email" && <CheckCircle2 size={15} className="ml-auto text-[#8fb1ec]" />}
-            </button>
-          </div>
-        </div>
-
-        {/* MFA action buttons */}
-        <div className="flex flex-wrap gap-2.5 pt-1 border-t border-slate-100 dark:border-slate-800">
-          {!mfaEnabled ? (
-            <Button
-              onClick={() => { setMfaEnabled(true); showToast("✅ MFA enabled. Account is now protected."); }}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 px-4 rounded-xl gap-1.5"
-            >
-              <ShieldCheck size={14} /> Enable MFA
-            </Button>
-          ) : (
-            <Button
-              onClick={() => { setMfaEnabled(false); showToast("⚠ MFA disabled. Please re-enable to protect your account."); }}
-              variant="outline"
-              className="text-rose-600 border-rose-200 hover:bg-rose-50 font-bold text-xs h-9 px-4 rounded-xl gap-1.5"
-            >
-              <ShieldAlert size={14} /> Disable MFA
-            </Button>
-          )}
-          <Button
-            onClick={() => showToast("✅ MFA reset. Scan the new QR code in your authenticator app.")}
-            variant="outline"
-            className="font-bold text-xs h-9 px-4 rounded-xl border-[#274690]/30 text-[#274690] dark:text-[#8fb1ec] gap-1.5"
-          >
-            <RefreshCw size={13} /> Reset MFA
-          </Button>
-          <Button
-            onClick={() => showToast(`✅ MFA method set to: ${mfaMethod === "authenticator" ? "Authenticator App" : "Email OTP"}.`)}
-            className="bg-[#274690] hover:bg-[#1f3561] text-white font-bold text-xs h-9 px-4 rounded-xl gap-1.5"
-          >
-            Save Preference
-          </Button>
-        </div>
-
-        {/* Mandatory note */}
-        <p className="text-[11px] text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/30 px-3 py-2 rounded-xl">
-          <AlertTriangle size={12} /> MFA is mandatory for Super Admin accounts and cannot be permanently disabled by policy.
-        </p>
-      </Section>
-
-      {/* ── 3. SESSION SECURITY ─────────────────────────────────────────────── */}
+      {/* ── 2. SESSION SECURITY ─────────────────────────────────────────────── */}
       <Section
         id="session-security"
         icon={Monitor}
-        title="3. Session Security"
+        title="2. Session Security"
         subtitle="Current session details, timeout configuration and session management"
       >
         {/* Current session info */}
@@ -580,11 +448,11 @@ export default function SuperAdminSecurityCenterPage() {
         </div>
       </Section>
 
-      {/* ── 4. LOGIN PROTECTION ─────────────────────────────────────────────── */}
+      {/* ── 3. LOGIN PROTECTION ─────────────────────────────────────────────── */}
       <Section
         id="login-protection"
         icon={Lock}
-        title="4. Login Protection"
+        title="3. Login Protection"
         subtitle="Failed attempt limits, automatic lockout and password reset protection"
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -659,11 +527,11 @@ export default function SuperAdminSecurityCenterPage() {
         </Button>
       </Section>
 
-      {/* ── 5. SECURITY ACTIVITY ────────────────────────────────────────────── */}
+      {/* ── 4. SECURITY ACTIVITY ────────────────────────────────────────────── */}
       <Section
         id="security-activity"
         icon={Activity}
-        title="5. Security Activity"
+        title="4. Security Activity"
         subtitle="Recent authentication and security events for this account"
       >
         <div className="divide-y divide-slate-100 dark:divide-slate-800 rounded-xl border border-slate-200/70 dark:border-slate-800 overflow-hidden">
