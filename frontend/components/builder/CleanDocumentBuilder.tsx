@@ -32,6 +32,7 @@ import {
   RefreshCw,
   Eye,
   Send,
+  SendHorizontal,
   FileCheck,
 } from "lucide-react";
 import apiClient from "@/lib/axios";
@@ -164,6 +165,13 @@ function CleanDocumentBuilderInner({
   const [sendAttachPdf, setSendAttachPdf] = useState<boolean>(true);
   const [isSendingEmail, setIsSendingEmail] = useState<boolean>(false);
 
+  // Submit for Approval Modal States
+  const [showSubmitApprovalModal, setShowSubmitApprovalModal] = useState<boolean>(false);
+  const [approvalComments, setApprovalComments] = useState<string>("Please review deliverables and commercials for client rollout.");
+  const [isSubmittingApproval, setIsSubmittingApproval] = useState<boolean>(false);
+  const [approvalStatusState, setApprovalStatusState] = useState<string>("NONE");
+  const [approvalStageState, setApprovalStageState] = useState<string>("");
+
 
 
   // General Save States & Toast
@@ -205,6 +213,12 @@ function CleanDocumentBuilderInner({
                 signedAt: new Date(d.updatedAt || Date.now()).toLocaleString(),
                 sha256Seal: "SHA256-CERTIFIED-ENTERPRISE-SEAL",
               });
+            }
+            if (d.approvalStatus) {
+              setApprovalStatusState(d.approvalStatus);
+            }
+            if (d.approvalRequests?.[0]?.stage) {
+              setApprovalStageState(d.approvalRequests[0].stage);
             }
             if (Array.isArray(d.content) && d.content.length > 0) {
               setSections(d.content);
@@ -711,6 +725,47 @@ function CleanDocumentBuilderInner({
       return null;
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // ==========================================
+  // SUBMIT FOR HIERARCHICAL APPROVAL
+  // ==========================================
+  const handleSubmitForApproval = async () => {
+    setIsSubmittingApproval(true);
+    try {
+      let targetId = docId;
+      if (!targetId) {
+        const saved = await handleSaveDocument(false);
+        if (saved?.id) {
+          targetId = saved.id;
+        } else {
+          setIsSubmittingApproval(false);
+          return;
+        }
+      }
+
+      const res = await apiClient.post("/api/approvals/submit", {
+        documentId: targetId,
+        comments: approvalComments,
+      });
+
+      if (res.data?.success) {
+        showToast("Submitted for Approval", "Document submitted into the hierarchical approval workflow.");
+        setApprovalStatusState("PENDING_APPROVAL");
+        const nextStage =
+          role === "STAFF"
+            ? "STAGE_TEAM_LEADER"
+            : role === "TEAM_LEADER"
+            ? "STAGE_DEPARTMENT_MANAGER"
+            : "STAGE_ORGANISATION_ADMIN";
+        setApprovalStageState(nextStage);
+        setShowSubmitApprovalModal(false);
+      }
+    } catch (err: any) {
+      showToast("Submission Failed", err.response?.data?.message || err.message, "error");
+    } finally {
+      setIsSubmittingApproval(false);
     }
   };
 
@@ -1422,6 +1477,34 @@ function CleanDocumentBuilderInner({
             <Save className="w-3.5 h-3.5 text-slate-500" />
             <span>{isSaving ? "Saving..." : "Save Draft"}</span>
           </button>
+
+          {/* Submit for Approval (MULTI-TIER HIERARCHY) */}
+          {approvalStatusState === "PENDING_APPROVAL" ? (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-200">
+              <Clock className="w-3.5 h-3.5 animate-pulse text-amber-600 dark:text-amber-400" />
+              <span>
+                {approvalStageState === "STAGE_DEPARTMENT_MANAGER"
+                  ? "In Dept Manager Review (Step 2/3)"
+                  : approvalStageState === "STAGE_ORGANISATION_ADMIN"
+                  ? "In Org Admin Review (Step 3/3)"
+                  : "In Team Lead Review (Step 1/3)"}
+              </span>
+            </span>
+          ) : approvalStatusState === "APPROVED" ? (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>Approved</span>
+            </span>
+          ) : (
+            <button
+              onClick={() => setShowSubmitApprovalModal(true)}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-amber-800 dark:text-amber-200 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 rounded-lg border border-amber-300 dark:border-amber-800 transition-colors shadow-sm"
+              title="Submit document to hierarchy for multi-tier verification"
+            >
+              <SendHorizontal className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+              <span>Submit for Approval</span>
+            </button>
+          )}
 
           {/* Save as Template (DIRECT REQUESTED FEATURE) */}
           <button
@@ -2334,6 +2417,101 @@ function CleanDocumentBuilderInner({
                   <>
                     <Send className="w-3.5 h-3.5" />
                     <span>Send to Client</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: SUBMIT FOR MULTI-TIER APPROVAL */}
+      {/* ========================================================================= */}
+      {showSubmitApprovalModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-zinc-800 p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-zinc-800">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 flex items-center justify-center">
+                  <SendHorizontal className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">Submit for Verification</h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">Enterprise Multi-Tier Approval Chain</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowSubmitApprovalModal(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Stage Path Banner */}
+            <div className="p-3.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 text-xs space-y-2">
+              <div className="font-semibold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-amber-600" />
+                <span>Next Approver in Sequence:</span>
+              </div>
+              <div className="flex items-center gap-2 text-[11px] font-medium text-amber-800 dark:text-amber-300">
+                {role === "STAFF" ? (
+                  <>
+                    <span className="px-2 py-0.5 rounded-full bg-amber-200/60 dark:bg-amber-900/60 font-bold">Step 1 of 3</span>
+                    <span>Routes to <strong className="underline">Team Leader</strong> for primary review.</span>
+                  </>
+                ) : role === "TEAM_LEADER" ? (
+                  <>
+                    <span className="px-2 py-0.5 rounded-full bg-amber-200/60 dark:bg-amber-900/60 font-bold">Step 2 of 3</span>
+                    <span>Routes to <strong className="underline">Department Manager</strong> for departmental review.</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="px-2 py-0.5 rounded-full bg-amber-200/60 dark:bg-amber-900/60 font-bold">Step 3 of 3</span>
+                    <span>Routes to <strong className="underline">Organisation Admin</strong> for final executive approval.</span>
+                  </>
+                )}
+              </div>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                Once approved at each step, the document automatically ascends the hierarchy until final sign-off.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                Submission Notes & Remarks
+              </label>
+              <textarea
+                rows={3}
+                value={approvalComments}
+                onChange={(e) => setApprovalComments(e.target.value)}
+                placeholder="Describe deliverables, pricing terms, or special clauses for reviewer..."
+                className="w-full p-2.5 text-xs rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-zinc-800">
+              <button
+                onClick={() => setShowSubmitApprovalModal(false)}
+                className="px-3.5 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-xl"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={isSubmittingApproval}
+                onClick={handleSubmitForApproval}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-md shadow-amber-600/20 disabled:opacity-50"
+              >
+                {isSubmittingApproval ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Submitting...</span>
+                  </>
+                ) : (
+                  <>
+                    <SendHorizontal className="w-3.5 h-3.5" />
+                    <span>Submit Document</span>
                   </>
                 )}
               </button>

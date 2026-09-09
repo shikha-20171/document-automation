@@ -1,5 +1,6 @@
 const prisma = require("../config/prismaClient");
 const { generateInvitationToken } = require("../utils/tokenUtils");
+const { hashPassword } = require("../utils/password");
 const {
   sendTeamLeaderInvitationEmail,
   sendTeamMemberInvitationEmail,
@@ -13,6 +14,7 @@ const getContext = (req) => ({
   organisationId: req.user?.organisation_id || req.user?.organization_id || DEFAULT_ORG_ID,
   userId: req.user?.id || req.user?.userId || DEFAULT_USER_ID,
   departmentName: req.user?.department || req.user?.department_name || "Operations & Logistics",
+  departmentId: req.user?.department_id || req.user?.departmentId || null,
   userName: req.user?.name || req.user?.email || "Department Manager",
   userEmail: req.user?.email || "manager@docucore.ai",
 });
@@ -270,22 +272,45 @@ const deleteTemplate = async (id) => {
 const getTeamsData = async (req) => {
   const context = getContext(req);
   const orgId = context.organisationId;
+  const deptId = context.departmentId ? Number(context.departmentId) : null;
+  const deptName = context.departmentName;
 
   const [teams, members, documents, approvals] = await Promise.all([
-    prisma.team.findMany({ where: { organisation_id: orgId } }).catch(() => []),
-    prisma.user.findMany({
-      where: { organisation_id: orgId, role: { in: ["STAFF", "TEAM_LEADER"] } },
-      select: { id: true, full_name: true, email: true, role: true, status: true, created_at: true },
+    prisma.team.findMany({
+      where: {
+        organisation_id: orgId,
+        ...(deptName ? { department: { contains: deptName.split(" ")[0], mode: "insensitive" } } : {}),
+      },
     }).catch(() => []),
-    prisma.document.findMany({ where: { organisation_id: orgId }, take: 10 }).catch(() => []),
-    prisma.approvalRequest.findMany({ where: { organisationId: orgId }, take: 10 }).catch(() => []),
+    prisma.user.findMany({
+      where: {
+        organisation_id: orgId,
+        role: { in: ["STAFF", "EMPLOYEE", "TEAM_LEADER"] },
+        ...(deptId ? { department_id: deptId } : {}),
+      },
+      select: { id: true, full_name: true, email: true, role: true, status: true, created_at: true, team_id: true, department_id: true },
+    }).catch(() => []),
+    prisma.document.findMany({
+      where: {
+        organisation_id: orgId,
+        ...(deptId ? { department_id: deptId } : {}),
+      },
+      take: 10,
+    }).catch(() => []),
+    prisma.approvalRequest.findMany({
+      where: {
+        organisationId: orgId,
+        ...(deptId ? { unifiedDocument: { departmentId: deptId } } : {}),
+      },
+      take: 10,
+    }).catch(() => []),
   ]);
 
   const totalTeams = teams.length;
   const stats = {
     totalTeams: totalTeams < 10 ? `0${totalTeams}` : String(totalTeams),
     teamLeads: String(members.filter(m => m.role === "TEAM_LEADER").length),
-    employees: String(members.filter(m => m.role === "STAFF").length),
+    employees: String(members.filter(m => m.role === "STAFF" || m.role === "EMPLOYEE").length),
     activeTeams: String(teams.length),
     totalTeamMembers: members.length,
   };
@@ -299,6 +324,8 @@ const getTeamsData = async (req) => {
       email: m.email,
       role: m.role === "TEAM_LEADER" ? "Team Lead" : "Staff",
       status: m.status,
+      team_id: m.team_id,
+      department_id: m.department_id,
     })),
     documents,
     approvals,
@@ -350,13 +377,16 @@ const changeTeamLead = async (id, teamLead) => {
 const addTeamMember = async (req) => {
   const context = getContext(req);
   const orgId = parseInt(context.organisationId, 10) || 1;
-  const { name, email, role = "STAFF", team = "Financial Operations", phone = "" } = req.body;
+  const deptId = context.departmentId ? Number(context.departmentId) : null;
+  const { name, email, role = "STAFF", team = "Financial Operations", team_id, phone = "" } = req.body;
   const cleanEmail = email.trim().toLowerCase();
+  const targetTeamId = team_id ? Number(team_id) : null;
 
   const { rawToken, tokenHash, expiresAt } = generateInvitationToken(48);
   const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
   const invitationUrl = `${frontendUrl}/accept-invitation/${rawToken}`;
   const defaultPassword = `Docu@${Math.floor(1000 + Math.random() * 9000)}`;
+  const passwordHash = await hashPassword(defaultPassword);
 
   let dbUser = await prisma.user.findUnique({ where: { email: cleanEmail } });
   if (!dbUser) {
@@ -364,21 +394,25 @@ const addTeamMember = async (req) => {
       data: {
         full_name: name || cleanEmail.split("@")[0],
         email: cleanEmail,
-        role: "STAFF",
-        status: "PENDING",
-        must_change_password: true,
+        role: (role || "STAFF").toUpperCase().replace(/\s+/g, "_"),
+        status: "active",
+        password_hash: passwordHash,
+        must_change_password: false,
         reset_token: rawToken,
         reset_token_expires: expiresAt,
         organisation_id: orgId,
+        department_id: deptId,
+        team_id: targetTeamId,
       },
     });
   } else {
     dbUser = await prisma.user.update({
       where: { id: dbUser.id },
       data: {
-        reset_token: rawToken,
-        reset_token_expires: expiresAt,
-        status: "PENDING",
+        role: (role || dbUser.role).toUpperCase().replace(/\s+/g, "_"),
+        department_id: deptId || dbUser.department_id,
+        team_id: targetTeamId || dbUser.team_id,
+        status: "active",
       },
     });
   }
@@ -408,12 +442,16 @@ const addTeamMember = async (req) => {
 const inviteTeamLeader = async (req) => {
   const context = getContext(req);
   const orgId = parseInt(context.organisationId, 10) || 1;
-  const { name, email, team = "Financial Operations", department } = req.body;
+  const deptId = context.departmentId ? Number(context.departmentId) : null;
+  const { name, email, team = "Financial Operations", team_id, department } = req.body;
   const cleanEmail = email.trim().toLowerCase();
+  const targetTeamId = team_id ? Number(team_id) : null;
 
   const { rawToken, tokenHash, expiresAt } = generateInvitationToken(48);
   const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
   const invitationUrl = `${frontendUrl}/accept-invitation/${rawToken}`;
+  const defaultPassword = "Lead@" + Math.floor(1000 + Math.random() * 9000);
+  const passwordHash = await hashPassword(defaultPassword);
 
   let dbUser = await prisma.user.findUnique({ where: { email: cleanEmail } });
   if (!dbUser) {
@@ -422,11 +460,14 @@ const inviteTeamLeader = async (req) => {
         full_name: name || cleanEmail.split("@")[0],
         email: cleanEmail,
         role: "TEAM_LEADER",
-        status: "PENDING",
-        must_change_password: true,
+        status: "active",
+        password_hash: passwordHash,
+        must_change_password: false,
         reset_token: rawToken,
         reset_token_expires: expiresAt,
         organisation_id: orgId,
+        department_id: deptId,
+        team_id: targetTeamId,
       },
     });
   } else {
@@ -434,9 +475,9 @@ const inviteTeamLeader = async (req) => {
       where: { id: dbUser.id },
       data: {
         role: "TEAM_LEADER",
-        reset_token: rawToken,
-        reset_token_expires: expiresAt,
-        status: "PENDING",
+        department_id: deptId || dbUser.department_id,
+        team_id: targetTeamId || dbUser.team_id,
+        status: "active",
       },
     });
   }

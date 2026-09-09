@@ -48,39 +48,61 @@ async function listDocuments(organisationId, query = {}, user = {}) {
   const userId = user?.id ? parseInt(user.id, 10) : null;
   const userEmail = user?.email ? String(user.email).trim().toLowerCase() : '';
   const userRole = (user?.role || '').toUpperCase();
+  const userDeptId = (user?.department_id || user?.departmentId) ? parseInt(user.department_id || user.departmentId, 10) : null;
+  const userTeamId = (user?.team_id || user?.teamId) ? parseInt(user.team_id || user.teamId, 10) : null;
 
-  // Role-Based Access Control (RBAC)
-  if (userRole === 'STAFF') {
-    // Employees only access documents created by them, assigned to them, or shared with them
-    where.OR = [
+  // Role-Based Access Control (RBAC) with Strict Department Isolation
+  if (userRole === 'STAFF' || userRole === 'EMPLOYEE') {
+    // Employees access only documents created by them, assigned to them, or shared with them within their department
+    const personalConditions = [
       { createdByUserId: userId },
       { assignedToId: userId },
       { shares: { some: { OR: [{ sharedWithUserId: userId }, { sharedWithEmail: userEmail }] } } },
     ];
+    if (userDeptId) {
+      where.AND = [
+        { OR: [{ departmentId: userDeptId }, { departmentId: null, createdByUserId: userId }] },
+        { OR: personalConditions },
+      ];
+    } else {
+      where.OR = personalConditions;
+    }
   } else if (userRole === 'TEAM_LEADER') {
-    // Team Leader accesses team documents, their own created/assigned, or shared
-    const conditions = [
+    // Team Leader accesses team documents, their own created/assigned, or shared within their department
+    const tlConditions = [
       { createdByUserId: userId },
       { assignedToId: userId },
       { shares: { some: { OR: [{ sharedWithUserId: userId }, { sharedWithEmail: userEmail }] } } },
     ];
-    if (user.team_id) {
-      conditions.push({ teamId: parseInt(user.team_id, 10) });
+    if (userTeamId) {
+      tlConditions.push({ teamId: userTeamId });
     }
-    where.OR = conditions;
+    if (userDeptId) {
+      where.AND = [
+        { OR: [{ departmentId: userDeptId }, { departmentId: null, createdByUserId: userId }] },
+        { OR: tlConditions },
+      ];
+    } else {
+      where.OR = tlConditions;
+    }
   } else if (userRole === 'DEPARTMENT_MANAGER') {
-    // Department Manager accesses department documents, their own created/assigned, or shared
-    const conditions = [
-      { createdByUserId: userId },
-      { assignedToId: userId },
-      { shares: { some: { OR: [{ sharedWithUserId: userId }, { sharedWithEmail: userEmail }] } } },
-    ];
-    if (user.department_id) {
-      conditions.push({ departmentId: parseInt(user.department_id, 10) });
+    // Department Manager strictly isolated to department documents, their own created/assigned, or shared
+    if (userDeptId) {
+      where.OR = [
+        { departmentId: userDeptId },
+        { createdByUserId: userId },
+        { assignedToId: userId },
+        { shares: { some: { OR: [{ sharedWithUserId: userId }, { sharedWithEmail: userEmail }] } } },
+      ];
+    } else {
+      where.OR = [
+        { createdByUserId: userId },
+        { assignedToId: userId },
+        { shares: { some: { OR: [{ sharedWithUserId: userId }, { sharedWithEmail: userEmail }] } } },
+      ];
     }
-    where.OR = conditions;
   }
-  // ORGANISATION_ADMIN has tenant-wide access (no additional where restriction)
+  // ORGANISATION_ADMIN and SUPER_ADMIN have tenant-wide access across all departments
 
   // Specific Tab Constraints
   if (upperTab === 'MY_DOCUMENTS' && userId) {
@@ -233,6 +255,7 @@ async function getDocumentById(id, organisationId) {
  * Create a new document (Version 1)
  */
 async function createDocument(organisationId, userId, userName, payload, req = null) {
+  const user = req?.user || {};
   const {
     title,
     documentType = 'Custom Document',
@@ -303,9 +326,9 @@ async function createDocument(organisationId, userId, userName, payload, req = n
       documentType: documentType.trim(),
       category: category.trim(),
       status: finalStatus,
-      departmentId: payload.departmentId ? parseInt(payload.departmentId, 10) : null,
+      departmentId: payload.departmentId ? parseInt(payload.departmentId, 10) : ((user?.department_id || user?.departmentId) ? parseInt(user.department_id || user.departmentId, 10) : null),
       departmentName: payload.departmentName || null,
-      teamId: payload.teamId ? parseInt(payload.teamId, 10) : null,
+      teamId: payload.teamId ? parseInt(payload.teamId, 10) : ((user?.team_id || user?.teamId) ? parseInt(user.team_id || user.teamId, 10) : null),
       teamName: payload.teamName || null,
       ownerId: payload.ownerId ? parseInt(payload.ownerId, 10) : (userId ? parseInt(userId, 10) : null),
       ownerName: payload.ownerName || userName || null,
@@ -1069,13 +1092,40 @@ async function shareDocument(id, organisationId, payload, user, req = null) {
 }
 
 /**
- * Submit document for approval
+ * Submit document for approval (Hierarchical Multi-Tier Workflow)
+ * Workflow stages:
+ * Step 1: Employee -> Team Leader (STAGE_TEAM_LEADER)
+ * Step 2: Team Leader -> Department Manager (STAGE_DEPARTMENT_MANAGER)
+ * Step 3: Department Manager -> Organisation Admin (STAGE_ORGANISATION_ADMIN)
  */
 async function submitForApproval(id, organisationId, payload, user, req = null) {
   const doc = await getDocumentById(id, organisationId);
-  const { approverId, approverRole = 'TEAM_LEADER', comments = 'Submitted for formal review' } = payload || {};
+  const userRole = (user?.role || 'STAFF').toUpperCase();
+  const { comments = 'Submitted for formal review' } = payload || {};
 
-  const approverUserId = approverId ? parseInt(approverId, 10) : null;
+  // Determine initial workflow stage based on submitter role
+  let initialStage = 'STAGE_TEAM_LEADER';
+  let targetApproverRole = 'TEAM_LEADER';
+  let stepOrder = 1;
+
+  if (userRole === 'TEAM_LEADER') {
+    initialStage = 'STAGE_DEPARTMENT_MANAGER';
+    targetApproverRole = 'DEPARTMENT_MANAGER';
+    stepOrder = 2;
+  } else if (userRole === 'DEPARTMENT_MANAGER') {
+    initialStage = 'STAGE_ORGANISATION_ADMIN';
+    targetApproverRole = 'ORGANISATION_ADMIN';
+    stepOrder = 3;
+  } else if (userRole === 'ORGANISATION_ADMIN' || userRole === 'SUPER_ADMIN') {
+    initialStage = 'STAGE_ORGANISATION_ADMIN';
+    targetApproverRole = 'ORGANISATION_ADMIN';
+    stepOrder = 3;
+  }
+
+  const approverUserId = payload?.approverId ? parseInt(payload.approverId, 10) : null;
+  const approverRole = payload?.approverRole || targetApproverRole;
+  const submitterDeptId = doc.departmentId || (user?.department_id ? parseInt(user.department_id, 10) : null);
+  const submitterTeamId = doc.teamId || (user?.team_id ? parseInt(user.team_id, 10) : null);
 
   // 1. Update Document Status
   const updated = await prisma.unifiedDocument.update({
@@ -1084,10 +1134,12 @@ async function submitForApproval(id, organisationId, payload, user, req = null) 
       status: 'PENDING_APPROVAL',
       approvalStatus: 'PENDING_APPROVAL',
       approvalRequired: true,
+      departmentId: submitterDeptId,
+      teamId: submitterTeamId,
     },
   });
 
-  // 2. Create Approval Request
+  // 2. Create Approval Request with proper stage and step order
   const approvalReq = await prisma.approvalRequest.create({
     data: {
       organisationId,
@@ -1096,15 +1148,16 @@ async function submitForApproval(id, organisationId, payload, user, req = null) 
       requestedById: user.id ? parseInt(user.id, 10) : 1,
       assignedApproverId: approverUserId,
       assignedApproverRole: approverRole,
+      currentStepOrder: stepOrder,
       status: 'PENDING',
-      stage: 'PENDING_APPROVAL',
+      stage: initialStage,
       comments,
       history: {
         create: {
           userId: user.id ? parseInt(user.id, 10) : null,
-          userRole: user.role || 'STAFF',
+          userRole: userRole,
           action: 'SUBMITTED',
-          comment: comments,
+          comment: `${comments} (Target: ${initialStage.replace('STAGE_', '').replace('_', ' ')})`,
         },
       },
     },
@@ -1116,26 +1169,43 @@ async function submitForApproval(id, organisationId, payload, user, req = null) 
       documentId: id,
       previousStatus: doc.status,
       newStatus: 'PENDING_APPROVAL',
-      reason: comments,
+      reason: `${comments} - Initiated approval workflow at ${initialStage}`,
       actorType: 'USER',
       actorId: String(user.id || '0'),
       actorName: user.name || user.full_name || 'System User',
     },
   }).catch(() => {});
 
-  // 4. Send Notification to Approver
-  if (approverUserId) {
-    await prisma.notification.create({
-      data: {
-        organisation_id: organisationId,
-        user_id: approverUserId,
-        title: `Approval Required: ${doc.title}`,
-        message: `"${doc.title}" requires your approval. Submitted by ${user.name || user.full_name}.`,
-        type: 'APPROVAL_REQUEST',
-        link: `/approvals?id=${approvalReq.id}&docId=${doc.id}`,
-      },
-    }).catch(() => {});
-  }
+  // 4. Send In-App Notifications to Target Approvers
+  try {
+    const approverQuery = {
+      organisation_id: organisationId,
+      role: approverRole,
+    };
+    if (submitterDeptId && approverRole !== 'ORGANISATION_ADMIN') {
+      approverQuery.department_id = submitterDeptId;
+    }
+
+    const targetUsers = approverUserId
+      ? [{ id: approverUserId }]
+      : await prisma.user.findMany({
+          where: approverQuery,
+          select: { id: true },
+        });
+
+    for (const target of targetUsers) {
+      await prisma.notification.create({
+        data: {
+          organisation_id: organisationId,
+          user_id: target.id,
+          title: `Approval Required: ${doc.title}`,
+          message: `"${doc.title}" requires your review as ${approverRole.replace('_', ' ')}. Submitted by ${user.name || user.full_name}.`,
+          type: 'APPROVAL_REQUEST',
+          link: `/approvals?id=${approvalReq.id}&docId=${doc.id}`,
+        },
+      }).catch(() => {});
+    }
+  } catch (_) {}
 
   // 5. Audit log
   await prisma.unifiedDocumentAuditLog.create({
@@ -1146,12 +1216,12 @@ async function submitForApproval(id, organisationId, payload, user, req = null) 
       documentTitle: doc.title,
       userId: user.id ? parseInt(user.id, 10) : null,
       userName: user.name || user.full_name || 'System User',
-      userRole: user.role || 'STAFF',
+      userRole: userRole,
       action: 'SUBMITTED_FOR_APPROVAL',
       previousStatus: doc.status,
       newStatus: 'PENDING_APPROVAL',
-      details: comments,
-      metadata: { approverRole, approverUserId },
+      details: `${comments} - Routed to ${approverRole}`,
+      metadata: { approverRole, approverUserId, stage: initialStage, stepOrder },
     },
   }).catch(() => {});
 
@@ -1159,12 +1229,15 @@ async function submitForApproval(id, organisationId, payload, user, req = null) 
 }
 
 /**
- * Process Approval Action (Approve, Reject, Request Changes)
+ * Process Approval Action (Approve / Forward / Reject / Request Changes)
+ * Implements full 3-tier hierarchical escalation:
+ * Step 1 (Team Leader) -> Step 2 (Department Manager) -> Step 3 (Org Admin) -> Approved
  */
 async function processApproval(id, organisationId, payload, user, req = null) {
   const doc = await getDocumentById(id, organisationId);
   const { action, comments = '' } = payload;
   const upperAction = String(action).toUpperCase();
+  const actingRole = (user?.role || 'STAFF').toUpperCase();
 
   // Find latest pending approval request
   const approvalReq = await prisma.approvalRequest.findFirst({
@@ -1172,21 +1245,66 @@ async function processApproval(id, organisationId, payload, user, req = null) {
     orderBy: { createdAt: 'desc' },
   });
 
-  let newDocStatus = doc.status;
-  let newApprovalStatus = 'PENDING_APPROVAL';
-
-  if (upperAction === 'APPROVE' || upperAction === 'APPROVED') {
-    newApprovalStatus = 'APPROVED';
-    newDocStatus = doc.signatureRequired ? 'PENDING_SIGNATURE' : 'APPROVED';
-  } else if (upperAction === 'REJECT' || upperAction === 'REJECTED') {
-    newApprovalStatus = 'REJECTED';
-    newDocStatus = 'REJECTED';
-  } else if (upperAction === 'REQUEST_CHANGES' || upperAction === 'CHANGES_REQUESTED') {
-    newApprovalStatus = 'CHANGES_REQUESTED';
-    newDocStatus = 'CHANGES_REQUESTED';
+  if (!approvalReq) {
+    throw new Error('No pending approval request found for this document.');
   }
 
-  // Update document
+  let finalReqStatus = 'PENDING';
+  let newDocStatus = 'PENDING_APPROVAL';
+  let newApprovalStatus = 'PENDING_APPROVAL';
+  let nextStage = approvalReq.stage || 'STAGE_TEAM_LEADER';
+  let nextApproverRole = approvalReq.assignedApproverRole || 'TEAM_LEADER';
+  let nextStepOrder = approvalReq.currentStepOrder || 1;
+  let actionLabel = upperAction;
+
+  if (upperAction === 'APPROVE' || upperAction === 'APPROVED' || upperAction === 'FORWARD') {
+    // Check which tier we are advancing from
+    const isAtStage1 = nextStage === 'STAGE_TEAM_LEADER' || approvalReq.assignedApproverRole === 'TEAM_LEADER';
+    const isAtStage2 = nextStage === 'STAGE_DEPARTMENT_MANAGER' || approvalReq.assignedApproverRole === 'DEPARTMENT_MANAGER';
+
+    if (isAtStage1 && actingRole !== 'ORGANISATION_ADMIN' && actingRole !== 'SUPER_ADMIN') {
+      // Step 1: Team Leader approves -> Forward to Department Manager (Step 2)
+      nextStage = 'STAGE_DEPARTMENT_MANAGER';
+      nextApproverRole = 'DEPARTMENT_MANAGER';
+      nextStepOrder = 2;
+      finalReqStatus = 'PENDING';
+      newDocStatus = 'PENDING_APPROVAL';
+      newApprovalStatus = 'PENDING_APPROVAL';
+      actionLabel = 'APPROVED_BY_TEAM_LEAD_FORWARDED_TO_DEPT_MANAGER';
+    } else if (isAtStage2 && actingRole !== 'ORGANISATION_ADMIN' && actingRole !== 'SUPER_ADMIN') {
+      // Step 2: Department Manager approves -> Forward to Organisation Admin (Step 3)
+      nextStage = 'STAGE_ORGANISATION_ADMIN';
+      nextApproverRole = 'ORGANISATION_ADMIN';
+      nextStepOrder = 3;
+      finalReqStatus = 'PENDING';
+      newDocStatus = 'PENDING_APPROVAL';
+      newApprovalStatus = 'PENDING_APPROVAL';
+      actionLabel = 'APPROVED_BY_DEPT_MANAGER_FORWARDED_TO_ORG_ADMIN';
+    } else {
+      // Step 3 (or Org Admin approving directly): Final Executive Approval!
+      nextStage = 'APPROVED';
+      nextApproverRole = null;
+      nextStepOrder = 3;
+      finalReqStatus = 'APPROVED';
+      newApprovalStatus = 'APPROVED';
+      newDocStatus = doc.signatureRequired ? 'PENDING_SIGNATURE' : 'APPROVED';
+      actionLabel = 'FINAL_APPROVAL_GRANTED';
+    }
+  } else if (upperAction === 'REJECT' || upperAction === 'REJECTED') {
+    nextStage = 'REJECTED';
+    finalReqStatus = 'REJECTED';
+    newApprovalStatus = 'REJECTED';
+    newDocStatus = 'REJECTED';
+    actionLabel = 'REJECTED';
+  } else if (upperAction === 'REQUEST_CHANGES' || upperAction === 'CHANGES_REQUESTED') {
+    nextStage = 'CHANGES_REQUESTED';
+    finalReqStatus = 'PENDING';
+    newApprovalStatus = 'CHANGES_REQUESTED';
+    newDocStatus = 'CHANGES_REQUESTED';
+    actionLabel = 'CHANGES_REQUESTED';
+  }
+
+  // Update document status
   const updatedDoc = await prisma.unifiedDocument.update({
     where: { id },
     data: {
@@ -1195,43 +1313,40 @@ async function processApproval(id, organisationId, payload, user, req = null) {
     },
   });
 
-  // Update approval request and record action + history
-  if (approvalReq) {
-    const finalReqStatus = upperAction.includes('APPROV')
-      ? 'APPROVED'
-      : upperAction.includes('REJECT')
-      ? 'REJECTED'
-      : 'PENDING';
+  // Update approval request
+  await prisma.approvalRequest.update({
+    where: { id: approvalReq.id },
+    data: {
+      status: finalReqStatus,
+      stage: nextStage,
+      assignedApproverRole: nextApproverRole,
+      currentStepOrder: nextStepOrder,
+      previousApproverName: user.name || user.full_name || actingRole,
+      currentApproverName: finalReqStatus === 'APPROVED' ? (user.name || user.full_name) : null,
+      comments: comments || undefined,
+    },
+  });
 
-    await prisma.approvalRequest.update({
-      where: { id: approvalReq.id },
-      data: {
-        status: finalReqStatus,
-        stage: newApprovalStatus,
-        currentApproverName: user.name || user.full_name,
-        comments,
-      },
-    });
+  // Record action & history
+  await prisma.approvalAction.create({
+    data: {
+      approvalRequestId: approvalReq.id,
+      performedById: user.id ? parseInt(user.id, 10) : null,
+      action: actionLabel,
+      comment: comments,
+      stepOrder: nextStepOrder,
+    },
+  });
 
-    await prisma.approvalAction.create({
-      data: {
-        approvalRequestId: approvalReq.id,
-        performedById: user.id ? parseInt(user.id, 10) : null,
-        action: upperAction,
-        comment: comments,
-      },
-    });
-
-    await prisma.approvalHistoryItem.create({
-      data: {
-        approvalRequestId: approvalReq.id,
-        userId: user.id ? parseInt(user.id, 10) : null,
-        userRole: user.role || 'APPROVER',
-        action: upperAction,
-        comment: comments,
-      },
-    });
-  }
+  await prisma.approvalHistoryItem.create({
+    data: {
+      approvalRequestId: approvalReq.id,
+      userId: user.id ? parseInt(user.id, 10) : null,
+      userRole: actingRole,
+      action: actionLabel,
+      comment: comments,
+    },
+  });
 
   // Status history
   await prisma.unifiedDocumentStatusHistory.create({
@@ -1239,25 +1354,57 @@ async function processApproval(id, organisationId, payload, user, req = null) {
       documentId: id,
       previousStatus: doc.status,
       newStatus: newDocStatus,
-      reason: `Approval decision: ${upperAction}. ${comments}`,
+      reason: `Approval decision: ${actionLabel}. ${comments}`,
       actorType: 'USER',
       actorId: String(user.id || '0'),
       actorName: user.name || user.full_name || 'Reviewer',
     },
   }).catch(() => {});
 
-  // Notify document creator
-  if (doc.createdByUserId) {
-    await prisma.notification.create({
-      data: {
+  // Notifications
+  if (finalReqStatus === 'PENDING' && nextApproverRole) {
+    // Notify users of the next role in this department
+    try {
+      const nextQuery = {
         organisation_id: organisationId,
-        user_id: doc.createdByUserId,
-        title: `Document ${upperAction}: ${doc.title}`,
-        message: `Your document "${doc.title}" has been marked ${newApprovalStatus} by ${user.name || user.full_name}. ${comments ? 'Remarks: ' + comments : ''}`,
-        type: `APPROVAL_${upperAction}`,
-        link: `/documents/view?id=${doc.id}`,
-      },
-    }).catch(() => {});
+        role: nextApproverRole,
+      };
+      if (doc.departmentId && nextApproverRole !== 'ORGANISATION_ADMIN') {
+        nextQuery.department_id = doc.departmentId;
+      }
+      const nextApprovers = await prisma.user.findMany({
+        where: nextQuery,
+        select: { id: true },
+      });
+      for (const target of nextApprovers) {
+        await prisma.notification.create({
+          data: {
+            organisation_id: organisationId,
+            user_id: target.id,
+            title: `Document Forwarded for Approval: ${doc.title}`,
+            message: `"${doc.title}" was reviewed by ${user.name || user.full_name} and forwarded to you for ${nextApproverRole.replace('_', ' ')} sign-off.`,
+            type: 'APPROVAL_REQUEST',
+            link: `/approvals?id=${approvalReq.id}&docId=${doc.id}`,
+          },
+        }).catch(() => {});
+      }
+    } catch (_) {}
+  } else if (finalReqStatus === 'APPROVED' || finalReqStatus === 'REJECTED' || newApprovalStatus === 'CHANGES_REQUESTED') {
+    // Notify submitter/creator
+    if (doc.createdByUserId) {
+      try {
+        await prisma.notification.create({
+          data: {
+            organisation_id: organisationId,
+            user_id: doc.createdByUserId,
+            title: finalReqStatus === 'APPROVED' ? `Document Approved: ${doc.title}` : `Document ${newApprovalStatus}: ${doc.title}`,
+            message: `Your document "${doc.title}" has been ${newApprovalStatus.toLowerCase().replace('_', ' ')} by ${user.name || user.full_name}. ${comments ? `Feedback: "${comments}"` : ''}`,
+            type: finalReqStatus === 'APPROVED' ? 'APPROVAL_SUCCESS' : 'APPROVAL_UPDATE',
+            link: `/documents/editor?id=${doc.id}`,
+          },
+        }).catch(() => {});
+      } catch (_) {}
+    }
   }
 
   // Audit log

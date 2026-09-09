@@ -1,10 +1,11 @@
 const jwt = require("jsonwebtoken");
+const prisma = require("../config/prismaClient");
 
 /**
  * Authentication Middleware
  * Verifies JWT token from Authorization Bearer header or cookies
  */
-const verifyToken = (req, res, next) => {
+const verifyToken = async (req, res, next) => {
   try {
     let token = null;
 
@@ -49,6 +50,24 @@ const verifyToken = (req, res, next) => {
       team_id: decoded.teamId || decoded.team_id || null,
       locationId: decoded.locationId || decoded.location_id || null,
     };
+
+    // If departmentId or teamId missing from JWT token, fetch from DB
+    if ((!req.user.department_id || !req.user.team_id) && req.user.id) {
+      try {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: Number(req.user.id) },
+          select: { department_id: true, team_id: true },
+        });
+        if (dbUser) {
+          req.user.departmentId = req.user.departmentId || dbUser.department_id;
+          req.user.department_id = req.user.department_id || dbUser.department_id;
+          req.user.teamId = req.user.teamId || dbUser.team_id;
+          req.user.team_id = req.user.team_id || dbUser.team_id;
+        }
+      } catch (err) {
+        // Fallback silently if DB lookup fails
+      }
+    }
 
     next();
   } catch (error) {

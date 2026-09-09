@@ -11,6 +11,8 @@ const unifiedApprovalController = {
       const orgId = req.user?.organisationId || req.user?.organisation_id || req.user?.organization_id || 1;
       const userId = req.user?.id || req.user?.userId || null;
       const userRole = (req.user?.role || "").toUpperCase();
+      const userDeptId = (req.user?.department_id || req.user?.departmentId) ? parseInt(req.user.department_id || req.user.departmentId, 10) : null;
+      const userTeamId = (req.user?.team_id || req.user?.teamId) ? parseInt(req.user.team_id || req.user.teamId, 10) : null;
       const { status = "", tab = "PENDING", search = "" } = req.query;
 
       const where = { organisationId: parseInt(orgId, 10) };
@@ -30,29 +32,75 @@ const unifiedApprovalController = {
         where.status = status.toUpperCase();
       }
 
-      // Role-Based Filtering
-      if (userRole === "STAFF") {
+      // Role-Based Filtering with Strict Department Isolation
+      if (userRole === "STAFF" || userRole === "EMPLOYEE") {
         // Employees see requests they submitted
         where.requestedById = userId;
       } else if (userRole === "TEAM_LEADER") {
-        // Team Leads see items assigned to their role or team members or themselves
-        // If not in MY_SUBMISSIONS tab:
-        if (tab !== "MY_SUBMISSIONS") {
-          where.OR = [
-            { assignedApproverId: userId },
-            { assignedApproverRole: "TEAM_LEADER" },
-            { assignedApproverRole: null },
-            { requestedById: userId },
+        if (tab === "MY_SUBMISSIONS") {
+          where.requestedById = userId;
+        } else {
+          // Team Leads see items assigned to TEAM_LEADER in their department/team
+          where.AND = [
+            {
+              OR: [
+                { assignedApproverRole: "TEAM_LEADER" },
+                { assignedApproverId: userId },
+                { stage: "STAGE_TEAM_LEADER" },
+                { requestedById: userId },
+              ],
+            },
+            ...(userDeptId
+              ? [
+                  {
+                    unifiedDocument: {
+                      OR: [
+                        { departmentId: userDeptId },
+                        { departmentId: null },
+                        { createdByUserId: userId },
+                      ],
+                    },
+                  },
+                ]
+              : []),
           ];
         }
       } else if (userRole === "DEPARTMENT_MANAGER") {
-        if (tab !== "MY_SUBMISSIONS") {
+        if (tab === "MY_SUBMISSIONS") {
+          where.requestedById = userId;
+        } else {
+          // Department Managers see items escalated to DEPARTMENT_MANAGER strictly in their department
+          where.AND = [
+            {
+              OR: [
+                { assignedApproverRole: "DEPARTMENT_MANAGER" },
+                { assignedApproverId: userId },
+                { stage: "STAGE_DEPARTMENT_MANAGER" },
+                { requestedById: userId },
+              ],
+            },
+            ...(userDeptId
+              ? [
+                  {
+                    unifiedDocument: {
+                      OR: [
+                        { departmentId: userDeptId },
+                        { departmentId: null },
+                        { createdByUserId: userId },
+                      ],
+                    },
+                  },
+                ]
+              : []),
+          ];
+        }
+      } else if (userRole === "ORGANISATION_ADMIN" || userRole === "SUPER_ADMIN") {
+        if (tab === "PENDING") {
           where.OR = [
+            { assignedApproverRole: "ORGANISATION_ADMIN" },
             { assignedApproverId: userId },
-            { assignedApproverRole: "DEPARTMENT_MANAGER" },
-            { assignedApproverRole: "TEAM_LEADER" },
-            { assignedApproverRole: null },
-            { requestedById: userId },
+            { stage: "STAGE_ORGANISATION_ADMIN" },
+            { currentStepOrder: 3 },
           ];
         }
       }
@@ -74,12 +122,16 @@ const unifiedApprovalController = {
               status: true,
               approvalStatus: true,
               signatureStatus: true,
+              departmentId: true,
               departmentName: true,
+              teamId: true,
               teamName: true,
               priority: true,
               createdAt: true,
               content: true,
               financialData: true,
+              clientName: true,
+              clientEmail: true,
             },
           },
           actions: {
@@ -95,6 +147,7 @@ const unifiedApprovalController = {
 
       const formatted = requests.map((reqItem) => {
         const doc = reqItem.unifiedDocument || {};
+        const currentStep = reqItem.currentStepOrder || (reqItem.stage === "STAGE_DEPARTMENT_MANAGER" ? 2 : reqItem.stage === "STAGE_ORGANISATION_ADMIN" ? 3 : 1);
         return {
           id: reqItem.id,
           documentId: doc.id || reqItem.documentId || reqItem.unifiedDocumentId,
@@ -105,11 +158,18 @@ const unifiedApprovalController = {
           submittedBy: reqItem.requestedBy?.full_name || "Employee Associate",
           submittedEmail: reqItem.requestedBy?.email || "employee@docucore.ai",
           department: doc.departmentName || "Operations",
+          departmentId: doc.departmentId || null,
           team: doc.teamName || "Operations Team",
+          teamId: doc.teamId || null,
+          clientName: doc.clientName || null,
+          clientEmail: doc.clientEmail || null,
           submittedDate: reqItem.createdAt.toISOString(),
           dueDate: reqItem.dueAt ? reqItem.dueAt.toISOString() : null,
           status: reqItem.status,
           stage: reqItem.stage || reqItem.status,
+          currentStepOrder: currentStep,
+          totalSteps: 3,
+          assignedApproverRole: reqItem.assignedApproverRole || "TEAM_LEADER",
           priority: doc.priority || "NORMAL",
           comments: reqItem.comments || "Pending review",
           previousApprover: reqItem.previousApproverName || "None",

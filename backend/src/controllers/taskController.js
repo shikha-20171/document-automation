@@ -23,10 +23,24 @@ const getTasks = async (req, res) => {
 
     let whereClause = { organisation_id: orgId };
 
-    if (role === "DEPARTMENT_MANAGER" && req.user.department_id) {
-      whereClause.department_id = Number(req.user.department_id);
-    } else if (role === "TEAM_LEADER" && req.user.team_id) {
-      whereClause.team_id = Number(req.user.team_id);
+    const deptId = req.user.department_id ? Number(req.user.department_id) : null;
+    const teamId = req.user.team_id ? Number(req.user.team_id) : null;
+
+    if (role === "DEPARTMENT_MANAGER") {
+      if (deptId) {
+        whereClause.department_id = deptId;
+      }
+    } else if (role === "TEAM_LEADER") {
+      if (teamId) {
+        whereClause.OR = [
+          { team_id: teamId },
+          { created_by_id: Number(req.user.id) },
+          { assigned_to_id: userIdStr },
+          { assigned_email: userEmail },
+        ];
+      } else if (deptId) {
+        whereClause.department_id = deptId;
+      }
     } else if (role === "EMPLOYEE" || role === "STAFF") {
       whereClause.OR = [
         { assigned_to_id: userIdStr },
@@ -73,16 +87,36 @@ const createTask = async (req, res) => {
       return res.status(400).json({ success: false, message: "Task title is required." });
     }
 
+    const taskDeptId = department_id ? Number(department_id) : (req.user.department_id ? Number(req.user.department_id) : null);
+    const taskTeamId = team_id ? Number(team_id) : (req.user.team_id ? Number(req.user.team_id) : null);
+
+    // If assigned_email is passed but assigned_to_id is missing, look up user
+    let finalAssigneeId = assigned_to_id ? String(assigned_to_id) : null;
+    let finalAssigneeName = assigned_to || "Unassigned";
+
+    if (!finalAssigneeId && assigned_email) {
+      const foundUser = await prisma.user.findUnique({
+        where: { email: assigned_email.trim().toLowerCase() },
+        select: { id: true, full_name: true },
+      });
+      if (foundUser) {
+        finalAssigneeId = String(foundUser.id);
+        if (!assigned_to || assigned_to === "Unassigned") {
+          finalAssigneeName = foundUser.full_name;
+        }
+      }
+    }
+
     const task = await prisma.task.create({
       data: {
         organisation_id: orgId,
-        department_id: department_id ? Number(department_id) : (req.user.department_id ? Number(req.user.department_id) : null),
-        team_id: team_id ? Number(team_id) : (req.user.team_id ? Number(req.user.team_id) : null),
+        department_id: taskDeptId,
+        team_id: taskTeamId,
         created_by_id: Number(req.user.id),
         title,
         description,
-        assigned_to: assigned_to || "Unassigned",
-        assigned_to_id: assigned_to_id ? String(assigned_to_id) : null,
+        assigned_to: finalAssigneeName,
+        assigned_to_id: finalAssigneeId,
         assigned_email: assigned_email || null,
         priority,
         status: "TODO",
@@ -97,14 +131,14 @@ const createTask = async (req, res) => {
     });
 
     // Create In-App Notification for Assignee
-    if (assigned_to_id || assigned_email) {
+    if (finalAssigneeId) {
       try {
         await prisma.notification.create({
           data: {
             organisation_id: orgId,
-            user_id: assigned_to_id ? Number(assigned_to_id) : null,
+            user_id: Number(finalAssigneeId),
             title: `New Task Assigned: ${title}`,
-            message: `You have been assigned task: "${title}". Priority: ${priority}`,
+            message: `You have been assigned task: "${title}" by ${req.user.name || req.user.email}. Priority: ${priority}`,
             type: "TASK_ASSIGNED",
             category: "TASK",
             unread: true,
