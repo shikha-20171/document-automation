@@ -154,6 +154,7 @@ const DEFAULT_DEMO_ORGS: OrgDashboardItem[] = [
 ];
 
 export default function SuperAdminDashboardPage() {
+  const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshingHealth, setRefreshingHealth] = useState(false);
   const [selectedService, setSelectedService] = useState<HealthServiceItem | null>(null);
@@ -319,6 +320,7 @@ export default function SuperAdminDashboardPage() {
   };
 
   useEffect(() => {
+    setMounted(true);
     loadDashboardData();
   }, []);
 
@@ -745,8 +747,10 @@ export default function SuperAdminDashboardPage() {
                     <span className="font-mono text-[11px] font-bold text-[#274690] dark:text-blue-400">
                       {evt.action}
                     </span>
-                    <span className="text-[10px] text-slate-400">
-                      {new Date(evt.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    <span className="text-[10px] text-slate-400" suppressHydrationWarning>
+                      {mounted
+                        ? new Date(evt.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                        : ""}
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 truncate">
@@ -802,8 +806,10 @@ export default function SuperAdminDashboardPage() {
 
               <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 flex justify-between items-center">
                 <span className="font-semibold text-slate-500">Last Checked</span>
-                <span className="font-mono text-[11px] text-slate-600 dark:text-slate-400">
-                  {new Date(selectedService.lastChecked || new Date()).toLocaleTimeString()}
+                <span className="font-mono text-[11px] text-slate-600 dark:text-slate-400" suppressHydrationWarning>
+                  {mounted
+                    ? new Date(selectedService.lastChecked || new Date()).toLocaleTimeString()
+                    : ""}
                 </span>
               </div>
             </div>

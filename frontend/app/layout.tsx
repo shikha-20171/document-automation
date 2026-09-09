@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import { Lora } from "next/font/google";
+import Script from "next/script";
 
 const serifFont = Lora({
   subsets: ["latin"],
@@ -21,8 +22,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${serifFont.variable} font-serif`} suppressHydrationWarning data-scroll-behavior="smooth">
-      <head>
-        <script
+      <body className={`${serifFont.className} font-serif antialiased`}>
+        <Script
+          id="theme-initializer"
+          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
             __html: `
               try {
@@ -37,8 +40,8 @@ export default function RootLayout({
             `,
           }}
         />
-      </head>
-      <body className={`${serifFont.className} font-serif antialiased`}>{children}</body>
+        {children}
+      </body>
     </html>
   );
 }
