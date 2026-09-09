@@ -117,7 +117,7 @@ export const superAdminNavSections: MenuSection[] = [
         icon: ShieldAlert,
       },
       {
-        title: "Audit & Security",
+        title: "Activity & Audit Logs",
         href: "/super-admin/audit-logs",
         icon: ShieldCheck,
       },

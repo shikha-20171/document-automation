@@ -71,6 +71,7 @@ export interface AuditFilterParams {
   endDate?: string;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
+  excludeSecurity?: boolean | string;
 }
 
 export const superAdminAuditApi = {

@@ -215,6 +215,7 @@ class AuditLogService {
       dateTo,
       module,
       category,
+      excludeSecurity,
     } = query;
 
     const where = {};
@@ -253,6 +254,24 @@ class AuditLogService {
     const activeModule = module || category;
     if (activeModule && activeModule !== "ALL") {
       where.module = activeModule.toUpperCase() === "SECURITY" ? "SECURITY" : "PLATFORM";
+    } else if (excludeSecurity === "true" || excludeSecurity === true) {
+      where.module = { not: "SECURITY" };
+      where.action = {
+        notIn: [
+          "LOGIN_SUCCESS",
+          "LOGIN_FAILED",
+          "LOGOUT",
+          "PASSWORD_CHANGED",
+          "PASSWORD_RESET_REQUESTED",
+          "PASSWORD_RESET_COMPLETED",
+          "MFA_VERIFIED",
+          "MFA_ENABLED",
+          "MFA_DISABLED",
+          "SECURITY_ANOMALY_BLOCKED",
+          "IP_BLOCKED",
+          "SUSPICIOUS_LOGIN_ATTEMPT"
+        ]
+      };
     }
 
     const from = startDate || dateFrom;

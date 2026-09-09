@@ -230,8 +230,8 @@ export default function SuperAdminDashboardPage() {
     },
     {
       id: "ev-4",
-      action: "STORAGE_VAULT_ENCRYPTED",
-      actorName: "Security Engine",
+      action: "STORAGE_VAULT_OPTIMIZED",
+      actorName: "Storage Worker",
       organisationName: "CyberDynamics AI Systems",
       createdAt: new Date(Date.now() - 1000 * 60 * 180).toISOString(),
     },
@@ -258,7 +258,7 @@ export default function SuperAdminDashboardPage() {
         apiClient.get("/super-admin/dashboard/stats"),
         apiClient.get("/super-admin/dashboard/platform-health"),
         apiClient.get("/super-admin/dashboard/growth"),
-        apiClient.get("/super-admin/audit-logs?limit=5"),
+        apiClient.get("/super-admin/audit-logs?limit=5&excludeSecurity=true"),
         apiClient.get("/super-admin/organisations"),
       ]);
 
@@ -728,7 +728,7 @@ export default function SuperAdminDashboardPage() {
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3 mb-3">
               <div>
                 <h3 className="text-sm font-extrabold text-slate-900 dark:text-slate-100">Recent Platform Activity</h3>
-                <p className="text-[11px] text-slate-500">Live security & administrative events</p>
+                <p className="text-[11px] text-slate-500">Live platform & administrative events</p>
               </div>
               <Link href="/super-admin/audit-logs">
                 <Button variant="ghost" size="sm" className="text-xs font-bold text-[#274690] dark:text-blue-400">

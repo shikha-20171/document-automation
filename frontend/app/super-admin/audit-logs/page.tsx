@@ -90,7 +90,7 @@ export interface AuditOverviewData {
 
 export default function SuperAdminAuditLogsPage() {
   const [activeTab, setActiveTab] = useState<
-    "overview" | "activity_logs" | "security_events" | "admin_actions" | "export"
+    "overview" | "activity_logs" | "admin_actions" | "export"
   >("overview");
 
   const [loading, setLoading] = useState(true);
@@ -182,16 +182,18 @@ export default function SuperAdminAuditLogsPage() {
       if (endDate) params.endDate = endDate;
 
       let res;
-      if (activeTab === "security_events") {
-        res = await apiClient.get("/super-admin/audit-logs/security-events", { params });
-      } else if (activeTab === "admin_actions") {
+      if (activeTab === "admin_actions") {
         res = await apiClient.get("/super-admin/audit-logs/admin-actions", { params });
       } else {
+        params.excludeSecurity = "true";
         res = await apiClient.get("/super-admin/audit-logs", { params });
       }
 
       if (res.data?.data) {
-        setLogs(res.data.data);
+        const filtered = activeTab === "admin_actions"
+          ? res.data.data
+          : res.data.data.filter((l: AuditLogItem) => l.module !== "SECURITY");
+        setLogs(filtered);
         if (res.data.pagination) {
           setPagination((prev) => ({
             ...prev,
@@ -370,10 +372,10 @@ export default function SuperAdminAuditLogsPage() {
             </span>
           </div>
           <h1 className="text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight mt-1">
-            Audit Logs & Security Governance
+            Platform Activity & Audit Logs
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
-            Centralized visibility into platform, security, configuration, subscription, AI, OCR, storage, organisation and administrative events across all tenants.
+            Centralized visibility into platform, configuration, subscription, AI, OCR, storage, organisation and administrative events across all tenants.
           </p>
         </div>
 
@@ -407,7 +409,6 @@ export default function SuperAdminAuditLogsPage() {
         {[
           { id: "overview", label: "Overview", icon: BarChart3 },
           { id: "activity_logs", label: "Activity Logs", icon: FileText, count: overview?.totalEvents },
-          { id: "security_events", label: "Security Events", icon: ShieldAlert, count: overview?.securityEvents },
           { id: "admin_actions", label: "Admin Actions", icon: UserCheck, count: overview?.adminActions },
           { id: "export", label: "Exports", icon: Download },
         ].map((tab) => {
@@ -447,8 +448,8 @@ export default function SuperAdminAuditLogsPage() {
       {/* ---------------------------------------------------------------- */}
       {activeTab === "overview" && (
         <div className="space-y-6">
-          {/* 8 Key KPI Metric Cards (Database Aggregation) */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+          {/* Key KPI Metric Cards (Database Aggregation) */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
             <Card className="rounded-2xl border-slate-200/90 dark:border-slate-800 p-4 bg-white dark:bg-[#11192e] shadow-xs">
               <span className="text-[10px] font-black text-slate-400 tracking-wider">TOTAL EVENTS</span>
               <p className="text-xl font-black text-slate-900 dark:text-slate-100 mt-1">
@@ -481,14 +482,6 @@ export default function SuperAdminAuditLogsPage() {
                 {(overview?.failedEvents || 0).toLocaleString()}
               </p>
               <p className="text-[10px] text-rose-500 mt-0.5">Action failures</p>
-            </Card>
-
-            <Card className="rounded-2xl border-slate-200/90 dark:border-slate-800 p-4 bg-white dark:bg-[#11192e] shadow-xs">
-              <span className="text-[10px] font-black text-slate-400 tracking-wider">SECURITY EVENTS</span>
-              <p className="text-xl font-black text-amber-600 dark:text-amber-400 mt-1">
-                {(overview?.securityEvents || 0).toLocaleString()}
-              </p>
-              <p className="text-[10px] text-amber-600 mt-0.5">Auth & alerts</p>
             </Card>
 
             <Card className="rounded-2xl border-slate-200/90 dark:border-slate-800 p-4 bg-white dark:bg-[#11192e] shadow-xs">
@@ -548,7 +541,7 @@ export default function SuperAdminAuditLogsPage() {
                       <div className="flex items-center justify-between text-xs font-semibold">
                         <span className="text-slate-600 dark:text-slate-400">{item.date}</span>
                         <span className="text-slate-900 dark:text-slate-100 font-bold">
-                          {item.total} events ({item.success} success, {item.failed} failed, {item.security} security)
+                          {item.total} events ({item.success} success, {item.failed} failed)
                         </span>
                       </div>
                       <div className="w-full h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden flex">
@@ -651,9 +644,9 @@ export default function SuperAdminAuditLogsPage() {
       )}
 
       {/* ---------------------------------------------------------------- */}
-      {/* TABS 2, 3, 4: ACTIVITY LOGS / SECURITY EVENTS / ADMIN ACTIONS */}
+      {/* TABS: ACTIVITY LOGS / ADMIN ACTIONS */}
       {/* ---------------------------------------------------------------- */}
-      {["activity_logs", "security_events", "admin_actions"].includes(activeTab) && (
+      {["activity_logs", "admin_actions"].includes(activeTab) && (
         <div className="space-y-4">
           {/* Search & Multi-Filter Toolbar */}
           <Card className="p-4 rounded-2xl border-slate-200/90 dark:border-slate-800 bg-white dark:bg-[#11192e] shadow-xs space-y-3">
@@ -723,8 +716,6 @@ export default function SuperAdminAuditLogsPage() {
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-slate-100 text-xs font-semibold"
                 >
                   <option value="ALL">All Categories</option>
-                  <option value="AUTHENTICATION">AUTHENTICATION</option>
-                  <option value="SECURITY">SECURITY</option>
                   <option value="ORGANISATION">ORGANISATION</option>
                   <option value="SUBSCRIPTION">SUBSCRIPTION</option>
                   <option value="STORAGE">STORAGE</option>
