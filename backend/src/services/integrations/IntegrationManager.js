@@ -197,6 +197,36 @@ class IntegrationManager {
    */
   static async getPlatformConfig(providerId) {
     const canonical = this.normalizeProviderId(providerId);
+    const providerKey = canonical.toLowerCase();
+
+    // 1. Check dynamic IntegrationProvider & IntegrationCredential (AES-256-GCM)
+    try {
+      const IntegrationProviderService = require("../integrationProviderService");
+      const dynamicData = await IntegrationProviderService.getDecryptedCredentials(providerKey);
+      if (dynamicData && dynamicData.credentials) {
+        const { provider, credentials, configuration } = dynamicData;
+        return {
+          provider: canonical,
+          providerKey: provider.providerKey,
+          isEnabled: provider.isEnabled,
+          isConfigured: true,
+          clientId: credentials.clientId || null,
+          clientSecret: credentials.clientSecret || null,
+          redirectUri: credentials.redirectUri || null,
+          tenantId: credentials.tenantId || "common",
+          apiKey: credentials.apiKey || null,
+          accessToken: credentials.accessToken || null,
+          phoneNumberId: credentials.phoneNumberId || null,
+          wabaId: credentials.wabaId || null,
+          allowedScopes: provider.requiredScopes || [],
+          settings: { ...credentials, ...configuration },
+          status: "ACTIVE",
+        };
+      }
+    } catch (e) {
+      // proceed to legacy fallback
+    }
+
     const dbConfig = await prisma.platformIntegration.findUnique({
       where: { provider: canonical },
     }).catch(() => null);
@@ -270,16 +300,50 @@ class IntegrationManager {
 
     const integrationMap = new Map();
     orgIntegrations.forEach((item) => {
-      integrationMap.set(item.provider, item);
+      if (item.provider) integrationMap.set(item.provider, item);
+      if (item.providerId) integrationMap.set(item.providerId, item);
+      if (item.providerKey) integrationMap.set(item.providerKey, item);
     });
 
-    // AWS S3 is a platform-level storage infrastructure managed solely by Super Admin
-    const tenantProviders = this.PROVIDERS.filter((p) => p.id !== "AWS_S3");
+    // Fetch dynamic providers from PostgreSQL
+    let dynamicProviders = [];
+    try {
+      dynamicProviders = await prisma.integrationProvider.findMany({
+        where: { isEnabled: true, isActive: true },
+        orderBy: { providerName: "asc" },
+      });
+    } catch (e) {
+      console.warn("Could not query dynamic integration_providers:", e.message);
+    }
+
+    // Build unified list combining dynamic providers and built-in list
+    const combinedProviders = [...dynamicProviders.map((dp) => ({
+      id: dp.providerKey.toUpperCase(),
+      slug: dp.providerKey.replace(/_/g, "-"),
+      providerKey: dp.providerKey,
+      name: dp.providerName,
+      category: dp.category,
+      authType: dp.authenticationType.toUpperCase(),
+      icon: dp.logoUrl,
+      description: dp.description,
+      supportedFeatures: dp.supportedFeatures || [],
+      requiredScopes: dp.requiredScopes || [],
+    }))];
+
+    // Ensure built-in providers not yet in dynamic list are included
+    for (const p of this.PROVIDERS) {
+      if (p.id !== "AWS_S3" && !combinedProviders.some((cp) => cp.id === p.id || cp.providerKey === p.slug.replace(/-/g, "_"))) {
+        combinedProviders.push(p);
+      }
+    }
 
     const results = await Promise.all(
-      tenantProviders.map(async (p) => {
-        const platformConfig = await this.getPlatformConfig(p.id);
-        const dbRecord = integrationMap.get(p.id);
+      combinedProviders.map(async (p) => {
+        const platformConfig = await this.getPlatformConfig(p.providerKey || p.id);
+        const dbRecord =
+          integrationMap.get(p.id) ||
+          integrationMap.get(p.providerKey) ||
+          (p.providerKey && integrationMap.get(p.providerKey.toLowerCase()));
 
         let status = "READY_TO_CONNECT";
         let isPlatformAvailable = true;
@@ -295,9 +359,9 @@ class IntegrationManager {
           platformNotice = `${p.name} has not been enabled by the DocuCore administrator.`;
         }
 
-        if (dbRecord && dbRecord.status === "CONNECTED") {
+        if (dbRecord && (dbRecord.status === "CONNECTED" || dbRecord.connectionStatus === "CONNECTED")) {
           status = "CONNECTED";
-        } else if (dbRecord && dbRecord.status === "DISCONNECTED") {
+        } else if (dbRecord && (dbRecord.status === "DISCONNECTED" || dbRecord.connectionStatus === "DISCONNECTED")) {
           status = isPlatformAvailable ? "READY_TO_CONNECT" : "NOT_CONFIGURED";
         }
 
@@ -307,7 +371,7 @@ class IntegrationManager {
           isConfigured: platformConfig.isConfigured,
           isPlatformAvailable,
           platformNotice,
-          connectedRecord: dbRecord && dbRecord.status === "CONNECTED"
+          connectedRecord: dbRecord && (dbRecord.status === "CONNECTED" || dbRecord.connectionStatus === "CONNECTED")
             ? {
                 id: dbRecord.id,
                 accountName: dbRecord.accountName,

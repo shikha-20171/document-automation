@@ -47,6 +47,7 @@ model Organisation {
   approvalRules ApprovalRule[]
   templates     DocumentTemplate[]
   integrations  OrganisationIntegration[]
+  oauthStates   OAuthState[]
   apiKeys       OrganisationApiKey[]
   webhooks      OrganisationWebhook[]
   integrationLogs IntegrationLog[]
@@ -138,6 +139,8 @@ model User {
   updatedTemplates     DocumentTemplate[]        @relation("TemplateUpdatedBy")
   createdTemplateVersions DocumentTemplateVersion[] @relation("TemplateVersionCreatedBy")
   connectedIntegrations   OrganisationIntegration[] @relation("IntegrationConnectedBy")
+  createdCredentials      IntegrationCredential[]   @relation("IntegrationCredentialCreatedBy")
+  updatedCredentials      IntegrationCredential[]   @relation("IntegrationCredentialUpdatedBy")
   createdApiKeys          OrganisationApiKey[]      @relation("ApiKeyCreatedBy")
   createdWebhooks         OrganisationWebhook[]     @relation("WebhookCreatedBy")
   failed_attempts      Int                   @default(0)
@@ -2094,7 +2097,7 @@ model DocumentTemplateField {
 // ORGANISATION INTEGRATIONS, API KEYS & WEBHOOKS
 // =====================================================
 
-enum IntegrationProvider {
+enum IntegrationProviderEnum {
   GOOGLE_WORKSPACE
   GOOGLE_DRIVE
   GOOGLE_DOCS
@@ -2114,6 +2117,8 @@ enum IntegrationProvider {
   MICROSOFT_ENTRA_ID
   CUSTOM_REST
   WEBHOOK
+
+  @@map("IntegrationProvider")
 }
 
 enum IntegrationCategory {
@@ -2134,54 +2139,203 @@ enum IntegrationStatus {
   NOT_CONFIGURED
 }
 
+// -----------------------------------------------------
+// DYNAMIC INTEGRATION MODELS (AES-256-GCM ENCRYPTED)
+// -----------------------------------------------------
+
+model IntegrationProvider {
+  id                  String                   @id @default(uuid())
+  providerKey         String                   @unique // e.g. "google_workspace", "microsoft_365", "slack", "brevo", "whatsapp_business", "microsoft_teams"
+  providerName        String
+  description         String?                  @db.Text
+  category            String                   // STORAGE, COMMUNICATION, CRM, PRODUCTIVITY, etc.
+  authenticationType  String                   // oauth2, api_key, webhook, basic_auth
+  logoUrl             String?
+  documentationUrl    String?
+  isEnabled           Boolean                  @default(true)
+  isActive            Boolean                  @default(true)
+  configurationSchema Json?                    // Schema of UI fields for Super Admin
+  requiredScopes      Json?                    // Default OAuth scopes or API permissions
+  supportedFeatures   Json?                    // e.g. ["document_export", "notifications", "chat_sync"]
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+
+  credentials         IntegrationCredential[]
+  settings            IntegrationSetting[]
+  organisationIntegrations OrganisationIntegration[]
+  oauthStates         OAuthState[]
+  logs                IntegrationLog[]
+  webhooks            IntegrationWebhook[]
+
+  @@map("integration_providers")
+}
+
+model IntegrationCredential {
+  id                     String              @id @default(uuid())
+  providerId             String
+  credentialName         String              @default("Default Production Credential")
+  credentialsEncrypted   String              @db.Text // AES-256-GCM encrypted payload (client_id, client_secret, api_key, etc.)
+  encryptionVersion      String              @default("v1")
+  configurationEncrypted String?             @db.Text // Encrypted extra configuration or tokens
+  environment            String              @default("production") // production, staging, sandbox
+  status                 String              @default("ACTIVE") // ACTIVE, INACTIVE, REVOKED
+  lastTestedAt           DateTime?
+  lastTestStatus         String?             // SUCCESS, FAILED
+  lastTestMessage        String?             @db.Text
+  createdById            Int?
+  updatedById            Int?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+
+  provider               IntegrationProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  createdBy              User?               @relation("IntegrationCredentialCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy              User?               @relation("IntegrationCredentialUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  organisationIntegrations OrganisationIntegration[]
+
+  @@unique([providerId, environment])
+  @@index([providerId])
+  @@map("integration_credentials")
+}
+
+model IntegrationSetting {
+  id           String              @id @default(uuid())
+  providerId   String
+  settingKey   String
+  settingValue Json
+  isSecret     Boolean             @default(false)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  provider     IntegrationProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, settingKey])
+  @@index([providerId])
+  @@map("integration_settings")
+}
+
 model OrganisationIntegration {
-  id                    String              @id @default(uuid())
+  id                    String                   @id @default(uuid())
   organisationId        Int
-  provider              IntegrationProvider
-  category              IntegrationCategory
-  status                IntegrationStatus   @default(DISCONNECTED)
+  provider              IntegrationProviderEnum?
+  providerId            String?
+  providerKey           String?
+  credentialId          String?
+  category              IntegrationCategory?
+  status                IntegrationStatus        @default(DISCONNECTED)
+  connectionStatus      String                   @default("DISCONNECTED") // CONNECTED, DISCONNECTED, ERROR, PENDING
   accountName           String?
   accountEmail          String?
-  accessTokenEncrypted  String?             @db.Text
-  refreshTokenEncrypted String?             @db.Text
+  accountIdentifier     String?
+  externalAccountId     String?
+  accessTokenEncrypted  String?                  @db.Text
+  refreshTokenEncrypted String?                  @db.Text
   expiresAt             DateTime?
+  tokenExpiresAt        DateTime?
+  scopes                Json?
   metadata              Json?
   connectedById         Int?
   connectedAt           DateTime?
-  updatedAt             DateTime            @updatedAt
+  updatedAt             DateTime                 @updatedAt
   lastSyncedAt          DateTime?
+  lastUsedAt            DateTime?
+  lastError             String?                  @db.Text
+  createdAt             DateTime                 @default(now())
 
-  organisation          Organisation        @relation(fields: [organisationId], references: [id], onDelete: Cascade)
-  connectedBy           User?               @relation("IntegrationConnectedBy", fields: [connectedById], references: [id], onDelete: SetNull)
+  organisation          Organisation             @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  connectedBy           User?                    @relation("IntegrationConnectedBy", fields: [connectedById], references: [id], onDelete: SetNull)
+  dynamicProvider       IntegrationProvider?     @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  credential            IntegrationCredential?   @relation(fields: [credentialId], references: [id], onDelete: SetNull)
   logs                  IntegrationLog[]
 
   @@unique([organisationId, provider])
   @@index([organisationId])
   @@index([organisationId, status])
+  @@index([organisationId, providerId])
+  @@index([organisationId, providerKey])
   @@map("organisation_integrations")
 }
 
+model OAuthState {
+  id                    String              @id @default(uuid())
+  organisationId        Int
+  providerId            String
+  stateHash             String              @unique
+  codeVerifierEncrypted String?             @db.Text
+  redirectUri           String
+  expiresAt             DateTime
+  consumedAt            DateTime?
+  createdAt             DateTime            @default(now())
+
+  organisation          Organisation        @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  provider              IntegrationProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId])
+  @@index([stateHash])
+  @@index([expiresAt])
+  @@map("oauth_states")
+}
+
 model IntegrationLog {
-  id              String       @id @default(uuid())
+  id              String                   @id @default(uuid())
   organisationId  Int
   integrationId   String?
+  providerId      String?
   provider        String
   action          String
-  status          String       @default("SUCCESS") // SUCCESS, FAILED, RUNNING
+  status          String                   @default("SUCCESS") // SUCCESS, FAILED, RUNNING
   requestPayload  Json?
   responsePayload Json?
-  errorMessage    String?      @db.Text
-  executionTimeMs Int          @default(0)
+  errorMessage    String?                  @db.Text
+  executionTimeMs Int                      @default(0)
   externalId      String?
-  createdAt       DateTime     @default(now())
+  createdAt       DateTime                 @default(now())
 
-  organisation    Organisation              @relation(fields: [organisationId], references: [id], onDelete: Cascade)
-  integration     OrganisationIntegration?  @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+  organisation    Organisation             @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  integration     OrganisationIntegration? @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+  dynamicProvider IntegrationProvider?     @relation(fields: [providerId], references: [id], onDelete: SetNull)
 
   @@index([organisationId])
   @@index([organisationId, provider])
+  @@index([organisationId, providerId])
   @@index([organisationId, createdAt])
   @@map("integration_logs")
+}
+
+model IntegrationWebhook {
+  id             String                      @id @default(uuid())
+  providerId     String
+  organisationId Int?
+  webhookUrl     String
+  secretHash     String?
+  events         Json?
+  status         String                      @default("ACTIVE")
+  createdAt      DateTime                    @default(now())
+  updatedAt      DateTime                    @updatedAt
+
+  provider       IntegrationProvider         @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  deliveries     IntegrationWebhookDelivery[]
+
+  @@index([providerId])
+  @@index([organisationId])
+  @@map("integration_webhooks")
+}
+
+model IntegrationWebhookDelivery {
+  id           String             @id @default(uuid())
+  webhookId    String
+  event        String
+  payload      Json?
+  statusCode   Int?
+  responseBody String?            @db.Text
+  error        String?            @db.Text
+  durationMs   Int?
+  createdAt    DateTime           @default(now())
+
+  webhook      IntegrationWebhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId])
+  @@index([createdAt])
+  @@map("integration_webhook_deliveries")
 }
 
 model CustomRestIntegration {
@@ -2267,8 +2421,8 @@ model WebhookDelivery {
 }
 
 model PlatformIntegration {
-  id                    String              @id @default(uuid())
-  provider              IntegrationProvider @unique
+  id                    String                  @id @default(uuid())
+  provider              IntegrationProviderEnum @unique
   name                  String
   isEnabled             Boolean             @default(true)
   clientIdEncrypted     String?             @db.Text

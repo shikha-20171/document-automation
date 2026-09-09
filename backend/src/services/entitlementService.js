@@ -118,9 +118,21 @@ class EntitlementService {
       "integrations.smtp": planFeatures["integrations.smtp"] ?? true,
       "integrations.slack": Boolean(planFeatures["integrations.slack"]),
       "integrations.microsoft": Boolean(planFeatures["integrations.microsoft"]),
+      "integrations.teams": Boolean(planFeatures["integrations.teams"] || planFeatures["integrations.microsoft"]),
       "integrations.aws_s3": Boolean(planFeatures["integrations.aws_s3"]),
       "integrations.whatsapp": Boolean(planFeatures["integrations.whatsapp"]),
       "integrations.custom": Boolean(planFeatures["integrations.custom"]),
+      "integrations.enabled": Boolean(
+        (planFeatures["integrations.google"] ?? true) ||
+        planFeatures["integrations.slack"] ||
+        planFeatures["integrations.microsoft"] ||
+        planFeatures["integrations.smtp"]
+      ),
+
+      // Clients / CRM
+      "crm.enabled": planFeatures["crm.enabled"] ?? (plan.planCode === "enterprise" || plan.planCode === "business"),
+      "e_signatures.enabled": planFeatures["e_signatures.enabled"] ?? true,
+      "templates.enabled": (planFeatures["templates.max"] ?? 10) > 0,
 
       // APIs & Webhooks
       "api.access": Boolean(planFeatures["api.access"]),

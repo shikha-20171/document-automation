@@ -94,7 +94,59 @@ const getIntegrationById = async (req, res) => {
 const connectProvider = async (req, res) => {
   try {
     const organisationId = getOrgId(req);
-    const providerEnum = normalizeProvider(req.params.provider || req.body.provider);
+    const rawProvider = req.params.provider || req.body.provider;
+    const providerKey = (rawProvider || "").toLowerCase().replace(/[\s-]+/g, "_");
+
+    // Dynamic Provider Support (AES-256-GCM backed in PostgreSQL)
+    const dynamicProvider = await prisma.integrationProvider.findFirst({
+      where: {
+        OR: [{ providerKey }, { id: rawProvider }],
+        isEnabled: true,
+      },
+    });
+
+    if (dynamicProvider) {
+      if (dynamicProvider.authenticationType === "oauth2") {
+        try {
+          const IntegrationOAuthService = require("../services/integrationOAuthService");
+          const authData = await IntegrationOAuthService.initiateOAuth({
+            organisationId,
+            providerKeyOrId: dynamicProvider.id,
+            redirectUriOverride: req.body.redirectUri,
+          });
+          return res.status(200).json({
+            success: true,
+            requiresRedirect: true,
+            authUrl: authData.authUrl,
+            stateToken: authData.stateToken,
+            expiresAt: authData.expiresAt,
+            providerKey: authData.providerKey,
+            providerName: authData.providerName,
+          });
+        } catch (err) {
+          return res.status(400).json({
+            success: false,
+            status: "CONFIG_REQUIRED",
+            message: err.message,
+          });
+        }
+      } else if (dynamicProvider.authenticationType === "api_key") {
+        const OrganisationIntegrationService = require("../services/organisationIntegrationService");
+        const connectRes = await OrganisationIntegrationService.connectApiKeyIntegration({
+          organisationId,
+          providerKeyOrId: dynamicProvider.id,
+          config: req.body,
+          userId: req.user?.id,
+        });
+        return res.status(200).json({
+          success: true,
+          message: `${dynamicProvider.providerName} connected successfully!`,
+          data: connectRes,
+        });
+      }
+    }
+
+    const providerEnum = normalizeProvider(rawProvider);
 
     if (!providerEnum) {
       return res.status(400).json({ success: false, message: "Invalid integration provider." });
@@ -355,6 +407,38 @@ const oauthCallback = async (req, res) => {
   }
 
   try {
+    // 1. Dynamic OAuthState verification (CSRF protection with SHA-256 state hash)
+    if (state) {
+      try {
+        const { hashString } = require("../services/integrationEncryptionService");
+        const stateHash = hashString(state);
+        const dbState = await prisma.oAuthState.findUnique({
+          where: { stateHash },
+        });
+
+        if (dbState) {
+          const IntegrationOAuthService = require("../services/integrationOAuthService");
+          const callbackResult = await IntegrationOAuthService.handleCallback({
+            stateToken: state,
+            code,
+            organisationIdFromUser: req.user?.organisation_id || req.user?.organisationId,
+            userId: req.user?.id,
+          });
+
+          if (req.headers.accept && req.headers.accept.includes("application/json")) {
+            return res.status(200).json({ success: true, data: callbackResult });
+          }
+          const redirectSlug = callbackResult.providerKey.replace(/_/g, "-");
+          return res.redirect(`${frontendUrl}/org-admin/integrations/${redirectSlug}?connected=true`);
+        }
+      } catch (oauthErr) {
+        if (req.headers.accept && req.headers.accept.includes("application/json")) {
+          return res.status(400).json({ success: false, message: oauthErr.message });
+        }
+        return res.redirect(`${frontendUrl}/org-admin/integrations?error=${encodeURIComponent(oauthErr.message)}`);
+      }
+    }
+
     let organisationId = 1;
     let providerEnum = normalizeProvider(provider);
 
@@ -557,33 +641,26 @@ const disconnectIntegration = async (req, res) => {
   try {
     const organisationId = getOrgId(req);
     const id = req.params.id;
-    const providerEnum = normalizeProvider(id);
 
-    await prisma.organisationIntegration.deleteMany({
-      where: { organisationId, provider: providerEnum },
-    });
-
-    await IntegrationManager.logActivity(organisationId, providerEnum, "DISCONNECT", "SUCCESS", null, null, null, 10);
-
-    await AuditLogService.log({
-      organisationId,
-      actorUserId: req.user?.id || null,
-      actorName: req.user?.first_name ? `${req.user.first_name} ${req.user.last_name || ""}`.trim() : "Org Admin",
-      actorRole: req.user?.role || "ORG_ADMIN",
-      actorType: req.user?.role || "ORG_ADMIN",
-      module: "INTEGRATIONS",
-      action: "INTEGRATION_DISCONNECTED",
-      resourceType: "ORGANISATION_INTEGRATION",
-      resourceName: providerEnum,
-      severity: "WARNING",
-      metadata: { provider: providerEnum },
-      req,
-    }).catch(() => null);
-
-    res.status(200).json({
-      success: true,
-      message: "Integration disconnected successfully.",
-    });
+    // Use OrganisationIntegrationService for secure tenant-isolated disconnect
+    const OrganisationIntegrationService = require("../services/organisationIntegrationService");
+    try {
+      const result = await OrganisationIntegrationService.disconnectIntegration({
+        organisationId,
+        providerKeyOrId: id,
+        userId: req.user?.id,
+      });
+      return res.status(200).json(result);
+    } catch (e) {
+      const providerEnum = normalizeProvider(id);
+      await prisma.organisationIntegration.deleteMany({
+        where: { organisationId, provider: providerEnum },
+      });
+      return res.status(200).json({
+        success: true,
+        message: "Integration disconnected successfully.",
+      });
+    }
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

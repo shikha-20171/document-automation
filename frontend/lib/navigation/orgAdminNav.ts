@@ -12,8 +12,6 @@ import {
   History,
   Settings,
   Users2,
-  LifeBuoy,
-  Bell,
   FileCheck,
   type LucideIcon,
 } from "lucide-react";
@@ -22,6 +20,7 @@ export type OrgAdminNavItem = {
   title: string;
   href: string;
   icon: LucideIcon;
+  requiredFeature?: string;
 };
 
 export type OrgAdminNavSection = {
@@ -38,19 +37,19 @@ export const orgAdminNavSections: OrgAdminNavSection[] = [
       { title: "Document Builder", href: "/org-admin/ai-builder", icon: PenTool },
       { title: "Templates", href: "/org-admin/templates", icon: Layout },
       { title: "E-Signatures", href: "/org-admin/e-signatures", icon: FileCheck },
-      { title: "AI Tools", href: "/org-admin/ai-tools", icon: Sparkles },
-      { title: "Workflows", href: "/org-admin/workflows", icon: GitBranch },
-      { title: "Clients / CRM", href: "/org-admin/clients-crm", icon: Users2 },
-      { title: "Approvals", href: "/org-admin/approvals", icon: CheckCircle2 },
+      { title: "AI Tools", href: "/org-admin/ai-tools", icon: Sparkles, requiredFeature: "ai.processing" },
+      { title: "Workflows", href: "/org-admin/workflows", icon: GitBranch, requiredFeature: "workflows.enabled" },
+      { title: "Clients / CRM", href: "/org-admin/clients-crm", icon: Users2, requiredFeature: "crm.enabled" },
+      { title: "Approvals", href: "/org-admin/approvals", icon: CheckCircle2, requiredFeature: "workflows.enabled" },
     ],
   },
   {
     title: "Administration & Oversight",
     items: [
-      { title: "Reports & Analytics", href: "/org-admin/analytics", icon: BarChart3 },
-      { title: "Integrations", href: "/org-admin/integrations", icon: Plug },
+      { title: "Reports & Analytics", href: "/org-admin/analytics", icon: BarChart3, requiredFeature: "analytics.basic" },
+      { title: "Integrations", href: "/org-admin/integrations", icon: Plug, requiredFeature: "integrations.google" },
       { title: "Organisation", href: "/org-admin/team", icon: Building2 },
-      { title: "Audit Logs", href: "/org-admin/audit-logs", icon: History },
+      { title: "Audit Logs", href: "/org-admin/audit-logs", icon: History, requiredFeature: "security.basic_audit" },
       { title: "Settings", href: "/org-admin/settings", icon: Settings },
     ],
   },

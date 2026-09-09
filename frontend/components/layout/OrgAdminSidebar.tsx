@@ -45,10 +45,21 @@ function getBrandAndUserFromStorage() {
 export default function OrgAdminSidebar({ mobileOpen = false, onClose }: OrgAdminSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { plan, usage, limits } = useEntitlements();
+  const { plan, usage, limits, hasFeature } = useEntitlements();
 
   const [orgName, setOrgName] = useState("Dezo");
   const [userName, setUserName] = useState("Organisation Admin");
+
+  // Filter navigation items strictly based on subscription plan feature flags
+  const visibleNavSections = orgAdminNavSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => {
+        if (!item.requiredFeature) return true;
+        return hasFeature(item.requiredFeature);
+      }),
+    }))
+    .filter((section) => section.items.length > 0);
 
   useEffect(() => {
     const loadBrandAndUser = () => {
@@ -120,7 +131,7 @@ export default function OrgAdminSidebar({ mobileOpen = false, onClose }: OrgAdmi
 
       {/* Navigation List */}
       <nav className="flex-1 overflow-y-auto px-3 sm:px-4 py-4 space-y-3 scrollbar-none">
-        {orgAdminNavSections.map((section) => (
+        {visibleNavSections.map((section) => (
           <div key={section.title || "main"} className="mb-2">
             {section.title ? (
               <p className="mb-2 px-3 text-[12px] font-extrabold uppercase tracking-[0.14em] text-[#f3b092]">
