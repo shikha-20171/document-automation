@@ -10,12 +10,20 @@ import { Button } from "@/components/ui/button";
 import { workflowApi } from "@/services/workflowApi";
 import ApprovalDetailModal from "./ApprovalDetailModal";
 
-interface ApprovalRequest {
+export interface ApprovalRequest {
   id: string;
+  realDocId?: string;
   document: string;
+  documentNumber?: string;
+  documentType?: string;
+  clientName?: string;
   requestedBy: string;
   approver: string;
+  department?: string;
   status: "Pending" | "Approved" | "Rejected" | "Changes Requested" | "Overdue";
+  submittedAt?: string;
+  content?: any;
+  financialData?: any;
 }
 
 interface ApprovalRequestsTabProps {
@@ -36,11 +44,19 @@ export default function ApprovalRequestsTab({ showToast }: ApprovalRequestsTabPr
       const res = await workflowApi.getOrgApprovalRequests();
       if (res?.data) {
         const mapped: ApprovalRequest[] = res.data.map((r: any) => ({
-          id: r.id,
-          document: r.documentName,
-          requestedBy: r.submittedBy,
-          approver: r.department ? `${r.department} Lead / Manager` : "Team Leader",
-          status: r.status === "APPROVED" ? "Approved" : r.status === "REJECTED" ? "Rejected" : r.status === "CHANGES_REQUESTED" ? "Changes Requested" : "Pending",
+          id: String(r.id),
+          realDocId: r.realDocId ? String(r.realDocId) : (r.documentId ? String(r.documentId) : String(r.id)),
+          document: r.documentName || r.document || "Document",
+          documentNumber: r.documentNumber,
+          documentType: r.documentType || "Document",
+          clientName: r.clientName,
+          requestedBy: r.submittedBy || "Team Member",
+          approver: r.department ? `${r.department} Lead / Manager` : "Executive Sign-Off",
+          department: r.department || "Operations",
+          status: r.status === "Approved" || r.status === "APPROVED" ? "Approved" : r.status === "Rejected" || r.status === "REJECTED" ? "Rejected" : r.status === "Changes Requested" || r.status === "CHANGES_REQUESTED" ? "Changes Requested" : "Pending",
+          submittedAt: r.submittedAt,
+          content: r.content,
+          financialData: r.financialData,
         }));
         setRequests(mapped);
       }

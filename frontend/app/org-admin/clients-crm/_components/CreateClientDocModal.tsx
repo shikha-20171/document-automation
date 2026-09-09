@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import { clientStore, type ClientDocument, TEAM_MEMBERS } from "./clientStore";
 import { CrmModalShell, CrmModalFooter, CrmFormField, CRM_INPUT_CLS } from "./CrmModalShell";
 
@@ -25,6 +26,7 @@ export function CreateClientDocModal({
   onClose,
   onSaved,
 }: CreateClientDocModalProps) {
+  const router = useRouter();
   const [form, setForm] = useState({
     title: "",
     type: "Contract" as ClientDocument["type"],
@@ -102,12 +104,40 @@ export function CreateClientDocModal({
           </select>
         </div>
       </div>
-      <CrmModalFooter
-        onClose={onClose}
-        onSave={handleSave}
-        disabled={saving || !form.title.trim()}
-        label="Create Document"
-      />
+      <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-zinc-800">
+        <button
+          type="button"
+          onClick={() => {
+            router.push(
+              `/org-admin/ai-builder?clientId=${encodeURIComponent(clientId)}&title=${encodeURIComponent(
+                form.title || form.template
+              )}&template=${encodeURIComponent(form.template)}`
+            );
+            onClose();
+          }}
+          className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
+        >
+          <span>Open in Document Builder →</span>
+        </button>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-3.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={saving || !form.title.trim()}
+            onClick={handleSave}
+            className="px-4 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-lg shadow-sm"
+          >
+            {saving ? "Creating..." : "Create Document"}
+          </button>
+        </div>
+      </div>
     </CrmModalShell>
   );
 }

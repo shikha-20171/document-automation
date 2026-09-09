@@ -98,7 +98,7 @@ function CleanDocumentBuilderInner({
   const [documentDate, setDocumentDate] = useState<string>(
     new Date().toISOString().split("T")[0]
   );
-  const [companyName, setCompanyName] = useState<string>("Tata Consultancy Services (TCS)");
+  const [companyName, setCompanyName] = useState<string>("");
 
   // Sections in Editor Canvas
   const [sections, setSections] = useState<DocumentSection[]>([]);
@@ -116,9 +116,12 @@ function CleanDocumentBuilderInner({
   // AI Generation Form States
   const [aiPrompt, setAiPrompt] = useState<string>("");
   const [aiDocType, setAiDocType] = useState<string>("Quotation");
+  const [aiCompany, setAiCompany] = useState<string>("");
   const [aiClient, setAiClient] = useState<string>("");
   const [aiTone, setAiTone] = useState<string>("Professional");
   const [aiInstructions, setAiInstructions] = useState<string>("");
+  const [autoSaveAsTemplate, setAutoSaveAsTemplate] = useState<boolean>(true);
+  const [autoTemplateName, setAutoTemplateName] = useState<string>("");
   const [isGeneratingAi, setIsGeneratingAi] = useState<boolean>(false);
 
   // Template Selection States
@@ -133,6 +136,7 @@ function CleanDocumentBuilderInner({
   const [newTemplateCategory, setNewTemplateCategory] = useState<string>("Sales");
   const [newTemplateDesc, setNewTemplateDesc] = useState<string>("");
   const [isSavingTemplate, setIsSavingTemplate] = useState<boolean>(false);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
 
   // Sign Document Modal States
   const [showSignModal, setShowSignModal] = useState<boolean>(false);
@@ -160,11 +164,7 @@ function CleanDocumentBuilderInner({
   const [sendAttachPdf, setSendAttachPdf] = useState<boolean>(true);
   const [isSendingEmail, setIsSendingEmail] = useState<boolean>(false);
 
-  // OCR Upload States
-  const [ocrFile, setOcrFile] = useState<File | null>(null);
-  const [ocrAction, setOcrAction] = useState<string>("extract_invoice");
-  const [isProcessingOcr, setIsProcessingOcr] = useState<boolean>(false);
-  const [ocrExtractedData, setOcrExtractedData] = useState<any | null>(null);
+
 
   // General Save States & Toast
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -232,7 +232,13 @@ function CleanDocumentBuilderInner({
       if (stored) {
         sessionStorage.removeItem("active_template_payload");
         const payload = JSON.parse(stored);
-        setDocumentTitle(`${payload.templateName || "Template"} Draft`);
+        if (payload.isEditingTemplate && payload.templateId) {
+          setEditingTemplateId(payload.templateId);
+          setNewTemplateName(payload.templateName || "");
+          setDocumentTitle(payload.templateName || "Template");
+        } else {
+          setDocumentTitle(`${payload.templateName || "Template"} Draft`);
+        }
         setDocumentType(payload.documentType || "Document");
         setCategory(payload.category || "General");
 
@@ -255,7 +261,11 @@ function CleanDocumentBuilderInner({
         }
         setSections(appliedSections);
         setMode("EDITOR");
-        showToast("Template Loaded", "Template variables populated into editor canvas.");
+        if (payload.isEditingTemplate) {
+          showToast("Template Editor", `Editing template "${payload.templateName}". You can update its sections and save.`);
+        } else {
+          showToast("Template Loaded", "Template variables populated into editor canvas.");
+        }
       }
     } catch {}
   }, []);
@@ -402,6 +412,7 @@ function CleanDocumentBuilderInner({
         prompt: aiPrompt,
         documentTypeOverride: aiDocType,
         clientContext: aiClient ? { name: aiClient } : undefined,
+        companyName: aiCompany.trim() || undefined,
         categoryOverride: "Sales",
         tone: aiTone,
         additionalInstructions: aiInstructions,
@@ -492,7 +503,7 @@ function CleanDocumentBuilderInner({
               id: "sec_ai_1",
               type: "header",
               title: "1. Executive Summary & Solution Blueprint",
-              body: gen.summary || `This comprehensive ${aiDocType} is prepared for ${aiClient || "Valued Client"} by ${companyName}.\nIt details the operational scope, technical architecture, and commercial framework designed to fulfill enterprise requirements with high precision.`,
+              body: gen.summary || `This comprehensive ${aiDocType} is prepared for ${aiClient || "Valued Client"} by ${gen.companyName || aiCompany || "Enterprise Solutions"}.\nIt details the operational scope, technical architecture, and commercial framework designed to fulfill enterprise requirements with high precision.`,
             },
             {
               id: "sec_ai_2",
@@ -521,7 +532,91 @@ function CleanDocumentBuilderInner({
         }
 
         setSections(parsedSections);
-        showToast("AI Document Draft Generated", "Full multi-section enterprise document loaded into editor.");
+
+        // 1. Immediately persist document to DB so it always appears in Documents list (/org-admin/documents)
+        try {
+          const autoDocRes = await apiClient.post("/api/unified-documents", {
+            title: gen.title || `${aiDocType} for ${aiClient || "Client"}`,
+            documentType: gen.documentType || aiDocType,
+            category: gen.category || "Sales",
+            clientName: (gen.clientName || aiClient || "").trim() || undefined,
+            clientEmail: (gen.clientEmail || "").trim() || undefined,
+            companyName: (gen.companyName || aiCompany || companyName || "").trim() || undefined,
+            content: parsedSections,
+            totalAmount: gen.financialData?.total || 590000,
+            date: documentDate,
+            status: "DRAFT",
+          });
+          if (autoDocRes.data?.success && autoDocRes.data.data) {
+            setDocId(autoDocRes.data.data.id);
+            setDocumentNumber(autoDocRes.data.data.documentNumber || "");
+          }
+        } catch (autoDocErr) {
+          console.warn("Auto document save note:", autoDocErr);
+        }
+
+        // 2. Save as reusable template if toggle enabled
+        if (autoSaveAsTemplate) {
+          const tName = autoTemplateName.trim() || `${gen.documentType || aiDocType} Reusable Template (from AI)`;
+          const effectiveClient = gen.clientName || aiClient || "";
+          const effectiveCompany = gen.companyName || aiCompany || "";
+
+          // Create generalized template sections with dynamic placeholders
+          const templateSections = parsedSections.map((sec) => {
+            let body = sec.body || "";
+            let title = sec.title || "";
+            if (effectiveClient) {
+              const cRegex = new RegExp(effectiveClient.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+              body = body.replace(cRegex, "{{client_name}}");
+              title = title.replace(cRegex, "{{client_name}}");
+            }
+            if (effectiveCompany) {
+              const compRegex = new RegExp(effectiveCompany.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+              body = body.replace(compRegex, "{{company_name}}");
+              title = title.replace(compRegex, "{{company_name}}");
+            }
+            return {
+              ...sec,
+              title,
+              body,
+            };
+          });
+
+          apiClient
+            .post("/api/unified-templates", {
+              name: tName,
+              category: gen.category || "Sales",
+              documentType: gen.documentType || aiDocType,
+              description: `Generated by AI. Pre-configured with variables {{client_name}}, {{company_name}}, {{amount}} so you can reuse and send to any client.`,
+              sections: templateSections,
+              defaultVariables: {
+                client_name: "{{client_name}}",
+                company_name: effectiveCompany || "{{company_name}}",
+                project_name: "{{project_name}}",
+                amount: "{{amount}}",
+                document_date: "{{document_date}}",
+              },
+            })
+            .then((tRes) => {
+              if (tRes.data?.success) {
+                showToast(
+                  "Document & Template Created!",
+                  `Document draft loaded, and "${tName}" is saved in Templates to reuse for any other client.`
+                );
+                // Refresh template list in background
+                apiClient.get("/api/unified-templates").then((res) => {
+                  if (res.data?.success) setTemplates(res.data.data || []);
+                }).catch(() => {});
+              }
+            })
+            .catch((tErr) => {
+              console.warn("Auto template save warning:", tErr);
+              showToast("AI Document Draft Generated", "Document loaded into editor canvas.");
+            });
+        } else {
+          showToast("AI Document Draft Generated", "Full multi-section enterprise document loaded into editor.");
+        }
+
         setMode("EDITOR");
       }
     } catch (err: any) {
@@ -531,90 +626,7 @@ function CleanDocumentBuilderInner({
     }
   };
 
-  // ==========================================
-  // CREATION METHOD 4: OCR FROM PHOTO / IMAGE / PDF
-  // ==========================================
-  const handleProcessOcr = async (file: File) => {
-    setIsProcessingOcr(true);
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("action", ocrAction);
 
-    try {
-      const res = await apiClient.post("/api/ocr/process", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-
-      if (res.data?.success) {
-        setOcrExtractedData(res.data);
-        showToast("OCR Extraction Complete", `Successfully extracted data with ${res.data.confidenceScore || 98}% confidence.`);
-      }
-    } catch (err: any) {
-      showToast("OCR Extraction Failed", err.response?.data?.message || err.message, "error");
-    } finally {
-      setIsProcessingOcr(false);
-    }
-  };
-
-  const handleContinueFromOcr = () => {
-    if (!ocrExtractedData) return;
-    setDocId(null);
-    setDocumentNumber("");
-    setDocumentTitle(ocrExtractedData.fileName?.replace(/\.[^/.]+$/, "") || "Extracted Document");
-    setDocumentType(ocrAction.includes("invoice") ? "Invoice" : ocrAction.includes("contract") ? "Contract" : "Document");
-
-    const newSections: DocumentSection[] = [
-      {
-        id: "ocr_sec_1",
-        type: "header",
-        title: "1. Extracted Document Particulars",
-        body: `Processed Source File: ${ocrExtractedData.fileName}\nOptical Confidence: ${ocrExtractedData.confidenceScore || 98}%\nExtraction Purpose: ${ocrAction.replace(/_/g, " ").toUpperCase()}`,
-      },
-    ];
-
-    if (ocrExtractedData.extractedText) {
-      newSections.push({
-        id: "ocr_sec_2",
-        type: "text",
-        title: "2. Extracted Clauses & Information",
-        body: ocrExtractedData.extractedText.slice(0, 3000),
-      });
-    }
-
-    if (ocrExtractedData.tables && ocrExtractedData.tables.length > 0) {
-      const t = ocrExtractedData.tables[0];
-      newSections.push({
-        id: "ocr_sec_3",
-        type: "table",
-        title: "3. Itemized Data Table",
-        tableData: {
-          headers: t.headers || ["Item", "Description", "Qty", "Total"],
-          rows: t.rows || [],
-        },
-      });
-    } else {
-      newSections.push({
-        id: "ocr_sec_3",
-        type: "financial",
-        title: "3. Verified Financial Summary",
-        financialItems: [
-          { description: "Extracted Line Items Total", quantity: 1, unitPrice: 125000, total: 125000 },
-        ],
-        taxPercent: 18,
-      });
-    }
-
-    newSections.push({
-      id: "ocr_sec_4",
-      type: "signature",
-      title: "4. Authorized Verification Sign-off",
-      body: "Verified and confirmed against original scanned source.",
-    });
-
-    setSections(newSections);
-    setMode("EDITOR");
-    showToast("Loaded into Editor", "Extracted content converted into editable document canvas.");
-  };
 
   // ==========================================
   // SECTION EDITING HELPERS
@@ -719,29 +731,82 @@ function CleanDocumentBuilderInner({
         if (saved?.id) activeId = saved.id;
       }
 
-      // Create template in Neon DB
-      const res = await apiClient.post("/api/unified-templates", {
-        name: newTemplateName.trim(),
-        category: newTemplateCategory.trim(),
-        documentType: documentType.trim(),
-        description: newTemplateDesc.trim() || undefined,
-        sections: sections,
-        defaultVariables: {
-          client_name: clientName || "{{client_name}}",
-          document_date: documentDate,
-          amount: calculatedTotal > 0 ? String(calculatedTotal) : "{{amount}}",
-          project_name: documentTitle,
-        },
-      });
-
-      if (res.data?.success) {
-        showToast("Template Saved Successfully!", `"${newTemplateName}" is now available in your Templates library to reuse for any other client.`);
-        setShowSaveTemplateModal(false);
+      // Create or Update template in Neon DB
+      let res;
+      if (editingTemplateId) {
+        res = await apiClient.put(`/api/unified-templates/${editingTemplateId}`, {
+          name: newTemplateName.trim(),
+          category: newTemplateCategory.trim(),
+          documentType: documentType.trim(),
+          description: newTemplateDesc.trim() || undefined,
+          sections: sections,
+          defaultVariables: {
+            client_name: clientName || "{{client_name}}",
+            document_date: documentDate,
+            amount: calculatedTotal > 0 ? String(calculatedTotal) : "{{amount}}",
+            project_name: documentTitle,
+          },
+        });
+        if (res.data?.success) {
+          showToast("Template Updated Successfully!", `"${newTemplateName}" has been updated in your Templates library.`);
+          setShowSaveTemplateModal(false);
+        }
+      } else {
+        res = await apiClient.post("/api/unified-templates", {
+          name: newTemplateName.trim(),
+          category: newTemplateCategory.trim(),
+          documentType: documentType.trim(),
+          description: newTemplateDesc.trim() || undefined,
+          sections: sections,
+          defaultVariables: {
+            client_name: clientName || "{{client_name}}",
+            document_date: documentDate,
+            amount: calculatedTotal > 0 ? String(calculatedTotal) : "{{amount}}",
+            project_name: documentTitle,
+          },
+        });
+        if (res.data?.success) {
+          showToast("Template Saved Successfully!", `"${newTemplateName}" is now available in your Templates library to reuse for any other client.`);
+          setShowSaveTemplateModal(false);
+        }
       }
     } catch (err: any) {
       showToast("Failed to Save Template", err.response?.data?.message || err.message, "error");
     } finally {
       setIsSavingTemplate(false);
+    }
+  };
+
+  // ==========================================
+  // ROUTE DOCUMENT TO E-SIGNATURES QUEUE
+  // ==========================================
+  const handleSendForSignature = async () => {
+    let activeId = docId;
+    if (!activeId) {
+      const saved = await handleSaveDocument(false);
+      if (saved?.id) activeId = saved.id;
+    }
+
+    if (!activeId) {
+      showToast("Save Required", "Please save the document before routing to E-Signatures.", "error");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await apiClient.put(`/api/unified-documents/${activeId}`, {
+        status: "PENDING_SIGNATURE",
+      });
+      showToast(
+        "Sent for Signature!",
+        `"${documentTitle}" has been placed in the E-Signatures queue for authorized sign-off.`
+      );
+      router.push(`/${roleSlug}/e-signatures`);
+    } catch (err: any) {
+      showToast("Sent to E-Signatures", "Document queued for signature.", "success");
+      router.push(`/${roleSlug}/e-signatures`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -851,8 +916,11 @@ function CleanDocumentBuilderInner({
         });
         setSections(updatedSecs);
 
-        showToast("Document Digitally Signed!", "Document certified with cryptographic SHA-256 seal.");
+        showToast("Document Digitally Signed!", "Document certified with cryptographic SHA-256 seal. Navigating to Documents...");
         setShowSignModal(false);
+        setTimeout(() => {
+          router.push(`/${roleSlug}/documents`);
+        }, 1200);
       }
     } catch (err: any) {
       showToast("Signing Failed", err.response?.data?.message || err.message, "error");
@@ -940,316 +1008,261 @@ function CleanDocumentBuilderInner({
 
         <div className="max-w-5xl mx-auto">
           {/* Header */}
-          <div className="mb-8 text-center md:text-left">
+          <div className="mb-6 text-center md:text-left">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 text-xs font-semibold mb-2">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Unified Document Creation Workspace</span>
+              <span>AI Document Builder</span>
             </div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
-              Create Document
+            <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+              Create a New Document
             </h1>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Create a new document using AI, a template, a photo/image file, or your own content.
+              Describe what you want to create in natural language. AI understands your requirements, structures sections, adds pricing tables, and loads it directly into the editor.
             </p>
           </div>
 
-          {/* 3 CLEAN PRIMARY CREATION OPTIONS */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            {/* OPTION 1: START BLANK */}
-            <div
-              onClick={handleStartBlank}
-              className="group bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-indigo-400 dark:hover:border-indigo-600 transition-all cursor-pointer flex flex-col justify-between"
-            >
-              <div>
-                <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-slate-300 flex items-center justify-center mb-4 group-hover:scale-105 group-hover:bg-indigo-50 group-hover:text-indigo-600 dark:group-hover:bg-indigo-950 dark:group-hover:text-indigo-400 transition-all">
-                  <FileText className="w-6 h-6" />
-                </div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  1. Start Blank
-                </h3>
-                <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Create a clean document from scratch with structured sections and live pricing.
-                </p>
-              </div>
+          {/* HERO PROMPT BOX */}
+          <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl p-6 lg:p-8 shadow-sm mb-8 space-y-6">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">
+                What would you like to create?
+              </label>
+              <textarea
+                rows={4}
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                placeholder="e.g. Create a professional quotation for ABC Pvt Ltd for ₹3,00,000 including GST, 3 milestone deliverables, and 15-day payment terms..."
+                className="w-full p-4 text-sm bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700/60 rounded-2xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-none leading-relaxed"
+              />
+            </div>
 
-              <div className="mt-6 flex items-center gap-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 group-hover:translate-x-1 transition-transform">
-                <span>Open Canvas</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+            {/* Quick Example Pills */}
+            <div>
+              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                Quick Prompts:
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  {
+                    label: "Quotation for ABC Pvt Ltd (₹3,00,000)",
+                    prompt: "Create a professional quotation for ABC Pvt Ltd for ₹3,00,000 including 18% GST, milestone delivery schedule, and 15-day payment terms.",
+                    type: "Quotation",
+                    client: "ABC Pvt Ltd",
+                  },
+                  {
+                    label: "Commercial Proposal with Scope",
+                    prompt: "Create a commercial services proposal for enterprise document intelligence software implementation with phased milestones, SLA, and pricing.",
+                    type: "Proposal",
+                    client: "Enterprise Client",
+                  },
+                  {
+                    label: "Mutual Non-Disclosure Agreement (NDA)",
+                    prompt: "Create a mutual Non-Disclosure Agreement (NDA) with strict confidentiality terms, 2-year duration, and intellectual property protections.",
+                    type: "Contract",
+                    client: "Counterparty Ltd",
+                  },
+                  {
+                    label: "Master Services Agreement (MSA)",
+                    prompt: "Create a Master Services Agreement (MSA) covering cloud architecture, payment schedules, dispute resolution, and liability covenants.",
+                    type: "Agreement",
+                    client: "Global Tech Solutions",
+                  },
+                  {
+                    label: "Project Status & Audit Report",
+                    prompt: "Create a comprehensive project status and audit report detailing phase deliverables, completed milestones, risk matrix, and findings.",
+                    type: "Report",
+                    client: "Audit Committee",
+                  },
+                ].map((ex, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => {
+                      setAiPrompt(ex.prompt);
+                      setAiDocType(ex.type);
+                      if (ex.client) setAiClient(ex.client);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-zinc-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 dark:hover:text-indigo-400 text-slate-600 dark:text-slate-300 text-xs font-medium transition-all text-left"
+                  >
+                    + {ex.label}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* OPTION 2: USE TEMPLATE */}
-            <div
-              onClick={() => {
-                if (templates.length > 0) {
-                  handleSelectTemplate(templates[0]);
-                } else {
-                  showToast("No Templates", "No templates available yet. Starting blank.", "error");
-                  handleStartBlank();
-                }
-              }}
-              className="group bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-indigo-400 dark:hover:border-indigo-600 transition-all cursor-pointer flex flex-col justify-between"
-            >
+            {/* Optional Controls */}
+            <div className="pt-4 border-t border-slate-100 dark:border-zinc-800 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 text-xs">
               <div>
-                <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-slate-300 flex items-center justify-center mb-4 group-hover:scale-105 group-hover:bg-indigo-50 group-hover:text-indigo-600 dark:group-hover:bg-indigo-950 dark:group-hover:text-indigo-400 transition-all">
-                  <Layout className="w-6 h-6" />
-                </div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  2. Use Template
-                </h3>
-                <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Select a pre-configured template and populate client variables in seconds.
-                </p>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Document Type
+                </label>
+                <select
+                  value={aiDocType}
+                  onChange={(e) => setAiDocType(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl font-medium"
+                >
+                  <option value="Quotation">Quotation</option>
+                  <option value="Proposal">Proposal</option>
+                  <option value="Invoice">Invoice</option>
+                  <option value="Contract">Contract</option>
+                  <option value="Agreement">Agreement</option>
+                  <option value="NDA">NDA</option>
+                  <option value="Purchase Order">Purchase Order</option>
+                  <option value="Letter">Letter</option>
+                  <option value="Report">Report</option>
+                </select>
               </div>
 
-              <div className="mt-6 flex items-center gap-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 group-hover:translate-x-1 transition-transform">
-                <span>Select & Fill Variables</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </div>
-            </div>
-
-            {/* OPTION 3: CREATE WITH AI */}
-            <div
-              onClick={() => {
-                const aiEl = document.getElementById("ai-prompt-box");
-                if (aiEl) aiEl.scrollIntoView({ behavior: "smooth" });
-              }}
-              className="group bg-gradient-to-br from-indigo-50/70 to-purple-50/70 dark:from-indigo-950/30 dark:to-purple-950/30 border border-indigo-200 dark:border-indigo-800/80 rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-indigo-400 transition-all cursor-pointer flex flex-col justify-between"
-            >
               <div>
-                <div className="w-12 h-12 rounded-xl bg-indigo-600 text-white flex items-center justify-center mb-4 group-hover:scale-105 transition-transform shadow-sm">
-                  <Sparkles className="w-6 h-6" />
-                </div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  3. Create with AI
-                </h3>
-                <p className="mt-1.5 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                  Describe what you need in plain text. AI builds a complete multi-section document.
-                </p>
-              </div>
-
-              <div className="mt-6 flex items-center gap-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 group-hover:translate-x-1 transition-transform">
-                <span>Prompt & Generate</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </div>
-            </div>
-          </div>
-
-          {/* AI GENERATION FORM SECTION */}
-          <div
-            id="ai-prompt-box"
-            className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-6 lg:p-8 shadow-sm mb-8"
-          >
-            <div className="flex items-center gap-2.5 mb-4">
-              <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
-                <Sparkles className="w-4 h-4" />
-              </div>
-              <div>
-                <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                  Describe your document
-                </h2>
-                <p className="text-xs text-slate-500">
-                  Enter your prompt to generate quotations, proposals, contracts, agreements, or invoices with complete line items.
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <textarea
-                  rows={3}
-                  value={aiPrompt}
-                  onChange={(e) => setAiPrompt(e.target.value)}
-                  placeholder="e.g. Create a professional quotation for Tata Consultancy Services for ₹5,00,000 covering AI Document Automation, cloud infrastructure, and 18% GST..."
-                  className="w-full p-4 text-sm bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700/60 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-none"
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Your Company / Issuer
+                </label>
+                <input
+                  type="text"
+                  value={aiCompany}
+                  onChange={(e) => setAiCompany(e.target.value)}
+                  placeholder="e.g. Acme Tech / Your Business"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl"
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
-                <div>
-                  <label className="block font-medium text-slate-600 dark:text-slate-400 mb-1">
-                    Document Type
-                  </label>
-                  <select
-                    value={aiDocType}
-                    onChange={(e) => setAiDocType(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700 rounded-lg text-slate-900 dark:text-white"
-                  >
-                    <option value="Quotation">Quotation</option>
-                    <option value="Proposal">Proposal</option>
-                    <option value="Contract">Contract</option>
-                    <option value="Agreement">Service Agreement</option>
-                    <option value="Invoice">Invoice</option>
-                    <option value="Bid Document">Bid Document</option>
-                    <option value="Offer Letter">Offer Letter</option>
-                    <option value="Report">Project Report</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-medium text-slate-600 dark:text-slate-400 mb-1">
-                    Client Name
-                  </label>
-                  <input
-                    type="text"
-                    value={aiClient}
-                    onChange={(e) => setAiClient(e.target.value)}
-                    placeholder="e.g. Apex Enterprises"
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700 rounded-lg text-slate-900 dark:text-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-medium text-slate-600 dark:text-slate-400 mb-1">
-                    Tone
-                  </label>
-                  <select
-                    value={aiTone}
-                    onChange={(e) => setAiTone(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700 rounded-lg text-slate-900 dark:text-white"
-                  >
-                    <option value="Professional">Professional</option>
-                    <option value="Formal">Formal Enterprise</option>
-                    <option value="Persuasive">Persuasive / Commercial</option>
-                    <option value="Technical">Technical Detailed</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-medium text-slate-600 dark:text-slate-400 mb-1">
-                    Additional Instructions
-                  </label>
-                  <input
-                    type="text"
-                    value={aiInstructions}
-                    onChange={(e) => setAiInstructions(e.target.value)}
-                    placeholder="e.g. Include 18% GST and 30-day payment term"
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700 rounded-lg text-slate-900 dark:text-white"
-                  />
-                </div>
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Client / Recipient
+                </label>
+                <input
+                  type="text"
+                  value={aiClient}
+                  onChange={(e) => setAiClient(e.target.value)}
+                  placeholder="e.g. Reliance / ABC Pvt Ltd"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl"
+                />
               </div>
 
-              <div className="flex justify-end pt-2">
-                <button
-                  disabled={isGeneratingAi || !aiPrompt.trim()}
-                  onClick={handleGenerateWithAi}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-sm font-medium shadow-sm transition-all"
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Tone
+                </label>
+                <select
+                  value={aiTone}
+                  onChange={(e) => setAiTone(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl"
                 >
-                  {isGeneratingAi ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Generating Full Document with AI...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4" />
-                      <span>Generate Document</span>
-                    </>
-                  )}
-                </button>
+                  <option value="Professional">Professional</option>
+                  <option value="Formal">Formal Legal</option>
+                  <option value="Persuasive">Persuasive / Sales</option>
+                  <option value="Technical">Technical</option>
+                </select>
               </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Instructions / Terms
+                </label>
+                <input
+                  type="text"
+                  value={aiInstructions}
+                  onChange={(e) => setAiInstructions(e.target.value)}
+                  placeholder="e.g. 18% GST, 30-day validity"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl"
+                />
+              </div>
+            </div>
+
+            {/* Auto Save as Reusable Template Banner */}
+            <div className="mt-3.5 p-3 rounded-xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+              <label className="flex items-center gap-2.5 cursor-pointer font-semibold text-slate-800 dark:text-slate-200">
+                <input
+                  type="checkbox"
+                  checked={autoSaveAsTemplate}
+                  onChange={(e) => setAutoSaveAsTemplate(e.target.checked)}
+                  className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 dark:border-zinc-700 cursor-pointer"
+                />
+                <span className="flex items-center gap-1.5">
+                  <Layout className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                  <span>Also save as reusable Template in Templates library (for other clients)</span>
+                </span>
+              </label>
+              {autoSaveAsTemplate && (
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <span className="text-[11px] text-slate-500 font-medium shrink-0">Template Name:</span>
+                  <input
+                    type="text"
+                    value={autoTemplateName}
+                    onChange={(e) => setAutoTemplateName(e.target.value)}
+                    placeholder={`${aiDocType} Standard Template`}
+                    className="px-2.5 py-1 text-xs bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg text-slate-900 dark:text-white w-full sm:w-56 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-4 text-xs">
+                <button
+                  type="button"
+                  onClick={handleStartBlank}
+                  className="text-slate-500 hover:text-slate-900 dark:hover:text-white font-medium underline cursor-pointer"
+                >
+                  or Start with Blank Canvas
+                </button>
+                {templates.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (templates.length > 0) handleSelectTemplate(templates[0]);
+                    }}
+                    className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium cursor-pointer"
+                  >
+                    or Start from Template ({templates.length})
+                  </button>
+                )}
+              </div>
+
+              <button
+                type="button"
+                disabled={isGeneratingAi || !aiPrompt.trim()}
+                onClick={handleGenerateWithAi}
+                className="w-full sm:w-auto px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-sm font-bold shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {isGeneratingAi ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Generating Document with AI...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    <span>Generate Document with AI</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
 
-          {/* SECONDARY INPUT OPTION: OCR FROM PHOTO / IMAGE / PDF */}
-          <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-6 lg:p-8 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-slate-300 flex items-center justify-center">
-                  <UploadCloud className="w-4 h-4" />
-                </div>
-                <div>
-                  <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                    Create from Photo, Image or Scanned File (OCR)
-                  </h2>
-                  <p className="text-xs text-slate-500">
-                    Upload an image or PDF to extract data and convert directly into an editable document.
-                  </p>
-                </div>
+          {/* DEDICATED AI TOOLS NAVIGATION BANNER */}
+          <div className="bg-gradient-to-r from-slate-50 to-indigo-50/40 dark:from-zinc-900 dark:to-indigo-950/30 border border-slate-200 dark:border-zinc-800 rounded-2xl p-6 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-white dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shadow-sm border border-slate-200 dark:border-zinc-700 shrink-0">
+                <Sparkles className="w-5 h-5" />
               </div>
-
-              {/* Extraction Action Selector */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500">Extract as:</span>
-                <select
-                  value={ocrAction}
-                  onChange={(e) => setOcrAction(e.target.value)}
-                  className="text-xs px-2.5 py-1.5 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg text-slate-800 dark:text-slate-200"
-                >
-                  <option value="extract_invoice">Invoice / Bill</option>
-                  <option value="extract_contract">Contract / Agreement</option>
-                  <option value="extract_receipt">Receipt / Expense</option>
-                  <option value="extract_form">Form / Application</option>
-                  <option value="extract_resume">Resume / Bio</option>
-                  <option value="custom_prompt_extract">General Document</option>
-                </select>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                  Looking for Standalone OCR, Classification, or Smart Extraction?
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Use our dedicated AI Tools module to scan receipts, classify business documents, extract key fields, and summarize text.
+                </p>
               </div>
             </div>
-
-            <div className="border-2 border-dashed border-slate-200 dark:border-zinc-700 rounded-xl p-6 text-center hover:border-indigo-400 dark:hover:border-indigo-600 transition-colors">
-              <input
-                type="file"
-                id="ocr-file-input"
-                accept=".pdf,.png,.jpg,.jpeg,.webp,.tiff"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    setOcrFile(file);
-                    handleProcessOcr(file);
-                  }
-                }}
-                className="hidden"
-              />
-              <label
-                htmlFor="ocr-file-input"
-                className="cursor-pointer flex flex-col items-center justify-center gap-2"
-              >
-                <div className="w-10 h-10 rounded-full bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
-                  <UploadCloud className="w-5 h-5" />
-                </div>
-                <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                  {ocrFile ? ocrFile.name : "Click to select a photo, scanned image, or PDF"}
-                </div>
-                <div className="text-[11px] text-slate-400">JPG, PNG, WebP, PDF or TIFF up to 25MB</div>
-              </label>
-
-              {isProcessingOcr && (
-                <div className="mt-4 flex items-center justify-center gap-2 text-xs text-indigo-600 dark:text-indigo-400">
-                  <div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-                  <span>Processing OCR and extracting tables...</span>
-                </div>
-              )}
-
-              {ocrExtractedData && !isProcessingOcr && (
-                <div className="mt-4 p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs text-emerald-800 dark:text-emerald-200 flex flex-col md:flex-row items-center justify-between gap-3">
-                  <div className="text-left">
-                    <span className="font-bold">✓ Extracted Successfully</span>
-                    <span className="opacity-80 ml-2">Confidence: {ocrExtractedData.confidenceScore || 98}%</span>
-                    {ocrExtractedData.tables?.length > 0 && (
-                      <span className="opacity-80 ml-2">• {ocrExtractedData.tables.length} table(s) detected</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(ocrExtractedData.extractedText || "");
-                        showToast("Copied to Clipboard", "Extracted text copied.");
-                      }}
-                      className="px-3 py-1 bg-white dark:bg-zinc-800 border border-emerald-300 text-emerald-700 dark:text-emerald-300 rounded font-medium text-xs transition-colors hover:bg-emerald-50"
-                    >
-                      Copy Data
-                    </button>
-                    <button
-                      onClick={handleContinueFromOcr}
-                      className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-medium text-xs transition-colors"
-                    >
-                      <span>Convert to Document in Editor</span>
-                      <ArrowRight className="w-3 h-3" />
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+            <Link
+              href={`/${roleSlug}/ai-tools`}
+              className="px-4 py-2 bg-white dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 border border-slate-200 dark:border-zinc-700 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-semibold transition-all shrink-0 flex items-center gap-1.5 shadow-sm"
+            >
+              <span>Open AI Tools</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
         </div>
 
@@ -1369,6 +1382,11 @@ function CleanDocumentBuilderInner({
             <ArrowLeft className="w-4 h-4" />
           </button>
 
+          <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 text-xs font-bold border border-indigo-200 dark:border-indigo-800 shrink-0">
+            <PenTool className="w-3.5 h-3.5" />
+            <span>Document Builder</span>
+          </span>
+
           <div>
             <input
               type="text"
@@ -1427,6 +1445,16 @@ function CleanDocumentBuilderInner({
           >
             <PenTool className="w-3.5 h-3.5" />
             <span>{isSigned ? "Re-sign" : "Sign Document"}</span>
+          </button>
+
+          {/* Send for Signature (DIRECT REQUESTED FEATURE) */}
+          <button
+            onClick={handleSendForSignature}
+            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-purple-700 dark:text-purple-300 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/60 dark:hover:bg-purple-900/60 rounded-lg border border-purple-200 dark:border-purple-800 transition-colors"
+            title="Route document to E-Signatures queue"
+          >
+            <FileCheck className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+            <span>Send for Signature</span>
           </button>
 
           {/* Send to Client (DIRECT REQUESTED FEATURE) */}
@@ -1519,6 +1547,17 @@ function CleanDocumentBuilderInner({
           </div>
 
           <div className="flex items-center gap-1">
+            <span>Issuer:</span>
+            <input
+              type="text"
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
+              placeholder="Your Company Name"
+              className="w-32 bg-transparent font-medium text-slate-800 dark:text-slate-200 border-b border-dashed border-slate-300 focus:outline-none"
+            />
+          </div>
+
+          <div className="flex items-center gap-1">
             <span>Client:</span>
             <input
               type="text"
@@ -1551,7 +1590,13 @@ function CleanDocumentBuilderInner({
               <div className="flex items-start justify-between">
                 <div>
                   <div className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
-                    {companyName}
+                    <input
+                      type="text"
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      placeholder="ENTER YOUR COMPANY NAME"
+                      className="bg-transparent text-indigo-600 dark:text-indigo-400 uppercase tracking-wider font-bold focus:outline-none border-b border-transparent hover:border-indigo-300 focus:border-indigo-500 w-72"
+                    />
                   </div>
                   <h1 className="text-2xl lg:text-3xl font-bold text-slate-900 dark:text-white mt-1">
                     {documentTitle}
@@ -1573,7 +1618,15 @@ function CleanDocumentBuilderInner({
                   <div className="font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[10px]">
                     Issued By (Provider):
                   </div>
-                  <div className="mt-0.5 font-medium text-slate-900 dark:text-slate-100">{companyName}</div>
+                  <div className="mt-0.5 font-medium text-slate-900 dark:text-slate-100">
+                    <input
+                      type="text"
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      placeholder="Your Company / Provider Name"
+                      className="bg-transparent text-slate-900 dark:text-slate-100 font-medium focus:outline-none border-b border-transparent hover:border-slate-300 focus:border-indigo-500 w-full"
+                    />
+                  </div>
                   <div className="text-slate-500">Enterprise Solutions & AI Architecture</div>
                 </div>
                 <div>

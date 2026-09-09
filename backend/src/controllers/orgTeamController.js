@@ -10,10 +10,8 @@ const formatRoleName = (roleStr) => {
   const r = roleStr.toUpperCase().replace(/\s+/g, "_");
   if (r === "ORGANISATION_ADMIN" || r === "ORGANIZATION_ADMIN") return "Organisation Admin";
   if (r === "DEPARTMENT_MANAGER" || r === "DEPT_MANAGER") return "Department Manager";
-  if (r === "TEAM_LEAD") return "Team Lead";
-  if (r === "EMPLOYEE") return "Employee";
-  if (r === "VIEWER") return "Viewer";
-  if (r === "GUEST") return "Guest";
+  if (r === "TEAM_LEAD" || r === "TEAM_LEADER") return "Team Lead";
+  if (r === "EMPLOYEE" || r === "STAFF") return "Employee";
   return roleStr;
 };
 
@@ -793,16 +791,16 @@ const getPermissionsMatrix = async (req, res) => {
     res.status(200).json({
       success: true,
       data: {
-        roles: ["Organisation Admin", "Department Manager", "Team Lead", "Employee", "Viewer", "Guest"],
+        roles: ["Organisation Admin", "Department Manager", "Team Lead", "Employee"],
         permissions: [
-          { name: "Document Creation & Upload", orgAdmin: true, deptManager: true, teamLead: true, employee: true, viewer: false, guest: false },
-          { name: "Document Edit & Delete", orgAdmin: true, deptManager: true, teamLead: true, employee: false, viewer: false, guest: false },
-          { name: "Approval Routing & Execution", orgAdmin: true, deptManager: true, teamLead: true, employee: false, viewer: false, guest: false },
-          { name: "AI Tool Execution (Q&A/Extract)", orgAdmin: true, deptManager: true, teamLead: true, employee: true, viewer: true, guest: false },
-          { name: "AI Document Builder Publishing", orgAdmin: true, deptManager: true, teamLead: false, employee: false, viewer: false, guest: false },
-          { name: "Department-Level Data Access", orgAdmin: true, deptManager: true, teamLead: true, employee: true, viewer: true, guest: false },
-          { name: "User Management & Invites", orgAdmin: true, deptManager: false, teamLead: false, employee: false, viewer: false, guest: false },
-          { name: "Integrations & API Settings", orgAdmin: true, deptManager: false, teamLead: false, employee: false, viewer: false, guest: false },
+          { name: "Document Creation & Upload", orgAdmin: true, deptManager: true, teamLead: true, employee: true },
+          { name: "Document Edit & Delete", orgAdmin: true, deptManager: true, teamLead: true, employee: false },
+          { name: "Approval Routing & Execution", orgAdmin: true, deptManager: true, teamLead: true, employee: false },
+          { name: "AI Tool Execution (Q&A/Extract)", orgAdmin: true, deptManager: true, teamLead: true, employee: true },
+          { name: "AI Document Builder Publishing", orgAdmin: true, deptManager: true, teamLead: false, employee: false },
+          { name: "Department-Level Data Access", orgAdmin: true, deptManager: true, teamLead: true, employee: true },
+          { name: "User Management & Invites", orgAdmin: true, deptManager: false, teamLead: false, employee: false },
+          { name: "Integrations & API Settings", orgAdmin: true, deptManager: false, teamLead: false, employee: false },
         ],
       },
     });

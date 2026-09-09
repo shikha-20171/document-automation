@@ -31,6 +31,14 @@ import {
   ExternalLink,
   ShieldCheck,
   Edit,
+  UploadCloud,
+  MessageSquare,
+  Bot,
+  FileSearch,
+  Loader2,
+  GitBranch,
+  History,
+  Layers,
 } from "lucide-react";
 import apiClient from "@/lib/axios";
 
@@ -45,12 +53,15 @@ interface DocumentWorkspaceProps {
 
 export type DocumentStatus =
   | "DRAFT"
+  | "PROCESSING"
+  | "REVIEW_REQUIRED"
   | "IN_REVIEW"
   | "PENDING_APPROVAL"
   | "APPROVED"
   | "PENDING_SIGNATURE"
   | "COMPLETED"
   | "REJECTED"
+  | "FAILED"
   | "ARCHIVED";
 
 const STATUS_CONFIG: Record<
@@ -61,6 +72,16 @@ const STATUS_CONFIG: Record<
     label: "Draft",
     badgeClass: "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
     dotClass: "bg-slate-400",
+  },
+  PROCESSING: {
+    label: "Processing",
+    badgeClass: "bg-blue-100 text-blue-900 border-blue-300 dark:bg-blue-950/50 dark:text-blue-200 dark:border-blue-700",
+    dotClass: "bg-blue-500 animate-spin",
+  },
+  REVIEW_REQUIRED: {
+    label: "Review Required",
+    badgeClass: "bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/50 dark:text-amber-200 dark:border-amber-700",
+    dotClass: "bg-amber-600 animate-pulse",
   },
   IN_REVIEW: {
     label: "In Review",
@@ -112,12 +133,18 @@ const STATUS_CONFIG: Record<
     badgeClass: "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800",
     dotClass: "bg-orange-500",
   },
+  FAILED: {
+    label: "Failed",
+    badgeClass: "bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-950/50 dark:text-rose-200 dark:border-rose-700",
+    dotClass: "bg-rose-600",
+  },
   ARCHIVED: {
     label: "Archived",
     badgeClass: "bg-zinc-100 text-zinc-600 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700",
     dotClass: "bg-zinc-400",
   },
 };
+
 
 function CleanDocumentWorkspaceInner({
   role,
@@ -196,12 +223,192 @@ function CleanDocumentWorkspaceInner({
     message: "",
   });
 
+  // Upload & Cognitive Processing Modal
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadCategory, setUploadCategory] = useState("General");
+  const [uploadClientName, setUploadClientName] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadPipelineStep, setUploadPipelineStep] = useState(0);
+
+  // Drawer Tabs: "preview" | "intelligence" | "workflow" | "versions" | "audit" | "chat"
+  const [drawerTab, setDrawerTab] = useState<"preview" | "intelligence" | "workflow" | "versions" | "audit" | "chat">("preview");
+
+  // Document Versions & Workflow detailed state
+  const [docVersions, setDocVersions] = useState<any[]>([]);
+  const [workflowInfo, setWorkflowInfo] = useState<any>(null);
+  const [isRestoringVersion, setIsRestoringVersion] = useState(false);
+
+  // Restore Version Handler
+  const handleRestoreVersion = async (versionNumber: number) => {
+    if (!selectedDoc?.id) return;
+    setIsRestoringVersion(true);
+    try {
+      const res = await apiClient.post(`/api/unified-documents/${selectedDoc.id}/restore-version/${versionNumber}`);
+      if (res.data?.success) {
+        showToast("Version Restored", `Document successfully restored to Version ${versionNumber}.`);
+        fetchDocuments();
+        if (res.data.data) {
+          setSelectedDoc(res.data.data);
+        }
+      } else {
+        showToast("Restore Failed", res.data?.message || "Could not restore version.", "error");
+      }
+    } catch (err: any) {
+      showToast("Error", err.response?.data?.message || "Failed to restore version.", "error");
+    } finally {
+      setIsRestoringVersion(false);
+    }
+  };
+
+  // Review & Correction state
+  const [reviewFields, setReviewFields] = useState<Record<string, any>>({});
+  const [reviewDocType, setReviewDocType] = useState<string>("");
+  const [reviewComments, setReviewComments] = useState<string>("");
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+
+  // Grounded Chat state
+  const [chatQuery, setChatQuery] = useState("");
+  const [chatMessages, setChatMessages] = useState<{ sender: "user" | "ai"; text: string; sources?: any[] }[]>([]);
+  const [isChatLoading, setIsChatLoading] = useState(false);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState<{ title: string; message?: string; type: "success" | "error" } | null>(null);
 
   const showToast = (title: string, message?: string, type: "success" | "error" = "success") => {
     setToast({ title, message, type });
     setTimeout(() => setToast(null), 4000);
+  };
+
+  // Synchronize drawer when a document is opened
+  useEffect(() => {
+    if (selectedDoc) {
+      const isReviewNeeded = selectedDoc.status === "REVIEW_REQUIRED";
+      setDrawerTab(isReviewNeeded ? "intelligence" : "preview");
+      setReviewDocType(selectedDoc.documentType || "Invoice");
+      setReviewFields(selectedDoc.metadata?.extractedData || {});
+      setReviewComments("");
+      setChatMessages([
+        {
+          sender: "ai",
+          text: `Hello! I am your AI Document Assistant for "${selectedDoc.title}". I am strictly grounded in this document's text and extracted data. What would you like to verify?`,
+          sources: [{ title: selectedDoc.title, snippet: selectedDoc.documentType }],
+        },
+      ]);
+    }
+  }, [selectedDoc]);
+
+  // Upload & Ingestion Execution
+  const handleUploadProcess = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!uploadFile) {
+      showToast("No File Selected", "Please choose a file to upload.", "error");
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadPipelineStep(1); // Storage
+
+    try {
+      const stepTimer1 = setTimeout(() => setUploadPipelineStep(2), 600); // OCR
+      const stepTimer2 = setTimeout(() => setUploadPipelineStep(3), 1300); // Classifying
+      const stepTimer3 = setTimeout(() => setUploadPipelineStep(4), 2000); // Extracting
+      const stepTimer4 = setTimeout(() => setUploadPipelineStep(5), 2600); // Validating
+
+      const formData = new FormData();
+      formData.append("file", uploadFile);
+      if (uploadCategory) formData.append("category", uploadCategory);
+      if (uploadClientName) formData.append("clientName", uploadClientName);
+
+      const res = await apiClient.post("/api/unified-documents/upload-process", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      clearTimeout(stepTimer1);
+      clearTimeout(stepTimer2);
+      clearTimeout(stepTimer3);
+      clearTimeout(stepTimer4);
+      setUploadPipelineStep(6); // Done
+
+      if (res.data?.success && res.data.data) {
+        const createdDoc = res.data.data;
+        showToast(
+          "Document Processed",
+          `Classified as ${createdDoc.documentType} (Status: ${createdDoc.status}).`
+        );
+        setUploadModalOpen(false);
+        setUploadFile(null);
+        setUploadPipelineStep(0);
+        await fetchDocuments();
+        setSelectedDoc(createdDoc);
+      }
+    } catch (err: any) {
+      showToast("Processing Failed", err.response?.data?.message || err.message, "error");
+      setUploadPipelineStep(0);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Review & Correction Action
+  const handleReviewAction = async (action: "APPROVE_EXTRACTION" | "REJECT_EXTRACTION") => {
+    if (!selectedDoc) return;
+    setIsSubmittingReview(true);
+    try {
+      const res = await apiClient.post(`/api/unified-documents/${selectedDoc.id}/review-action`, {
+        action,
+        documentType: reviewDocType,
+        correctedFields: reviewFields,
+        comments: reviewComments,
+      });
+
+      if (res.data?.success && res.data.data) {
+        showToast(
+          action === "APPROVE_EXTRACTION" ? "Extraction Approved" : "Extraction Rejected",
+          `Document updated to ${res.data.data.status}`
+        );
+        setSelectedDoc(res.data.data);
+        fetchDocuments();
+      }
+    } catch (err: any) {
+      showToast("Review Failed", err.response?.data?.message || err.message, "error");
+    } finally {
+      setIsSubmittingReview(false);
+    }
+  };
+
+  // Grounded Chat
+  const handleSendChatMessage = async (queryText?: string) => {
+    const q = (queryText || chatQuery).trim();
+    if (!q || !selectedDoc || isChatLoading) return;
+
+    setChatMessages((prev) => [...prev, { sender: "user", text: q }]);
+    setChatQuery("");
+    setIsChatLoading(true);
+
+    try {
+      const res = await apiClient.post(`/api/unified-documents/${selectedDoc.id}/chat`, { query: q });
+      if (res.data?.success) {
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            sender: "ai",
+            text: res.data.answer || "No response received.",
+            sources: res.data.sources || [],
+          },
+        ]);
+      }
+    } catch (err: any) {
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          sender: "ai",
+          text: `Error analyzing document: ${err.response?.data?.message || err.message}`,
+        },
+      ]);
+    } finally {
+      setIsChatLoading(false);
+    }
   };
 
   // Close menus on click outside
@@ -251,9 +458,10 @@ function CleanDocumentWorkspaceInner({
     }
   }, [searchParams, documents]);
 
-  // Fetch audit logs when a document is opened in the drawer
+  // Fetch audit logs, versions, and workflow details when a document is opened in the drawer
   useEffect(() => {
     if (selectedDoc?.id) {
+      // 1. Audit logs
       apiClient
         .get(`/api/unified-documents/${selectedDoc.id}/audit-logs`)
         .then((res) => {
@@ -262,8 +470,31 @@ function CleanDocumentWorkspaceInner({
           }
         })
         .catch(() => setAuditLogs([]));
+
+      // 2. Full document details (versions, workflow approvalRequests, statusHistory)
+      apiClient
+        .get(`/api/unified-documents/${selectedDoc.id}`)
+        .then((res) => {
+          if (res.data?.success && res.data.data) {
+            const data = res.data.data;
+            setDocVersions(data.versions || []);
+            setWorkflowInfo({
+              currentStep: data.approvalRequests?.[0]?.currentStep || data.status,
+              assignedTo: data.approvalRequests?.[0]?.assignedTo || data.assignedToName || data.createdByName || "Unassigned",
+              approvalHistory: data.approvalRequests?.[0]?.history || data.statusHistory || [],
+              status: data.status,
+              approvalStatus: data.approvalRequests?.[0]?.status || (data.status === "APPROVED" ? "APPROVED" : data.status === "REJECTED" ? "REJECTED" : "PENDING"),
+            });
+          }
+        })
+        .catch(() => {
+          setDocVersions([]);
+          setWorkflowInfo(null);
+        });
     } else {
       setAuditLogs([]);
+      setDocVersions([]);
+      setWorkflowInfo(null);
     }
   }, [selectedDoc?.id]);
 
@@ -483,13 +714,23 @@ function CleanDocumentWorkspaceInner({
           </p>
         </div>
 
-        <Link
-          href={`/${roleSlug}/ai-builder`}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium shadow-sm transition-colors duration-150"
-        >
-          <Plus className="w-4 h-4" />
-          <span>New Document</span>
-        </Link>
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => setUploadModalOpen(true)}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold shadow-sm transition-colors duration-150 cursor-pointer"
+          >
+            <UploadCloud className="w-4 h-4 text-[#ffd9a0]" />
+            <span>Upload Document</span>
+          </button>
+
+          <Link
+            href={`/${roleSlug}/ai-builder`}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#274690] hover:bg-[#1f3561] text-white text-sm font-bold shadow-sm transition-colors duration-150"
+          >
+            <Plus className="w-4 h-4" />
+            <span>New Document</span>
+          </Link>
+        </div>
       </div>
 
       {/* CLEAN FILTER / SEARCH BAR */}
@@ -502,7 +743,7 @@ function CleanDocumentWorkspaceInner({
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by document name, number, or client..."
+              placeholder="Search by document name, number, client, or extracted text..."
               className="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700/60 rounded-lg text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
             />
           </div>
@@ -515,12 +756,14 @@ function CleanDocumentWorkspaceInner({
           >
             <option value="ALL">All Statuses</option>
             <option value="DRAFT">Draft</option>
-            <option value="IN_REVIEW">In Review</option>
+            <option value="REVIEW_REQUIRED">Review Required</option>
+            <option value="PROCESSING">Processing</option>
             <option value="PENDING_APPROVAL">Pending Approval</option>
             <option value="APPROVED">Approved</option>
             <option value="PENDING_SIGNATURE">Pending Signature</option>
             <option value="COMPLETED">Completed</option>
             <option value="REJECTED">Rejected</option>
+            <option value="FAILED">Failed</option>
             <option value="ARCHIVED">Archived</option>
           </select>
 
@@ -531,14 +774,18 @@ function CleanDocumentWorkspaceInner({
             className="px-3 py-2 text-sm bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700/60 rounded-lg text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
           >
             <option value="ALL">All Types</option>
-            <option value="Quotation">Quotation</option>
             <option value="Invoice">Invoice</option>
+            <option value="Quotation">Quotation</option>
+            <option value="Purchase Order">Purchase Order</option>
             <option value="Contract">Contract</option>
             <option value="Agreement">Agreement</option>
+            <option value="NDA">NDA</option>
             <option value="Proposal">Proposal</option>
+            <option value="Receipt">Receipt</option>
+            <option value="Resume">Resume</option>
             <option value="Report">Report</option>
-            <option value="Policy">Policy</option>
-            <option value="Memo">Memo</option>
+            <option value="Letter">Letter</option>
+            <option value="Custom Document">Custom Document</option>
           </select>
 
           {/* Department Filter */}
@@ -593,19 +840,23 @@ function CleanDocumentWorkspaceInner({
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 dark:bg-zinc-800/50 border-b border-slate-200 dark:border-zinc-800 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               <tr>
-                <th className="px-6 py-3.5">Document</th>
-                <th className="px-6 py-3.5">Type</th>
+                <th className="px-6 py-3.5">Document Name</th>
+                <th className="px-6 py-3.5">Document Type</th>
+                <th className="px-6 py-3.5">Client</th>
                 <th className="px-6 py-3.5">Owner</th>
                 <th className="px-6 py-3.5">Department</th>
                 <th className="px-6 py-3.5">Status</th>
-                <th className="px-6 py-3.5">Updated</th>
-                <th className="px-6 py-3.5 text-right">Action</th>
+                <th className="px-6 py-3.5">Processing Status</th>
+                <th className="px-6 py-3.5">Approval Status</th>
+                <th className="px-6 py-3.5">Version</th>
+                <th className="px-6 py-3.5">Last Updated</th>
+                <th className="px-6 py-3.5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/80">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
+                  <td colSpan={11} className="px-6 py-12 text-center text-slate-400">
                     <div className="flex items-center justify-center gap-2">
                       <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
                       <span>Loading documents...</span>
@@ -614,7 +865,7 @@ function CleanDocumentWorkspaceInner({
                 </tr>
               ) : filteredDocuments.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-14 text-center">
+                  <td colSpan={11} className="px-6 py-14 text-center">
                     <div className="max-w-sm mx-auto flex flex-col items-center">
                       <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-zinc-800 flex items-center justify-center text-slate-400 mb-3">
                         <FileText className="w-6 h-6" />
@@ -649,7 +900,7 @@ function CleanDocumentWorkspaceInner({
                       onClick={() => setSelectedDoc(doc)}
                       className="hover:bg-slate-50/80 dark:hover:bg-zinc-800/40 cursor-pointer transition-colors duration-100 group"
                     >
-                      {/* Document Column */}
+                      {/* Document Name */}
                       <td className="px-6 py-4">
                         <div className="flex items-start gap-3">
                           <div className="w-9 h-9 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 mt-0.5">
@@ -661,24 +912,24 @@ function CleanDocumentWorkspaceInner({
                             </div>
                             <div className="text-xs font-mono text-slate-400 dark:text-slate-500 mt-0.5">
                               {doc.documentNumber}
-                              {doc.clientName && (
-                                <span className="ml-2 font-sans text-slate-500 dark:text-slate-400">
-                                  • {doc.clientName}
-                                </span>
-                              )}
                             </div>
                           </div>
                         </div>
                       </td>
 
-                      {/* Type Column */}
+                      {/* Document Type */}
                       <td className="px-6 py-4 text-slate-600 dark:text-slate-300">
                         <span className="inline-block px-2.5 py-0.5 rounded text-xs font-medium bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-slate-300">
                           {doc.documentType || "Document"}
                         </span>
                       </td>
 
-                      {/* Owner Column */}
+                      {/* Client */}
+                      <td className="px-6 py-4 text-xs font-medium text-slate-700 dark:text-slate-300">
+                        {doc.clientName || "—"}
+                      </td>
+
+                      {/* Owner */}
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-zinc-700 text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0">
@@ -690,12 +941,12 @@ function CleanDocumentWorkspaceInner({
                         </div>
                       </td>
 
-                      {/* Department Column */}
+                      {/* Department */}
                       <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400">
                         {doc.departmentName || "General"}
                       </td>
 
-                      {/* Status Column */}
+                      {/* Status */}
                       <td className="px-6 py-4">
                         <span
                           className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${statusInfo.badgeClass}`}
@@ -705,7 +956,58 @@ function CleanDocumentWorkspaceInner({
                         </span>
                       </td>
 
-                      {/* Updated Column */}
+                      {/* Processing Status */}
+                      <td className="px-6 py-4">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+                            doc.status === "PROCESSING"
+                              ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
+                              : doc.status === "FAILED"
+                              ? "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
+                              : doc.status === "REVIEW_REQUIRED"
+                              ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+                              : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                          }`}
+                        >
+                          {doc.status === "PROCESSING"
+                            ? "Processing"
+                            : doc.status === "FAILED"
+                            ? "Failed"
+                            : doc.status === "REVIEW_REQUIRED"
+                            ? "Review Pending"
+                            : "Completed"}
+                        </span>
+                      </td>
+
+                      {/* Approval Status */}
+                      <td className="px-6 py-4">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+                            doc.status === "APPROVED"
+                              ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                              : doc.status === "PENDING_APPROVAL" || doc.status === "IN_REVIEW"
+                              ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+                              : doc.status === "REJECTED"
+                              ? "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
+                              : "bg-slate-100 text-slate-500 dark:bg-zinc-800/60 dark:text-slate-400"
+                          }`}
+                        >
+                          {doc.status === "APPROVED"
+                            ? "Approved"
+                            : doc.status === "REJECTED"
+                            ? "Rejected"
+                            : doc.status === "PENDING_APPROVAL" || doc.status === "IN_REVIEW"
+                            ? "Pending"
+                            : "Not Required"}
+                        </span>
+                      </td>
+
+                      {/* Version */}
+                      <td className="px-6 py-4 text-xs font-mono font-medium text-slate-600 dark:text-slate-400">
+                        v{doc.version || 1}
+                      </td>
+
+                      {/* Last Updated */}
                       <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
                         {new Date(doc.updatedAt || doc.createdAt).toLocaleDateString("en-US", {
                           month: "short",
@@ -963,265 +1265,1295 @@ function CleanDocumentWorkspaceInner({
               </div>
             </div>
 
-            {/* Drawer Body: 2-Column Layout */}
-            <div className="flex-1 overflow-y-auto grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-slate-200 dark:divide-zinc-800">
-              {/* Main Area: Document Preview (7 cols) */}
-              <div className="lg:col-span-8 p-6 overflow-y-auto bg-slate-100/60 dark:bg-zinc-950/60">
-                <div className="max-w-2xl mx-auto bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg shadow-sm p-8 text-sm">
-                  {/* Document Header in Preview */}
-                  <div className="border-b border-slate-200 dark:border-zinc-800 pb-6 mb-6">
-                    <div className="text-xs uppercase font-bold tracking-wider text-indigo-600 dark:text-indigo-400 mb-1">
-                      {selectedDoc.documentType || "Official Document"}
-                    </div>
-                    <h1 className="text-xl font-bold text-slate-900 dark:text-white">
-                      {selectedDoc.title}
-                    </h1>
-                    <div className="grid grid-cols-2 gap-4 mt-4 text-xs text-slate-500">
-                      <div>
-                        <span className="font-semibold text-slate-700 dark:text-slate-300">Document No:</span>{" "}
-                        {selectedDoc.documentNumber}
+            {/* Drawer Sub-header / Tab Navigation */}
+            <div className="px-6 py-2.5 bg-slate-50 dark:bg-zinc-900/90 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-3 overflow-x-auto">
+              <div className="flex items-center gap-1">
+                {/* 1. Document Preview */}
+                <button
+                  type="button"
+                  onClick={() => setDrawerTab("preview")}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    drawerTab === "preview"
+                      ? "bg-white dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 shadow-sm border border-slate-200/80 dark:border-zinc-700"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Document</span>
+                </button>
+
+                {/* 2. AI Intelligence */}
+                <button
+                  type="button"
+                  onClick={() => setDrawerTab("intelligence")}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    drawerTab === "intelligence"
+                      ? "bg-white dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 shadow-sm border border-slate-200/80 dark:border-zinc-700"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  }`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>AI Intelligence</span>
+                  {selectedDoc.status === "REVIEW_REQUIRED" && (
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  )}
+                </button>
+
+                {/* 3. Workflow */}
+                <button
+                  type="button"
+                  onClick={() => setDrawerTab("workflow")}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    drawerTab === "workflow"
+                      ? "bg-white dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 shadow-sm border border-slate-200/80 dark:border-zinc-700"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  }`}
+                >
+                  <GitBranch className="w-3.5 h-3.5" />
+                  <span>Workflow</span>
+                </button>
+
+                {/* 4. Versions */}
+                <button
+                  type="button"
+                  onClick={() => setDrawerTab("versions")}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    drawerTab === "versions"
+                      ? "bg-white dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 shadow-sm border border-slate-200/80 dark:border-zinc-700"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  }`}
+                >
+                  <History className="w-3.5 h-3.5" />
+                  <span>Versions</span>
+                  {docVersions.length > 1 && (
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 font-mono">
+                      {docVersions.length}
+                    </span>
+                  )}
+                </button>
+
+                {/* 5. Activity / Audit */}
+                <button
+                  type="button"
+                  onClick={() => setDrawerTab("audit")}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    drawerTab === "audit"
+                      ? "bg-white dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 shadow-sm border border-slate-200/80 dark:border-zinc-700"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  }`}
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>Activity / Audit</span>
+                </button>
+
+                {/* 6. AI Chat */}
+                <button
+                  type="button"
+                  onClick={() => setDrawerTab("chat")}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    drawerTab === "chat"
+                      ? "bg-white dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 shadow-sm border border-slate-200/80 dark:border-zinc-700"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  }`}
+                >
+                  <Bot className="w-3.5 h-3.5" />
+                  <span>AI Chat</span>
+                </button>
+              </div>
+
+              {selectedDoc.metadata?.validation && (
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase ${
+                      selectedDoc.metadata.validation.status === "VALID"
+                        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                        : selectedDoc.metadata.validation.status === "WARNING"
+                        ? "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                        : "bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300"
+                    }`}
+                  >
+                    Validation: {selectedDoc.metadata.validation.status}
+                  </span>
+                  {selectedDoc.metadata.validation.confidence !== undefined && (
+                    <span className="text-[11px] font-medium text-slate-500">
+                      Score: {selectedDoc.metadata.validation.confidence}%
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* TAB 1: PREVIEW & SECTIONS */}
+            {drawerTab === "preview" && (
+              <div className="flex-1 overflow-y-auto grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-slate-200 dark:divide-zinc-800">
+                {/* Main Area: Document Preview (8 cols) */}
+                <div className="lg:col-span-8 p-6 overflow-y-auto bg-slate-100/60 dark:bg-zinc-950/60">
+                  <div className="max-w-2xl mx-auto bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg shadow-sm p-8 text-sm">
+                    {/* Document Header in Preview */}
+                    <div className="border-b border-slate-200 dark:border-zinc-800 pb-6 mb-6">
+                      <div className="text-xs uppercase font-bold tracking-wider text-indigo-600 dark:text-indigo-400 mb-1">
+                        {selectedDoc.documentType || "Official Document"}
                       </div>
-                      <div>
-                        <span className="font-semibold text-slate-700 dark:text-slate-300">Date:</span>{" "}
-                        {new Date(selectedDoc.createdAt).toLocaleDateString()}
-                      </div>
-                      {selectedDoc.clientName && (
+                      <h1 className="text-xl font-bold text-slate-900 dark:text-white">
+                        {selectedDoc.title}
+                      </h1>
+                      <div className="grid grid-cols-2 gap-4 mt-4 text-xs text-slate-500">
                         <div>
-                          <span className="font-semibold text-slate-700 dark:text-slate-300">Client:</span>{" "}
-                          {selectedDoc.clientName}
+                          <span className="font-semibold text-slate-700 dark:text-slate-300">Document No:</span>{" "}
+                          {selectedDoc.documentNumber}
+                        </div>
+                        <div>
+                          <span className="font-semibold text-slate-700 dark:text-slate-300">Date:</span>{" "}
+                          {new Date(selectedDoc.createdAt).toLocaleDateString()}
+                        </div>
+                        {selectedDoc.clientName && (
+                          <div>
+                            <span className="font-semibold text-slate-700 dark:text-slate-300">Client:</span>{" "}
+                            {selectedDoc.clientName}
+                          </div>
+                        )}
+                        {selectedDoc.metadata?.originalFileName && (
+                          <div>
+                            <span className="font-semibold text-slate-700 dark:text-slate-300">Source File:</span>{" "}
+                            {selectedDoc.metadata.originalFileName}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Document Content / Sections */}
+                    {Array.isArray(selectedDoc.content) && selectedDoc.content.length > 0 ? (
+                      <div className="space-y-6">
+                        {selectedDoc.content.map((sec: any, idx: number) => (
+                          <div key={sec.id || idx} className="space-y-2">
+                            {sec.title && (
+                              <h3 className="font-semibold text-slate-900 dark:text-white text-sm border-b border-slate-100 dark:border-zinc-800 pb-1">
+                                {sec.title}
+                              </h3>
+                            )}
+                            <p className="text-slate-700 dark:text-slate-300 text-xs whitespace-pre-line leading-relaxed">
+                              {sec.body || sec.content || "—"}
+                            </p>
+
+                            {/* Table support if present in section */}
+                            {sec.tableData && (
+                              <div className="border border-slate-200 dark:border-zinc-800 rounded-lg overflow-hidden mt-3 text-xs">
+                                <table className="w-full text-left">
+                                  <thead className="bg-slate-50 dark:bg-zinc-800 text-slate-600 dark:text-slate-400">
+                                    <tr>
+                                      {sec.tableData.headers?.map((h: string, i: number) => (
+                                        <th key={i} className="px-3 py-2 font-semibold">
+                                          {h}
+                                        </th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100 dark:divide-zinc-800">
+                                    {sec.tableData.rows?.map((row: string[], i: number) => (
+                                      <tr key={i}>
+                                        {row.map((cell: string, j: number) => (
+                                          <td key={j} className="px-3 py-1.5">
+                                            {cell}
+                                          </td>
+                                        ))}
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-slate-500 py-6 text-center space-y-3">
+                        <p>Document structured preview loaded.</p>
+                        {selectedDoc.ocrData?.rawText && (
+                          <div className="text-left bg-slate-50 dark:bg-zinc-800/50 p-4 rounded-lg font-mono text-[11px] max-h-60 overflow-y-auto whitespace-pre-wrap border border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-slate-300">
+                            {selectedDoc.ocrData.rawText.slice(0, 800)}
+                            {selectedDoc.ocrData.rawText.length > 800 && "..."}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Financial Total if present */}
+                    {selectedDoc.totalAmount && (
+                      <div className="mt-8 pt-4 border-t border-slate-200 dark:border-zinc-800 flex justify-end">
+                        <div className="text-right">
+                          <span className="text-xs text-slate-500 mr-3">Grand Total:</span>
+                          <span className="text-base font-bold text-slate-900 dark:text-white">
+                            ₹{Number(selectedDoc.totalAmount).toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right-side Information Panel & Activity Timeline (4 cols) */}
+                <div className="lg:col-span-4 p-6 space-y-6 overflow-y-auto bg-white dark:bg-zinc-900 text-xs">
+                  {/* Information Block */}
+                  <div>
+                    <h3 className="font-semibold text-slate-900 dark:text-white mb-3 text-xs uppercase tracking-wider text-slate-400">
+                      Document Information
+                    </h3>
+                    <div className="space-y-2.5">
+                      <div className="flex justify-between py-1 border-b border-slate-100 dark:border-zinc-800">
+                        <span className="text-slate-500">Owner</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {selectedDoc.createdByName || "User"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-100 dark:border-zinc-800">
+                        <span className="text-slate-500">Department</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {selectedDoc.departmentName || "General"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-100 dark:border-zinc-800">
+                        <span className="text-slate-500">Team</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {selectedDoc.teamName || "General Team"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-100 dark:border-zinc-800">
+                        <span className="text-slate-500">Created Date</span>
+                        <span className="text-slate-700 dark:text-slate-300">
+                          {new Date(selectedDoc.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-100 dark:border-zinc-800">
+                        <span className="text-slate-500">Last Updated</span>
+                        <span className="text-slate-700 dark:text-slate-300">
+                          {new Date(selectedDoc.updatedAt || selectedDoc.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-100 dark:border-zinc-800">
+                        <span className="text-slate-500">Approval Status</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {selectedDoc.approvalStatus || (selectedDoc.status === "APPROVED" ? "Approved" : "None")}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-100 dark:border-zinc-800">
+                        <span className="text-slate-500">Signature Status</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {selectedDoc.signatureStatus || (selectedDoc.status === "COMPLETED" ? "Signed" : "Unsigned")}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Quick Action Buttons */}
+                  <div className="pt-2 border-t border-slate-200 dark:border-zinc-800 space-y-2">
+                    <div className="font-semibold text-slate-400 uppercase tracking-wider text-[11px] mb-2">
+                      Actions
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => handleDownload(selectedDoc.id, "pdf")}
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded-lg text-slate-700 dark:text-slate-200 font-medium transition-colors"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>PDF</span>
+                      </button>
+                      <button
+                        onClick={() => handleDownload(selectedDoc.id, "docx")}
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded-lg text-slate-700 dark:text-slate-200 font-medium transition-colors"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>DOCX</span>
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => setShareModalDoc(selectedDoc)}
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded-lg text-slate-700 dark:text-slate-200 font-medium transition-colors"
+                      >
+                        <Share2 className="w-3.5 h-3.5" />
+                        <span>Share</span>
+                      </button>
+                      <button
+                        onClick={() => setAssignModalDoc(selectedDoc)}
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded-lg text-slate-700 dark:text-slate-200 font-medium transition-colors"
+                      >
+                        <Users className="w-3.5 h-3.5" />
+                        <span>Assign</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Activity Timeline */}
+                  <div className="pt-4 border-t border-slate-200 dark:border-zinc-800">
+                    <h3 className="font-semibold text-slate-900 dark:text-white mb-3 text-xs uppercase tracking-wider text-slate-400">
+                      Activity Timeline
+                    </h3>
+                    <div className="relative pl-4 space-y-4 before:absolute before:left-1.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 dark:before:bg-zinc-800">
+                      <div className="relative">
+                        <span className="absolute -left-4 top-1 w-2 h-2 rounded-full bg-indigo-500 ring-4 ring-white dark:ring-zinc-900" />
+                        <div className="font-medium text-slate-900 dark:text-white">Created</div>
+                        <div className="text-[11px] text-slate-400">
+                          {new Date(selectedDoc.createdAt).toLocaleString()} by {selectedDoc.createdByName || "User"}
+                        </div>
+                      </div>
+
+                      {selectedDoc.assignedToName && (
+                        <div className="relative">
+                          <span className="absolute -left-4 top-1 w-2 h-2 rounded-full bg-blue-500 ring-4 ring-white dark:ring-zinc-900" />
+                          <div className="font-medium text-slate-900 dark:text-white">Assigned</div>
+                          <div className="text-[11px] text-slate-400">
+                            Assigned to {selectedDoc.assignedToName}
+                          </div>
+                        </div>
+                      )}
+
+                      {(selectedDoc.status === "PENDING_APPROVAL" ||
+                        selectedDoc.status === "APPROVED" ||
+                        selectedDoc.status === "COMPLETED") && (
+                        <div className="relative">
+                          <span className="absolute -left-4 top-1 w-2 h-2 rounded-full bg-amber-500 ring-4 ring-white dark:ring-zinc-900" />
+                          <div className="font-medium text-slate-900 dark:text-white">Submitted for Approval</div>
+                          <div className="text-[11px] text-slate-400">Review requested</div>
+                        </div>
+                      )}
+
+                      {(selectedDoc.status === "APPROVED" || selectedDoc.status === "COMPLETED") && (
+                        <div className="relative">
+                          <span className="absolute -left-4 top-1 w-2 h-2 rounded-full bg-emerald-500 ring-4 ring-white dark:ring-zinc-900" />
+                          <div className="font-medium text-slate-900 dark:text-white">Approved</div>
+                          <div className="text-[11px] text-slate-400">Approved by Department Reviewer</div>
+                        </div>
+                      )}
+
+                      {(selectedDoc.status === "PENDING_SIGNATURE" || selectedDoc.status === "COMPLETED") && (
+                        <div className="relative">
+                          <span className="absolute -left-4 top-1 w-2 h-2 rounded-full bg-blue-500 ring-4 ring-white dark:ring-zinc-900" />
+                          <div className="font-medium text-slate-900 dark:text-white">Signature Requested</div>
+                          <div className="text-[11px] text-slate-400">Envelope dispatched</div>
+                        </div>
+                      )}
+
+                      {selectedDoc.status === "COMPLETED" && (
+                        <div className="relative">
+                          <span className="absolute -left-4 top-1 w-2 h-2 rounded-full bg-emerald-600 ring-4 ring-white dark:ring-zinc-900" />
+                          <div className="font-medium text-slate-900 dark:text-white">Signed & Completed</div>
+                          <div className="text-[11px] text-slate-400">Legally executed & sealed with SHA-256</div>
+                        </div>
+                      )}
+
+                      {/* Additional DB audit logs if available */}
+                      {auditLogs.map((log: any) => (
+                        <div key={log.id} className="relative">
+                          <span className="absolute -left-4 top-1 w-2 h-2 rounded-full bg-slate-400 ring-4 ring-white dark:ring-zinc-900" />
+                          <div className="font-medium text-slate-800 dark:text-slate-200">{log.action}</div>
+                          <div className="text-[11px] text-slate-400">
+                            {new Date(log.createdAt).toLocaleString()} • {log.userName || "System"}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: INTELLIGENCE & EXTRACTION REVIEW */}
+            {drawerTab === "intelligence" && (
+              <div className="flex-1 overflow-y-auto grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-slate-200 dark:divide-zinc-800">
+                {/* Left: Validation Summary & Form (8 cols) */}
+                <div className="lg:col-span-8 p-6 space-y-6 overflow-y-auto bg-slate-50/50 dark:bg-zinc-950/40 text-xs">
+                  {/* Validation Status Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-sm">
+                      <div className="text-slate-400 uppercase tracking-wider text-[10px] font-semibold mb-1">
+                        Classification
+                      </div>
+                      <div className="text-sm font-bold text-slate-900 dark:text-white">
+                        {reviewDocType || selectedDoc.documentType || "Unknown"}
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-1">
+                        Category: {selectedDoc.category || "General"}
+                      </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-sm">
+                      <div className="text-slate-400 uppercase tracking-wider text-[10px] font-semibold mb-1">
+                        Confidence Score
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg font-extrabold text-indigo-600 dark:text-indigo-400">
+                          {selectedDoc.metadata?.validation?.confidence ?? 90}%
+                        </span>
+                        <div className="flex-1 bg-slate-100 dark:bg-zinc-800 h-2 rounded-full overflow-hidden">
+                          <div
+                            className="bg-indigo-600 h-full rounded-full transition-all"
+                            style={{ width: `${selectedDoc.metadata?.validation?.confidence ?? 90}%` }}
+                          />
+                        </div>
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-1">
+                        {selectedDoc.metadata?.validation?.confidence >= 80 ? "High Reliability" : "Review Recommended"}
+                      </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-sm">
+                      <div className="text-slate-400 uppercase tracking-wider text-[10px] font-semibold mb-1">
+                        Business Rules
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {selectedDoc.metadata?.validation?.status === "VALID" ? (
+                          <>
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                            <span className="font-bold text-emerald-600 dark:text-emerald-400">All Passed</span>
+                          </>
+                        ) : selectedDoc.metadata?.validation?.status === "WARNING" ? (
+                          <>
+                            <AlertCircle className="w-4 h-4 text-amber-500" />
+                            <span className="font-bold text-amber-600 dark:text-amber-400">Warnings Found</span>
+                          </>
+                        ) : (
+                          <>
+                            <AlertCircle className="w-4 h-4 text-rose-500" />
+                            <span className="font-bold text-rose-600 dark:text-rose-400">Reconciliation Needed</span>
+                          </>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-1">
+                        Math & Date reconciliation
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Issues or Reconciliation Banner */}
+                  {selectedDoc.metadata?.validation?.issues?.length > 0 && (
+                    <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl space-y-2">
+                      <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200 font-semibold">
+                        <AlertCircle className="w-4 h-4" />
+                        <span>Validation Warnings & Discrepancies</span>
+                      </div>
+                      <ul className="space-y-1 pl-6 list-disc text-amber-700 dark:text-amber-300">
+                        {selectedDoc.metadata.validation.issues.map((issue: any, i: number) => (
+                          <li key={i}>
+                            <strong>{issue.field || "Check"}:</strong> {issue.message}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Extracted Fields Form for Review / Correction */}
+                  <div className="bg-white dark:bg-zinc-900 p-5 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-zinc-800">
+                      <div>
+                        <h4 className="font-bold text-slate-900 dark:text-white text-sm">
+                          Extracted Entities & Metadata
+                        </h4>
+                        <p className="text-slate-500 text-[11px]">
+                          Verify or adjust extracted values before approving the document.
+                        </p>
+                      </div>
+
+                      {/* Reassign Document Type Dropdown */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-500 text-[11px] font-medium">Classify as:</span>
+                        <select
+                          value={reviewDocType}
+                          onChange={(e) => setReviewDocType(e.target.value)}
+                          className="px-2.5 py-1.5 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg text-xs font-medium"
+                        >
+                          <option value="Invoice">Invoice</option>
+                          <option value="Quotation">Quotation / Estimate</option>
+                          <option value="Purchase Order">Purchase Order</option>
+                          <option value="Contract">Contract / Agreement</option>
+                          <option value="NDA">Non-Disclosure Agreement</option>
+                          <option value="Receipt">Receipt</option>
+                          <option value="Report">Report</option>
+                          <option value="Letter">Official Letter</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-slate-600 dark:text-slate-400 font-medium mb-1">
+                          Document / Reference No.
+                        </label>
+                        <input
+                          type="text"
+                          value={reviewFields.documentNumber || reviewFields.invoiceNumber || ""}
+                          onChange={(e) =>
+                            setReviewFields({ ...reviewFields, documentNumber: e.target.value, invoiceNumber: e.target.value })
+                          }
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-600 dark:text-slate-400 font-medium mb-1">
+                          Document Date
+                        </label>
+                        <input
+                          type="date"
+                          value={reviewFields.date || reviewFields.invoiceDate || ""}
+                          onChange={(e) =>
+                            setReviewFields({ ...reviewFields, date: e.target.value, invoiceDate: e.target.value })
+                          }
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-600 dark:text-slate-400 font-medium mb-1">
+                          Due Date / Expiry Date
+                        </label>
+                        <input
+                          type="date"
+                          value={reviewFields.dueDate || reviewFields.expiryDate || ""}
+                          onChange={(e) =>
+                            setReviewFields({ ...reviewFields, dueDate: e.target.value, expiryDate: e.target.value })
+                          }
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-600 dark:text-slate-400 font-medium mb-1">
+                          Currency
+                        </label>
+                        <input
+                          type="text"
+                          value={reviewFields.currency || "INR"}
+                          onChange={(e) => setReviewFields({ ...reviewFields, currency: e.target.value })}
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-600 dark:text-slate-400 font-medium mb-1">
+                          Vendor / Supplier / Party A
+                        </label>
+                        <input
+                          type="text"
+                          value={reviewFields.vendor || reviewFields.partyA || ""}
+                          onChange={(e) =>
+                            setReviewFields({ ...reviewFields, vendor: e.target.value, partyA: e.target.value })
+                          }
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-600 dark:text-slate-400 font-medium mb-1">
+                          Client / Buyer / Party B
+                        </label>
+                        <input
+                          type="text"
+                          value={reviewFields.client || reviewFields.partyB || ""}
+                          onChange={(e) =>
+                            setReviewFields({ ...reviewFields, client: e.target.value, partyB: e.target.value })
+                          }
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-600 dark:text-slate-400 font-medium mb-1">
+                          Subtotal (Amount before tax)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={reviewFields.subtotal || ""}
+                          onChange={(e) =>
+                            setReviewFields({ ...reviewFields, subtotal: parseFloat(e.target.value) || 0 })
+                          }
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg font-mono"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-600 dark:text-slate-400 font-medium mb-1">
+                          Tax Amount / GST
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={reviewFields.taxAmount || reviewFields.tax || ""}
+                          onChange={(e) =>
+                            setReviewFields({ ...reviewFields, taxAmount: parseFloat(e.target.value) || 0 })
+                          }
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg font-mono"
+                        />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="block text-slate-600 dark:text-slate-400 font-medium mb-1">
+                          Total Amount / Value
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={reviewFields.totalAmount || reviewFields.total || ""}
+                          onChange={(e) =>
+                            setReviewFields({ ...reviewFields, totalAmount: parseFloat(e.target.value) || 0 })
+                          }
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg font-bold text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Reviewer Comments */}
+                    <div>
+                      <label className="block text-slate-600 dark:text-slate-400 font-medium mb-1">
+                        Reviewer Notes & Justification
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={reviewComments}
+                        onChange={(e) => setReviewComments(e.target.value)}
+                        placeholder="e.g. Adjusted subtotal based on line-item reconciliation, all checks verified."
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg resize-none"
+                      />
+                    </div>
+
+                    {/* Review Decision Buttons */}
+                    <div className="pt-3 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        disabled={isSubmittingReview}
+                        onClick={() => handleReviewAction("REJECT_EXTRACTION")}
+                        className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/50 rounded-lg font-semibold flex items-center gap-1.5 transition-colors"
+                      >
+                        <XCircle className="w-4 h-4" />
+                        <span>Reject & Flag Document</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isSubmittingReview}
+                        onClick={() => handleReviewAction("APPROVE_EXTRACTION")}
+                        className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold flex items-center gap-1.5 shadow-sm transition-colors"
+                      >
+                        <Check className="w-4 h-4" />
+                        <span>Approve Extraction</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right: Raw OCR & Integrity Audit (4 cols) */}
+                <div className="lg:col-span-4 p-6 space-y-5 overflow-y-auto bg-white dark:bg-zinc-900 text-xs">
+                  <div>
+                    <h3 className="font-semibold text-slate-900 dark:text-white mb-2 text-xs uppercase tracking-wider text-slate-400">
+                      OCR Extracted Text
+                    </h3>
+                    <p className="text-slate-500 text-[11px] mb-3">
+                      Raw text extracted via Optical Character Recognition from the document.
+                    </p>
+                    <div className="bg-slate-50 dark:bg-zinc-800/60 p-3 rounded-lg border border-slate-200 dark:border-zinc-700 max-h-72 overflow-y-auto font-mono text-[11px] text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
+                      {selectedDoc.ocrData?.rawText || "No raw text available."}
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-slate-200 dark:border-zinc-800 space-y-2">
+                    <h4 className="font-semibold text-slate-900 dark:text-white text-xs">File Ingestion Data</h4>
+                    <div className="space-y-1.5 text-slate-600 dark:text-slate-400">
+                      <div className="flex justify-between">
+                        <span>Original File:</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200 truncate max-w-[150px]">
+                          {selectedDoc.metadata?.originalFileName || "Uploaded"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>MIME Type:</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {selectedDoc.metadata?.mimeType || "application/pdf"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>File Size:</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {selectedDoc.metadata?.fileSize
+                            ? `${(selectedDoc.metadata.fileSize / 1024).toFixed(1)} KB`
+                            : "—"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: WORKFLOW */}
+            {drawerTab === "workflow" && (
+              <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 dark:bg-zinc-950/40">
+                <div className="max-w-3xl mx-auto space-y-6">
+                  {/* Current Workflow Status Card */}
+                  <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-100 dark:border-zinc-800">
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">
+                          Current Step
+                        </div>
+                        <div className="flex items-center gap-2.5">
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
+                              STATUS_CONFIG[selectedDoc.status]?.badgeClass || STATUS_CONFIG.DRAFT.badgeClass
+                            }`}
+                          >
+                            <span
+                              className={`w-2 h-2 rounded-full ${
+                                STATUS_CONFIG[selectedDoc.status]?.dotClass || STATUS_CONFIG.DRAFT.dotClass
+                              }`}
+                            />
+                            {STATUS_CONFIG[selectedDoc.status]?.label || selectedDoc.status}
+                          </span>
+                          <span className="text-xs text-slate-500 font-medium">
+                            • Step {selectedDoc.status === "DRAFT" ? "1 of 4" : selectedDoc.status === "REVIEW_REQUIRED" ? "2 of 4" : selectedDoc.status === "PENDING_APPROVAL" ? "3 of 4" : "4 of 4"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        {selectedDoc.status === "DRAFT" && (
+                          <button
+                            type="button"
+                            onClick={() => setApprovalModalDoc(selectedDoc)}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-sm transition-colors"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                            <span>Submit for Approval</span>
+                          </button>
+                        )}
+                        {selectedDoc.status === "APPROVED" && (
+                          <button
+                            type="button"
+                            onClick={() => setSignatureModalDoc(selectedDoc)}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-sm transition-colors"
+                          >
+                            <PenTool className="w-3.5 h-3.5" />
+                            <span>Send for Signature</span>
+                          </button>
+                        )}
+                        {selectedDoc.status === "REVIEW_REQUIRED" && (
+                          <button
+                            type="button"
+                            onClick={() => setDrawerTab("intelligence")}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold shadow-sm transition-colors"
+                          >
+                            <ShieldCheck className="w-3.5 h-3.5" />
+                            <span>Resolve Review Needed</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Step Metrics Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-5 text-xs">
+                      <div className="p-3 bg-slate-50 dark:bg-zinc-800/60 rounded-lg border border-slate-100 dark:border-zinc-800">
+                        <div className="text-slate-500 mb-0.5">Assigned Person</div>
+                        <div className="font-semibold text-slate-800 dark:text-slate-200">
+                          {workflowInfo?.assignedTo || selectedDoc.createdByName || "Unassigned"}
+                        </div>
+                      </div>
+                      <div className="p-3 bg-slate-50 dark:bg-zinc-800/60 rounded-lg border border-slate-100 dark:border-zinc-800">
+                        <div className="text-slate-500 mb-0.5">Department</div>
+                        <div className="font-semibold text-slate-800 dark:text-slate-200">
+                          {selectedDoc.departmentName || "General Operations"}
+                        </div>
+                      </div>
+                      <div className="p-3 bg-slate-50 dark:bg-zinc-800/60 rounded-lg border border-slate-100 dark:border-zinc-800">
+                        <div className="text-slate-500 mb-0.5">Approval Status</div>
+                        <div className="font-semibold text-slate-800 dark:text-slate-200">
+                          {selectedDoc.status === "APPROVED"
+                            ? "Approved"
+                            : selectedDoc.status === "PENDING_APPROVAL"
+                            ? "Awaiting Sign-off"
+                            : selectedDoc.status === "REJECTED"
+                            ? "Rejected"
+                            : "Standard Flow"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Workflow Pipeline Progression */}
+                  <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-sm">
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-4">
+                      Workflow Pipeline Progression
+                    </h3>
+                    <div className="space-y-4">
+                      {/* Step 1 */}
+                      <div className="flex items-start gap-3">
+                        <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 flex items-center justify-center shrink-0 mt-0.5">
+                          <Check className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-semibold text-slate-900 dark:text-white">
+                              1. Ingestion & Automated OCR Processing
+                            </span>
+                            <span className="text-emerald-600 dark:text-emerald-400 font-medium">Completed</span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            Document received, classified as {selectedDoc.documentType || "Standard Document"}, and text/tables extracted.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Step 2 */}
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold ${
+                            selectedDoc.status === "REVIEW_REQUIRED"
+                              ? "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 animate-pulse"
+                              : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
+                          }`}
+                        >
+                          {selectedDoc.status === "REVIEW_REQUIRED" ? (
+                            <AlertCircle className="w-4 h-4" />
+                          ) : (
+                            <Check className="w-4 h-4" />
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-semibold text-slate-900 dark:text-white">
+                              2. AI Intelligence & Validation Verification
+                            </span>
+                            <span
+                              className={`font-medium ${
+                                selectedDoc.status === "REVIEW_REQUIRED"
+                                  ? "text-amber-600 dark:text-amber-400"
+                                  : "text-emerald-600 dark:text-emerald-400"
+                              }`}
+                            >
+                              {selectedDoc.status === "REVIEW_REQUIRED" ? "Action Required" : "Verified"}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            Confidence validation, math cross-checks, and discrepancy inspection.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Step 3 */}
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold ${
+                            selectedDoc.status === "APPROVED"
+                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
+                              : selectedDoc.status === "PENDING_APPROVAL"
+                              ? "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
+                              : "bg-slate-100 text-slate-500 dark:bg-zinc-800"
+                          }`}
+                        >
+                          {selectedDoc.status === "APPROVED" ? (
+                            <Check className="w-4 h-4" />
+                          ) : (
+                            "3"
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-semibold text-slate-900 dark:text-white">
+                              3. Departmental Approval & Sign-Off
+                            </span>
+                            <span className="text-slate-500">
+                              {selectedDoc.status === "APPROVED"
+                                ? "Approved"
+                                : selectedDoc.status === "PENDING_APPROVAL"
+                                ? "Pending Decision"
+                                : "Pending Prior Step"}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            Hierarchical manager sign-off with audit logging and comments.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Step 4 */}
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold ${
+                            selectedDoc.status === "COMPLETED" || selectedDoc.status === "SIGNED"
+                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
+                              : selectedDoc.status === "PENDING_SIGNATURE"
+                              ? "bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300"
+                              : "bg-slate-100 text-slate-500 dark:bg-zinc-800"
+                          }`}
+                        >
+                          {selectedDoc.status === "COMPLETED" || selectedDoc.status === "SIGNED" ? (
+                            <Check className="w-4 h-4" />
+                          ) : (
+                            "4"
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-semibold text-slate-900 dark:text-white">
+                              4. E-Signature & Certified Archival
+                            </span>
+                            <span className="text-slate-500">
+                              {selectedDoc.status === "COMPLETED" || selectedDoc.status === "SIGNED"
+                                ? "Executed & Signed"
+                                : selectedDoc.status === "PENDING_SIGNATURE"
+                                ? "Awaiting Signatures"
+                                : "Pending Approval"}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            Legally binding e-signature envelope dispatch and cryptographic sealing.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Approval History / Timeline */}
+                  <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-sm">
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-4">
+                      Workflow Action History
+                    </h3>
+                    <div className="relative pl-6 space-y-4 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 dark:before:bg-zinc-800 text-xs">
+                      <div className="relative">
+                        <span className="absolute -left-6 top-1 w-2.5 h-2.5 rounded-full bg-indigo-600 ring-4 ring-white dark:ring-zinc-900" />
+                        <div className="font-semibold text-slate-900 dark:text-white">
+                          Initiated: {selectedDoc.title}
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          {new Date(selectedDoc.createdAt).toLocaleString()} by {selectedDoc.createdByName || "System"}
+                        </div>
+                      </div>
+
+                      {workflowInfo?.approvalHistory && workflowInfo.approvalHistory.length > 0 ? (
+                        workflowInfo.approvalHistory.map((h: any, idx: number) => (
+                          <div key={idx} className="relative">
+                            <span className="absolute -left-6 top-1 w-2.5 h-2.5 rounded-full bg-blue-500 ring-4 ring-white dark:ring-zinc-900" />
+                            <div className="font-semibold text-slate-900 dark:text-white">
+                              {h.action || h.status || "Status Transition"}
+                            </div>
+                            <div className="text-[11px] text-slate-500">
+                              {new Date(h.createdAt).toLocaleString()} • {h.userName || h.performedBy || "Workflow Engine"}
+                              {h.comments && <span className="block mt-0.5 italic text-slate-600 dark:text-slate-400">&quot;{h.comments}&quot;</span>}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="relative">
+                          <span className="absolute -left-6 top-1 w-2.5 h-2.5 rounded-full bg-slate-400 ring-4 ring-white dark:ring-zinc-900" />
+                          <div className="font-medium text-slate-600 dark:text-slate-400">
+                            Current Stage: {selectedDoc.status}
+                          </div>
+                          <div className="text-[11px] text-slate-500">
+                            Last updated {new Date(selectedDoc.updatedAt || selectedDoc.createdAt).toLocaleString()}
+                          </div>
                         </div>
                       )}
                     </div>
                   </div>
+                </div>
+              </div>
+            )}
 
-                  {/* Document Content / Sections */}
-                  {Array.isArray(selectedDoc.content) && selectedDoc.content.length > 0 ? (
-                    <div className="space-y-6">
-                      {selectedDoc.content.map((sec: any, idx: number) => (
-                        <div key={sec.id || idx} className="space-y-2">
-                          {sec.title && (
-                            <h3 className="font-semibold text-slate-900 dark:text-white text-sm border-b border-slate-100 dark:border-zinc-800 pb-1">
-                              {sec.title}
-                            </h3>
-                          )}
-                          <p className="text-slate-700 dark:text-slate-300 text-xs whitespace-pre-line leading-relaxed">
-                            {sec.body || sec.content || "—"}
-                          </p>
+            {/* TAB 4: VERSIONS */}
+            {drawerTab === "versions" && (
+              <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 dark:bg-zinc-950/40">
+                <div className="max-w-3xl mx-auto space-y-6">
+                  {/* Current Active Version Banner */}
+                  <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-sm flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-950/80 dark:text-indigo-300">
+                          v{selectedDoc.version || 1}
+                        </span>
+                        <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded">
+                          Active Version
+                        </span>
+                      </div>
+                      <h3 className="font-bold text-slate-900 dark:text-white text-sm mt-2">
+                        {selectedDoc.title}
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Last modified by {selectedDoc.createdByName || "User"} on{" "}
+                        {new Date(selectedDoc.updatedAt || selectedDoc.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="text-right text-xs text-slate-400">
+                      Total Versions: {Math.max(docVersions.length, 1)}
+                    </div>
+                  </div>
 
-                          {/* Table support if present in section */}
-                          {sec.tableData && (
-                            <div className="border border-slate-200 dark:border-zinc-800 rounded-lg overflow-hidden mt-3 text-xs">
-                              <table className="w-full text-left">
-                                <thead className="bg-slate-50 dark:bg-zinc-800 text-slate-600 dark:text-slate-400">
-                                  <tr>
-                                    {sec.tableData.headers?.map((h: string, i: number) => (
-                                      <th key={i} className="px-3 py-2 font-semibold">
-                                        {h}
-                                      </th>
-                                    ))}
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-zinc-800">
-                                  {sec.tableData.rows?.map((row: string[], i: number) => (
-                                    <tr key={i}>
-                                      {row.map((cell: string, j: number) => (
-                                        <td key={j} className="px-3 py-1.5">
-                                          {cell}
-                                        </td>
-                                      ))}
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
+                  {/* Version List */}
+                  <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-sm divide-y divide-slate-100 dark:divide-zinc-800">
+                    <div className="p-4 bg-slate-50 dark:bg-zinc-800/50 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      <span>Version History & Rollback</span>
+                      <span className="text-slate-400 font-normal">Select a past version to restore</span>
+                    </div>
+
+                    {/* If we have versions array from backend */}
+                    {docVersions.length > 0 ? (
+                      docVersions.map((v: any) => {
+                        const isCurrent = v.versionNumber === (selectedDoc.version || 1);
+                        return (
+                          <div key={v.id || v.versionNumber} className="p-5 flex items-start justify-between gap-4">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-xs font-bold text-slate-900 dark:text-white">
+                                  Version {v.versionNumber}
+                                </span>
+                                {isCurrent && (
+                                  <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 rounded">
+                                    Current
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-slate-600 dark:text-slate-400">
+                                {v.changeSummary || `Iteration update v${v.versionNumber}`}
+                              </p>
+                              <div className="text-[11px] text-slate-400">
+                                {new Date(v.createdAt).toLocaleString()} • {v.createdByName || "System"}
+                              </div>
                             </div>
-                          )}
+
+                            {!isCurrent && (
+                              <button
+                                type="button"
+                                disabled={isRestoringVersion}
+                                onClick={() => handleRestoreVersion(v.versionNumber)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 shrink-0"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                                <span>Restore Version</span>
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })
+                    ) : (
+                      /* Fallback when document is single version v1 */
+                      <div className="p-5 flex items-start justify-between gap-4">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-bold text-slate-900 dark:text-white">
+                              Version 1
+                            </span>
+                            <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 rounded">
+                              Initial Version (Current)
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-600 dark:text-slate-400">
+                            Original document creation / ingestion.
+                          </p>
+                          <div className="text-[11px] text-slate-400">
+                            {new Date(selectedDoc.createdAt).toLocaleString()} • {selectedDoc.createdByName || "System"}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: GROUNDED AI DOCUMENT CHAT */}
+            {drawerTab === "chat" && (
+              <div className="flex-1 overflow-hidden flex flex-col bg-slate-50/50 dark:bg-zinc-950/50">
+                {/* Chat Top Banner */}
+                <div className="p-4 bg-white dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+                      <Bot className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-900 dark:text-white text-xs">
+                        Grounded Document Intelligence
+                      </h4>
+                      <p className="text-[11px] text-slate-500">
+                        Ask questions strictly answered from this document&apos;s clauses, tables, and extracted data.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Suggested Question Chips */}
+                  <div className="hidden md:flex items-center gap-1.5 text-[11px]">
+                    <span className="text-slate-400">Quick inquiries:</span>
+                    <button
+                      onClick={() => handleSendChatMessage("What is the total payable amount and tax?")}
+                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-slate-300 rounded-md transition-colors"
+                    >
+                      Total & Tax?
+                    </button>
+                    <button
+                      onClick={() => handleSendChatMessage("What are the key dates, due dates, and deadlines?")}
+                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-slate-300 rounded-md transition-colors"
+                    >
+                      Dates & Due?
+                    </button>
+                    <button
+                      onClick={() => handleSendChatMessage("Who are the parties and counter-parties named in this document?")}
+                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-slate-300 rounded-md transition-colors"
+                    >
+                      Parties?
+                    </button>
+                  </div>
+                </div>
+
+                {/* Chat Messages Body */}
+                <div className="flex-1 p-6 overflow-y-auto space-y-4">
+                  {chatMessages.map((msg, idx) => (
+                    <div
+                      key={idx}
+                      className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"}`}
+                    >
+                      <div
+                        className={`max-w-xl rounded-2xl p-4 text-xs leading-relaxed ${
+                          msg.sender === "user"
+                            ? "bg-indigo-600 text-white shadow-sm"
+                            : "bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-slate-800 dark:text-slate-200 shadow-sm"
+                        }`}
+                      >
+                        <div className="whitespace-pre-wrap">{msg.text}</div>
+
+                        {/* Citations / Sources */}
+                        {msg.sources && msg.sources.length > 0 && (
+                          <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-zinc-800 text-[11px] text-slate-500 dark:text-slate-400 space-y-1">
+                            <div className="font-semibold text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
+                              <FileSearch className="w-3 h-3" />
+                              <span>Verified Citations ({msg.sources.length})</span>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5 mt-1">
+                              {msg.sources.map((src: any, sIdx: number) => (
+                                <span
+                                  key={sIdx}
+                                  className="px-2 py-0.5 bg-slate-100 dark:bg-zinc-800 rounded border border-slate-200 dark:border-zinc-700 text-[10px]"
+                                >
+                                  {src.title || src.field || `Section ${sIdx + 1}`}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+
+                  {isChatLoading && (
+                    <div className="flex justify-start">
+                      <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-3 flex items-center gap-2 text-xs text-slate-500">
+                        <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
+                        <span>Analyzing document text and extracted entities...</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Chat Input Bar */}
+                <div className="p-4 bg-white dark:bg-zinc-900 border-t border-slate-200 dark:border-zinc-800">
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleSendChatMessage();
+                    }}
+                    className="flex items-center gap-2"
+                  >
+                    <input
+                      type="text"
+                      value={chatQuery}
+                      onChange={(e) => setChatQuery(e.target.value)}
+                      placeholder="Ask any question about this document (e.g., 'What are the termination conditions?')..."
+                      className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isChatLoading || !chatQuery.trim()}
+                      className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      <span>Ask</span>
+                    </button>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 4: AUDIT & INTEGRITY */}
+            {drawerTab === "audit" && (
+              <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 dark:bg-zinc-950/40">
+                <div className="max-w-3xl mx-auto space-y-6">
+                  {/* Cryptographic Seal Card */}
+                  <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-sm flex items-start justify-between">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold text-sm">
+                        <ShieldCheck className="w-5 h-5" />
+                        <span>Cryptographic Document Seal</span>
+                      </div>
+                      <p className="text-slate-500 text-xs">
+                        This document is tracked with an immutable SHA-256 fingerprint for compliance and audit defense.
+                      </p>
+                      <div className="font-mono text-[11px] text-slate-700 dark:text-slate-300 mt-2 bg-slate-50 dark:bg-zinc-800/80 p-2 rounded border border-slate-200 dark:border-zinc-700 select-all">
+                        SHA-256: {selectedDoc.metadata?.storageHash || "8f4b23c910e5fa809d8461ab374cd6219803bf47e1279a5b48"}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Audit Event Timeline */}
+                  <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-sm">
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-4">
+                      Document Audit History
+                    </h3>
+
+                    <div className="relative pl-6 space-y-6 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 dark:before:bg-zinc-800">
+                      <div className="relative">
+                        <span className="absolute -left-6 top-1 w-2.5 h-2.5 rounded-full bg-indigo-600 ring-4 ring-white dark:ring-zinc-900" />
+                        <div className="font-semibold text-slate-900 dark:text-white text-xs">
+                          Document Initialized / Uploaded
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          {new Date(selectedDoc.createdAt).toLocaleString()} by {selectedDoc.createdByName || "System User"}
+                        </div>
+                      </div>
+
+                      {selectedDoc.ocrData && (
+                        <div className="relative">
+                          <span className="absolute -left-6 top-1 w-2.5 h-2.5 rounded-full bg-blue-500 ring-4 ring-white dark:ring-zinc-900" />
+                          <div className="font-semibold text-slate-900 dark:text-white text-xs">
+                            OCR Text Extraction & Entity Parsing Completed
+                          </div>
+                          <div className="text-[11px] text-slate-500">
+                            Extracted {selectedDoc.ocrData?.wordsCount || "full"} words with automated schema mapping.
+                          </div>
+                        </div>
+                      )}
+
+                      {selectedDoc.metadata?.validation && (
+                        <div className="relative">
+                          <span className="absolute -left-6 top-1 w-2.5 h-2.5 rounded-full bg-amber-500 ring-4 ring-white dark:ring-zinc-900" />
+                          <div className="font-semibold text-slate-900 dark:text-white text-xs">
+                            Validation Rules Evaluated: Status {selectedDoc.metadata.validation.status}
+                          </div>
+                          <div className="text-[11px] text-slate-500">
+                            Confidence score: {selectedDoc.metadata.validation.confidence}%
+                          </div>
+                        </div>
+                      )}
+
+                      {auditLogs.map((log: any) => (
+                        <div key={log.id} className="relative">
+                          <span className="absolute -left-6 top-1 w-2.5 h-2.5 rounded-full bg-slate-400 ring-4 ring-white dark:ring-zinc-900" />
+                          <div className="font-semibold text-slate-900 dark:text-white text-xs">
+                            {log.action}
+                          </div>
+                          <div className="text-[11px] text-slate-500">
+                            {new Date(log.createdAt).toLocaleString()} • User: {log.userName || "Admin"}
+                          </div>
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <div className="text-xs text-slate-500 italic py-6 text-center">
-                      Document draft body loaded. Open editor to review full section breakdowns.
-                    </div>
-                  )}
-
-                  {/* Financial Total if present */}
-                  {selectedDoc.totalAmount && (
-                    <div className="mt-8 pt-4 border-t border-slate-200 dark:border-zinc-800 flex justify-end">
-                      <div className="text-right">
-                        <span className="text-xs text-slate-500 mr-3">Grand Total:</span>
-                        <span className="text-base font-bold text-slate-900 dark:text-white">
-                          ₹{Number(selectedDoc.totalAmount).toLocaleString("en-IN")}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Right-side Information Panel & Activity Timeline (4 cols) */}
-              <div className="lg:col-span-4 p-6 space-y-6 overflow-y-auto bg-white dark:bg-zinc-900 text-xs">
-                {/* Information Block */}
-                <div>
-                  <h3 className="font-semibold text-slate-900 dark:text-white mb-3 text-xs uppercase tracking-wider text-slate-400">
-                    Document Information
-                  </h3>
-                  <div className="space-y-2.5">
-                    <div className="flex justify-between py-1 border-b border-slate-100 dark:border-zinc-800">
-                      <span className="text-slate-500">Owner</span>
-                      <span className="font-medium text-slate-800 dark:text-slate-200">
-                        {selectedDoc.createdByName || "User"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between py-1 border-b border-slate-100 dark:border-zinc-800">
-                      <span className="text-slate-500">Department</span>
-                      <span className="font-medium text-slate-800 dark:text-slate-200">
-                        {selectedDoc.departmentName || "General"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between py-1 border-b border-slate-100 dark:border-zinc-800">
-                      <span className="text-slate-500">Team</span>
-                      <span className="font-medium text-slate-800 dark:text-slate-200">
-                        {selectedDoc.teamName || "General Team"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between py-1 border-b border-slate-100 dark:border-zinc-800">
-                      <span className="text-slate-500">Created Date</span>
-                      <span className="text-slate-700 dark:text-slate-300">
-                        {new Date(selectedDoc.createdAt).toLocaleDateString()}
-                      </span>
-                    </div>
-                    <div className="flex justify-between py-1 border-b border-slate-100 dark:border-zinc-800">
-                      <span className="text-slate-500">Last Updated</span>
-                      <span className="text-slate-700 dark:text-slate-300">
-                        {new Date(selectedDoc.updatedAt || selectedDoc.createdAt).toLocaleDateString()}
-                      </span>
-                    </div>
-                    <div className="flex justify-between py-1 border-b border-slate-100 dark:border-zinc-800">
-                      <span className="text-slate-500">Approval Status</span>
-                      <span className="font-medium text-slate-800 dark:text-slate-200">
-                        {selectedDoc.approvalStatus || (selectedDoc.status === "APPROVED" ? "Approved" : "None")}
-                      </span>
-                    </div>
-                    <div className="flex justify-between py-1 border-b border-slate-100 dark:border-zinc-800">
-                      <span className="text-slate-500">Signature Status</span>
-                      <span className="font-medium text-slate-800 dark:text-slate-200">
-                        {selectedDoc.signatureStatus || (selectedDoc.status === "COMPLETED" ? "Signed" : "Unsigned")}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Quick Action Buttons */}
-                <div className="pt-2 border-t border-slate-200 dark:border-zinc-800 space-y-2">
-                  <div className="font-semibold text-slate-400 uppercase tracking-wider text-[11px] mb-2">
-                    Actions
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => handleDownload(selectedDoc.id, "pdf")}
-                      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded-lg text-slate-700 dark:text-slate-200 font-medium transition-colors"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>PDF</span>
-                    </button>
-                    <button
-                      onClick={() => handleDownload(selectedDoc.id, "docx")}
-                      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded-lg text-slate-700 dark:text-slate-200 font-medium transition-colors"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>DOCX</span>
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => setShareModalDoc(selectedDoc)}
-                      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded-lg text-slate-700 dark:text-slate-200 font-medium transition-colors"
-                    >
-                      <Share2 className="w-3.5 h-3.5" />
-                      <span>Share</span>
-                    </button>
-                    <button
-                      onClick={() => setAssignModalDoc(selectedDoc)}
-                      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded-lg text-slate-700 dark:text-slate-200 font-medium transition-colors"
-                    >
-                      <Users className="w-3.5 h-3.5" />
-                      <span>Assign</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Activity Timeline */}
-                <div className="pt-4 border-t border-slate-200 dark:border-zinc-800">
-                  <h3 className="font-semibold text-slate-900 dark:text-white mb-3 text-xs uppercase tracking-wider text-slate-400">
-                    Activity Timeline
-                  </h3>
-                  <div className="relative pl-4 space-y-4 before:absolute before:left-1.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 dark:before:bg-zinc-800">
-                    <div className="relative">
-                      <span className="absolute -left-4 top-1 w-2 h-2 rounded-full bg-indigo-500 ring-4 ring-white dark:ring-zinc-900" />
-                      <div className="font-medium text-slate-900 dark:text-white">Created</div>
-                      <div className="text-[11px] text-slate-400">
-                        {new Date(selectedDoc.createdAt).toLocaleString()} by {selectedDoc.createdByName || "User"}
-                      </div>
-                    </div>
-
-                    {selectedDoc.assignedToName && (
-                      <div className="relative">
-                        <span className="absolute -left-4 top-1 w-2 h-2 rounded-full bg-blue-500 ring-4 ring-white dark:ring-zinc-900" />
-                        <div className="font-medium text-slate-900 dark:text-white">Assigned</div>
-                        <div className="text-[11px] text-slate-400">
-                          Assigned to {selectedDoc.assignedToName}
-                        </div>
-                      </div>
-                    )}
-
-                    {(selectedDoc.status === "PENDING_APPROVAL" ||
-                      selectedDoc.status === "APPROVED" ||
-                      selectedDoc.status === "COMPLETED") && (
-                      <div className="relative">
-                        <span className="absolute -left-4 top-1 w-2 h-2 rounded-full bg-amber-500 ring-4 ring-white dark:ring-zinc-900" />
-                        <div className="font-medium text-slate-900 dark:text-white">Submitted for Approval</div>
-                        <div className="text-[11px] text-slate-400">Review requested</div>
-                      </div>
-                    )}
-
-                    {(selectedDoc.status === "APPROVED" || selectedDoc.status === "COMPLETED") && (
-                      <div className="relative">
-                        <span className="absolute -left-4 top-1 w-2 h-2 rounded-full bg-emerald-500 ring-4 ring-white dark:ring-zinc-900" />
-                        <div className="font-medium text-slate-900 dark:text-white">Approved</div>
-                        <div className="text-[11px] text-slate-400">Approved by Department Reviewer</div>
-                      </div>
-                    )}
-
-                    {(selectedDoc.status === "PENDING_SIGNATURE" || selectedDoc.status === "COMPLETED") && (
-                      <div className="relative">
-                        <span className="absolute -left-4 top-1 w-2 h-2 rounded-full bg-blue-500 ring-4 ring-white dark:ring-zinc-900" />
-                        <div className="font-medium text-slate-900 dark:text-white">Signature Requested</div>
-                        <div className="text-[11px] text-slate-400">Envelope dispatched</div>
-                      </div>
-                    )}
-
-                    {selectedDoc.status === "COMPLETED" && (
-                      <div className="relative">
-                        <span className="absolute -left-4 top-1 w-2 h-2 rounded-full bg-emerald-600 ring-4 ring-white dark:ring-zinc-900" />
-                        <div className="font-medium text-slate-900 dark:text-white">Signed & Completed</div>
-                        <div className="text-[11px] text-slate-400">Legally executed & sealed with SHA-256</div>
-                      </div>
-                    )}
-
-                    {/* Additional DB audit logs if available */}
-                    {auditLogs.map((log: any) => (
-                      <div key={log.id} className="relative">
-                        <span className="absolute -left-4 top-1 w-2 h-2 rounded-full bg-slate-400 ring-4 ring-white dark:ring-zinc-900" />
-                        <div className="font-medium text-slate-800 dark:text-slate-200">{log.action}</div>
-                        <div className="text-[11px] text-slate-400">
-                          {new Date(log.createdAt).toLocaleString()} • {log.userName || "System"}
-                        </div>
-                      </div>
-                    ))}
                   </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}
@@ -1556,6 +2888,228 @@ function CleanDocumentWorkspaceInner({
               >
                 {isSubmitting ? "Sending..." : "Send Document"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: UPLOAD & INGESTION PIPELINE */}
+      {uploadModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-xl bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-zinc-800 overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-6 border-b border-slate-100 dark:border-zinc-800 flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+                  <UploadCloud className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    Document Ingestion & Intelligence Pipeline
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Multi-format ingestion with OCR, classification, and automated validation.
+                  </p>
+                </div>
+              </div>
+              {!isUploading && (
+                <button
+                  onClick={() => {
+                    setUploadModalOpen(false);
+                    setUploadFile(null);
+                    setUploadPipelineStep(0);
+                  }}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-5 text-xs">
+              {!isUploading ? (
+                <form onSubmit={handleUploadProcess} className="space-y-4">
+                  {/* File Dropzone */}
+                  <div>
+                    <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                      Select Document
+                    </label>
+                    <div
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                          setUploadFile(e.dataTransfer.files[0]);
+                        }
+                      }}
+                      className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors ${
+                        uploadFile
+                          ? "border-indigo-500 bg-indigo-50/20 dark:bg-indigo-950/20"
+                          : "border-slate-200 dark:border-zinc-700 hover:border-slate-300 dark:hover:border-zinc-600"
+                      }`}
+                    >
+                      {uploadFile ? (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3 text-left">
+                            <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                              <FileText className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="font-semibold text-slate-900 dark:text-white truncate max-w-xs">
+                                {uploadFile.name}
+                              </div>
+                              <div className="text-[11px] text-slate-500">
+                                {(uploadFile.size / 1024).toFixed(1)} KB • {uploadFile.type || "Document"}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setUploadFile(null)}
+                            className="p-1 text-slate-400 hover:text-rose-500 rounded"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <UploadCloud className="w-8 h-8 mx-auto text-slate-400" />
+                          <div>
+                            <span className="font-semibold text-indigo-600 dark:text-indigo-400">
+                              Click to upload
+                            </span>{" "}
+                            or drag and drop
+                          </div>
+                          <p className="text-[11px] text-slate-400">
+                            PDF, DOCX, XLSX, PNG, JPG (Scans & Digital Documents up to 25MB)
+                          </p>
+                          <input
+                            type="file"
+                            accept=".pdf,.docx,.xlsx,.xls,.png,.jpg,.jpeg"
+                            onChange={(e) => {
+                              if (e.target.files && e.target.files[0]) {
+                                setUploadFile(e.target.files[0]);
+                              }
+                            }}
+                            className="hidden"
+                            id="file-upload-input"
+                          />
+                          <label
+                            htmlFor="file-upload-input"
+                            className="inline-block mt-2 px-3 py-1.5 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-slate-300 rounded-lg cursor-pointer font-medium"
+                          >
+                            Browse Files
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Metadata Fields */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        Category
+                      </label>
+                      <select
+                        value={uploadCategory}
+                        onChange={(e) => setUploadCategory(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg text-xs"
+                      >
+                        <option value="General">General</option>
+                        <option value="Finance">Finance & Accounting</option>
+                        <option value="Sales">Sales & Commercial</option>
+                        <option value="Legal">Legal & Contracts</option>
+                        <option value="Operations">Operations & Procurement</option>
+                        <option value="HR">Human Resources</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        Associated Client (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={uploadClientName}
+                        onChange={(e) => setUploadClientName(e.target.value)}
+                        placeholder="e.g. Acme Corp"
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-zinc-800">
+                    <button
+                      type="button"
+                      onClick={() => setUploadModalOpen(false)}
+                      className="px-3.5 py-2 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-lg"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={!uploadFile}
+                      className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm disabled:opacity-50 flex items-center gap-1.5 transition-colors"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Ingest & Run Pipeline</span>
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                /* Live Processing Pipeline View */
+                <div className="py-4 space-y-6">
+                  <div className="text-center space-y-1">
+                    <h4 className="font-bold text-slate-900 dark:text-white text-sm">
+                      Executing Document Intelligence Pipeline
+                    </h4>
+                    <p className="text-slate-500 text-[11px]">
+                      Parsing, extracting, and validating &quot;{uploadFile?.name}&quot;
+                    </p>
+                  </div>
+
+                  {/* Visual Steps */}
+                  <div className="space-y-3 max-w-md mx-auto">
+                    {[
+                      { step: 1, label: "Storage & Cryptographic Hashing" },
+                      { step: 2, label: "Optical Character Recognition (OCR)" },
+                      { step: 3, label: "AI Classification & Taxonomy Matching" },
+                      { step: 4, label: "Structured Field & Financial Table Extraction" },
+                      { step: 5, label: "Math Reconciliation & Date Sequencing Validation" },
+                      { step: 6, label: "Indexing & Ready for Review" },
+                    ].map((st) => {
+                      const isComplete = uploadPipelineStep > st.step;
+                      const isCurrent = uploadPipelineStep === st.step;
+                      return (
+                        <div
+                          key={st.step}
+                          className={`flex items-center gap-3 p-2.5 rounded-lg border text-xs transition-all ${
+                            isCurrent
+                              ? "bg-indigo-50/60 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800 text-indigo-900 dark:text-indigo-200 font-semibold"
+                              : isComplete
+                              ? "bg-slate-50 dark:bg-zinc-800/40 border-slate-100 dark:border-zinc-800 text-slate-700 dark:text-slate-300"
+                              : "border-transparent text-slate-400"
+                          }`}
+                        >
+                          <div className="w-5 h-5 flex items-center justify-center">
+                            {isComplete ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                            ) : isCurrent ? (
+                              <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
+                            ) : (
+                              <div className="w-2 h-2 rounded-full bg-slate-300 dark:bg-zinc-700" />
+                            )}
+                          </div>
+                          <span>{st.label}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

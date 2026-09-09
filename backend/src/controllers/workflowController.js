@@ -259,7 +259,61 @@ const getApprovalRequests = async (req, res) => {
     for (const item of cacheFormatted) {
       if (!seenIds.has(String(item.id)) && !seenNames.has(item.documentName.toLowerCase())) {
         combined.push(item);
+        seenIds.add(String(item.id));
+        seenNames.add(item.documentName.toLowerCase());
       }
+    }
+
+    // Query Unified Documents to ensure every document created across roles appears in Workflows & Approvals
+    try {
+      const unifiedDocs = await prisma.unifiedDocument.findMany({
+        where: { organisationId: orgId },
+        orderBy: { updatedAt: "desc" },
+        take: 50,
+      });
+
+      for (const d of unifiedDocs) {
+        if (!seenIds.has(String(d.id))) {
+          let st = (d.status || "").toUpperCase();
+          let normalizedStatus = "Pending";
+          if (st === "APPROVED" || st === "COMPLETED" || st === "SIGNED") normalizedStatus = "Approved";
+          else if (st === "REJECTED") normalizedStatus = "Rejected";
+          else if (st === "CHANGES_REQUESTED" || st === "CHANGES_REQUIRED") normalizedStatus = "Changes Requested";
+          else normalizedStatus = "Pending";
+
+          combined.push({
+            id: d.id,
+            realDocId: d.id,
+            documentId: d.id,
+            documentNumber: d.documentNumber,
+            documentName: d.title || d.documentNumber || "Document",
+            documentType: d.documentType || "Document",
+            category: d.category || "General",
+            clientName: d.clientName || "Client",
+            submittedBy: d.createdByName || d.ownerName || "Team Member",
+            submittedEmail: d.assignedToEmail || "creator@docucore.ai",
+            submittedAt: d.createdAt ? d.createdAt.toISOString().split("T")[0] : "Recent",
+            workflowName: `${d.documentType || "Document"} Approval & Signing`,
+            department: d.departmentName || d.category || "Executive",
+            status: normalizedStatus,
+            priority: d.priority || "HIGH",
+            notes: d.assignmentInstructions || "Pending Executive Review & Signature",
+            content: d.content,
+            financialData: d.financialData,
+            history: [
+              {
+                action: `Created: ${d.documentType || 'Document'}`,
+                user: d.createdByName || "Author",
+                time: d.createdAt ? d.createdAt.toISOString() : new Date().toISOString(),
+                comment: `Submitted with priority ${d.priority || 'NORMAL'}`,
+              },
+            ],
+          });
+          seenIds.add(String(d.id));
+        }
+      }
+    } catch (uErr) {
+      console.warn("Unified docs query in getApprovalRequests note:", uErr);
     }
 
     return res.status(200).json({
@@ -340,7 +394,18 @@ const processOrgApprovalAction = async (req, res) => {
       userId: Number(context.userId),
       userRole: "ORG_ADMIN",
       comment: comment || "",
-    });
+    }).catch(() => null);
+
+    // Also update UnifiedDocument if id matches
+    try {
+      await prisma.unifiedDocument.updateMany({
+        where: { id: String(id) },
+        data: {
+          status: action === "APPROVE" ? "APPROVED" : action === "REJECT" ? "REJECTED" : "CHANGES_REQUESTED",
+          approvalStatus: action === "APPROVE" ? "APPROVED" : action === "REJECT" ? "REJECTED" : "CHANGES_REQUESTED",
+        },
+      });
+    } catch (uErr) {}
 
     // Update memory cache
     const employeeService = require("../services/employeeService");

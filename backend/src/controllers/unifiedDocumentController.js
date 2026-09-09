@@ -490,6 +490,93 @@ const unifiedDocumentController = {
       return res.status(500).json({ success: false, message: err.message });
     }
   },
+
+  /**
+   * POST /api/unified-documents/upload-process
+   */
+  async uploadAndProcess(req, res) {
+    try {
+      const orgId = getOrgId(req);
+      if (!req.file) {
+        return res.status(400).json({ success: false, message: 'No file uploaded for processing.' });
+      }
+      const user = {
+        id: getUserId(req),
+        name: getUserName(req),
+        role: req.user?.role || 'STAFF',
+      };
+      const document = await unifiedDocumentService.uploadAndProcessDocument(orgId, user, req.file, req.body, req);
+      return res.status(201).json({
+        success: true,
+        message: `Document processed successfully (${document.status}).`,
+        data: document,
+      });
+    } catch (err) {
+      console.error('[UnifiedDocumentController.uploadAndProcess]', err);
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  /**
+   * POST /api/unified-documents/:id/review-action
+   */
+  async processReviewAction(req, res) {
+    try {
+      const orgId = getOrgId(req);
+      const { id } = req.params;
+      const user = {
+        id: getUserId(req),
+        name: getUserName(req),
+        role: req.user?.role || 'STAFF',
+      };
+      const updated = await unifiedDocumentService.processReviewAction(id, orgId, user, req.body, req);
+      return res.json({
+        success: true,
+        message: 'Document review action recorded.',
+        data: updated,
+      });
+    } catch (err) {
+      console.error('[UnifiedDocumentController.processReviewAction]', err);
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  /**
+   * POST /api/unified-documents/:id/chat
+   */
+  async chatWithDocument(req, res) {
+    try {
+      const orgId = getOrgId(req);
+      const { id } = req.params;
+      const { query } = req.body;
+      if (!query || !query.trim()) {
+        return res.status(400).json({ success: false, message: 'Question query is required.' });
+      }
+      const user = {
+        id: getUserId(req),
+        name: getUserName(req),
+      };
+      const response = await unifiedDocumentService.chatWithDocument(id, orgId, user, query);
+      return res.json(response);
+    } catch (err) {
+      console.error('[UnifiedDocumentController.chatWithDocument]', err);
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  /**
+   * GET /api/unified-documents/audit-logs/all
+   */
+  async getOrganisationAuditLogs(req, res) {
+    try {
+      const orgId = getOrgId(req);
+      const logsData = await unifiedDocumentService.getOrganisationAuditLogs(orgId, req.query);
+      return res.json({ success: true, data: logsData });
+    } catch (err) {
+      console.error('[UnifiedDocumentController.getOrganisationAuditLogs]', err);
+      return res.status(500).json({ success: false, message: err.message });
+    }
+  },
 };
 
 module.exports = unifiedDocumentController;

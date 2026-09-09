@@ -464,8 +464,6 @@ export default function OrgAdminTeamPage() {
                   <th className="py-3 px-4 text-center">Dept Manager</th>
                   <th className="py-3 px-4 text-center">Team Lead</th>
                   <th className="py-3 px-4 text-center">Employee</th>
-                  <th className="py-3 px-4 text-center">Viewer</th>
-                  <th className="py-3 px-4 text-center">Guest</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs">
@@ -476,8 +474,6 @@ export default function OrgAdminTeamPage() {
                     <td className="py-3 px-4 text-center">{p.deptManager ? "✓" : "-"}</td>
                     <td className="py-3 px-4 text-center">{p.teamLead ? "✓" : "-"}</td>
                     <td className="py-3 px-4 text-center">{p.employee ? "✓" : "-"}</td>
-                    <td className="py-3 px-4 text-center">{p.viewer ? "✓" : "-"}</td>
-                    <td className="py-3 px-4 text-center">{p.guest ? "✓" : "-"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -507,8 +503,6 @@ export default function OrgAdminTeamPage() {
                   <option value="Organisation Admin">Organisation Admin</option>
                   <option value="Team Lead">Team Lead</option>
                   <option value="Employee">Employee</option>
-                  <option value="Viewer">Viewer</option>
-                  <option value="Guest">Guest</option>
                 </select>
               </div>
               <div>
@@ -550,7 +544,6 @@ export default function OrgAdminTeamPage() {
                   <option value="Department Manager">Department Manager</option>
                   <option value="Team Lead">Team Lead</option>
                   <option value="Employee">Employee</option>
-                  <option value="Viewer">Viewer</option>
                 </select>
               </div>
               <div>

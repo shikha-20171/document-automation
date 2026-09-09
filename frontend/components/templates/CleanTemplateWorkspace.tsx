@@ -278,6 +278,33 @@ export default function CleanTemplateWorkspace({
     }
   };
 
+  // Toggle Active / Inactive
+  const handleToggleStatus = async (t: any) => {
+    try {
+      const nextStatus = t.status === "INACTIVE" ? "ACTIVE" : "INACTIVE";
+      await apiClient.put(`/api/unified-templates/${t.id}`, {
+        status: nextStatus,
+      });
+      showToast("Status Updated", `Template is now ${nextStatus}.`);
+      fetchTemplates();
+    } catch (err: any) {
+      showToast("Update Failed", err.message, "error");
+    }
+  };
+
+  // Archive template
+  const handleArchive = async (id: string) => {
+    try {
+      await apiClient.put(`/api/unified-templates/${id}`, {
+        status: "ARCHIVED",
+      });
+      showToast("Archived", "Template moved to archive.");
+      fetchTemplates();
+    } catch (err: any) {
+      showToast("Archive Failed", err.message, "error");
+    }
+  };
+
   const hasActiveFilters = searchTerm.trim() !== "" || typeFilter !== "ALL" || createdByFilter !== "ALL";
 
   return (
@@ -336,20 +363,22 @@ export default function CleanTemplateWorkspace({
             />
           </div>
 
-          {/* Document Type Filter */}
+          {/* Category / Type Filter */}
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
             className="px-3 py-2 text-sm bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700/60 rounded-lg text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
           >
-            <option value="ALL">All Document Types</option>
+            <option value="ALL">All Categories</option>
             <option value="Quotation">Quotation</option>
             <option value="Proposal">Proposal</option>
-            <option value="Service Agreement">Service Agreement</option>
             <option value="Invoice">Invoice</option>
-            <option value="NDA">NDA</option>
             <option value="Contract">Contract</option>
-            <option value="Offer Letter">Offer Letter</option>
+            <option value="NDA">NDA</option>
+            <option value="Purchase Order">Purchase Order</option>
+            <option value="Letter">Letter</option>
+            <option value="Report">Report</option>
+            <option value="Custom">Custom</option>
           </select>
 
           {/* Created By Filter */}
@@ -386,18 +415,21 @@ export default function CleanTemplateWorkspace({
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 dark:bg-zinc-800/50 border-b border-slate-200 dark:border-zinc-800 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               <tr>
-                <th className="px-6 py-3.5">Template</th>
+                <th className="px-6 py-3.5">Template Name</th>
                 <th className="px-6 py-3.5">Type</th>
+                <th className="px-6 py-3.5">Category</th>
+                <th className="px-6 py-3.5">Version</th>
+                <th className="px-6 py-3.5">Status</th>
                 <th className="px-6 py-3.5">Created By</th>
-                <th className="px-6 py-3.5">Dynamic Variables</th>
-                <th className="px-6 py-3.5">Updated</th>
+                <th className="px-6 py-3.5">Last Updated</th>
+                <th className="px-6 py-3.5">Usage Count</th>
                 <th className="px-6 py-3.5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/80">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                  <td colSpan={9} className="px-6 py-12 text-center text-slate-400">
                     <div className="flex items-center justify-center gap-2">
                       <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
                       <span>Loading templates...</span>
@@ -406,7 +438,7 @@ export default function CleanTemplateWorkspace({
                 </tr>
               ) : filteredTemplates.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-14 text-center">
+                  <td colSpan={9} className="px-6 py-14 text-center">
                     <div className="max-w-sm mx-auto flex flex-col items-center">
                       <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-zinc-800 flex items-center justify-center text-slate-400 mb-3">
                         <Layout className="w-6 h-6" />
@@ -431,8 +463,9 @@ export default function CleanTemplateWorkspace({
                 </tr>
               ) : (
                 filteredTemplates.map((t) => {
-                  const vars = getTemplateVariables(t);
                   const isMenuOpen = openMenuId === t.id;
+                  const isInactive = t.status === "INACTIVE";
+                  const isArchived = t.status === "ARCHIVED";
 
                   return (
                     <tr
@@ -461,7 +494,37 @@ export default function CleanTemplateWorkspace({
                       {/* Type Column */}
                       <td className="px-6 py-4">
                         <span className="inline-block px-2.5 py-0.5 rounded text-xs font-medium bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-slate-300">
-                          {t.documentType || t.category || "General"}
+                          {t.documentType || "Document"}
+                        </span>
+                      </td>
+
+                      {/* Category Column */}
+                      <td className="px-6 py-4 text-xs text-slate-600 dark:text-slate-400">
+                        {t.category || "General"}
+                      </td>
+
+                      {/* Version */}
+                      <td className="px-6 py-4 font-mono text-xs text-slate-600 dark:text-slate-400">
+                        v{t.version || 1}
+                      </td>
+
+                      {/* Status */}
+                      <td className="px-6 py-4">
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            isArchived
+                              ? "bg-slate-100 text-slate-600 dark:bg-zinc-800 dark:text-slate-400"
+                              : isInactive
+                              ? "bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"
+                              : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
+                          }`}
+                        >
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              isArchived ? "bg-slate-400" : isInactive ? "bg-amber-500" : "bg-emerald-500"
+                            }`}
+                          />
+                          <span>{isArchived ? "Archived" : isInactive ? "Inactive" : "Active"}</span>
                         </span>
                       </td>
 
@@ -474,28 +537,9 @@ export default function CleanTemplateWorkspace({
                           </span>
                         ) : (
                           <span className="text-slate-600 dark:text-slate-400">
-                            {t.createdByName || "Custom Template"}
+                            {t.createdByName || "User"}
                           </span>
                         )}
-                      </td>
-
-                      {/* Variables Column */}
-                      <td className="px-6 py-4">
-                        <div className="flex flex-wrap gap-1 max-w-xs">
-                          {vars.slice(0, 3).map((v) => (
-                            <span
-                              key={v}
-                              className="px-1.5 py-0.5 bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-slate-400 rounded text-[11px] font-mono"
-                            >
-                              {`{{${v}}}`}
-                            </span>
-                          ))}
-                          {vars.length > 3 && (
-                            <span className="text-[11px] text-slate-400 self-center">
-                              +{vars.length - 3} more
-                            </span>
-                          )}
-                        </div>
                       </td>
 
                       {/* Updated Column */}
@@ -505,6 +549,11 @@ export default function CleanTemplateWorkspace({
                           day: "numeric",
                           year: "numeric",
                         })}
+                      </td>
+
+                      {/* Usage Count */}
+                      <td className="px-6 py-4 font-mono text-xs text-slate-700 dark:text-slate-300">
+                        {t.usageCount || t.metadata?.usageCount || 0}
                       </td>
 
                       {/* Actions Column */}
@@ -531,7 +580,7 @@ export default function CleanTemplateWorkspace({
                           {/* Dropdown Menu */}
                           {isMenuOpen && (
                             <div
-                              className="absolute right-0 top-10 z-40 w-40 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl shadow-xl py-1 text-xs text-left"
+                              className="absolute right-0 top-10 z-40 w-44 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl shadow-xl py-1 text-xs text-left"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <button
@@ -547,6 +596,28 @@ export default function CleanTemplateWorkspace({
 
                               <button
                                 onClick={() => {
+                                  const payload = {
+                                    templateId: t.id,
+                                    templateName: t.name,
+                                    documentType: t.documentType,
+                                    category: t.category,
+                                    sections: t.sections || [],
+                                    isEditingTemplate: true,
+                                  };
+                                  try {
+                                    sessionStorage.setItem("active_template_payload", JSON.stringify(payload));
+                                  } catch {}
+                                  setOpenMenuId(null);
+                                  router.push(`/${roleSlug}/ai-builder?editTemplate=${t.id}`);
+                                }}
+                                className="w-full flex items-center gap-2 px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-zinc-800/80 text-slate-700 dark:text-slate-200"
+                              >
+                                <Edit className="w-3.5 h-3.5 text-slate-400" />
+                                <span>Edit Template</span>
+                              </button>
+
+                              <button
+                                onClick={() => {
                                   handleDuplicate(t);
                                   setOpenMenuId(null);
                                 }}
@@ -554,6 +625,28 @@ export default function CleanTemplateWorkspace({
                               >
                                 <Copy className="w-3.5 h-3.5 text-slate-400" />
                                 <span>Duplicate</span>
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  handleToggleStatus(t);
+                                  setOpenMenuId(null);
+                                }}
+                                className="w-full flex items-center gap-2 px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-zinc-800/80 text-slate-700 dark:text-slate-200"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
+                                <span>{isInactive ? "Activate" : "Deactivate"}</span>
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  handleArchive(t.id);
+                                  setOpenMenuId(null);
+                                }}
+                                className="w-full flex items-center gap-2 px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-zinc-800/80 text-slate-700 dark:text-slate-200"
+                              >
+                                <FileText className="w-3.5 h-3.5 text-slate-400" />
+                                <span>Archive</span>
                               </button>
 
                               {!t.isStandard && (
@@ -748,11 +841,13 @@ export default function CleanTemplateWorkspace({
                   >
                     <option value="Quotation">Quotation</option>
                     <option value="Proposal">Proposal</option>
-                    <option value="Contract">Contract</option>
-                    <option value="Agreement">Agreement</option>
                     <option value="Invoice">Invoice</option>
+                    <option value="Contract">Contract</option>
                     <option value="NDA">NDA</option>
-                    <option value="Offer Letter">Offer Letter</option>
+                    <option value="Purchase Order">Purchase Order</option>
+                    <option value="Letter">Letter</option>
+                    <option value="Report">Report</option>
+                    <option value="Custom">Custom</option>
                   </select>
                 </div>
 
@@ -765,24 +860,60 @@ export default function CleanTemplateWorkspace({
                     onChange={(e) => setTemplateForm({ ...templateForm, category: e.target.value })}
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg text-slate-900 dark:text-white"
                   >
-                    <option value="Sales">Sales</option>
-                    <option value="Finance">Finance</option>
-                    <option value="Legal">Legal</option>
-                    <option value="HR">HR</option>
-                    <option value="Operations">Operations</option>
+                    <option value="Quotation">Quotation</option>
+                    <option value="Proposal">Proposal</option>
+                    <option value="Invoice">Invoice</option>
+                    <option value="Contract">Contract</option>
+                    <option value="NDA">NDA</option>
+                    <option value="Purchase Order">Purchase Order</option>
+                    <option value="Letter">Letter</option>
+                    <option value="Report">Report</option>
+                    <option value="Custom">Custom</option>
                   </select>
                 </div>
               </div>
 
               <div>
                 <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Description
+                  Dynamic Fields (Click to insert)
+                </label>
+                <div className="flex flex-wrap gap-1.5 p-2 bg-slate-50 dark:bg-zinc-800/70 border border-slate-200 dark:border-zinc-700 rounded-lg mb-2">
+                  {[
+                    "{{client_name}}",
+                    "{{company_name}}",
+                    "{{quotation_number}}",
+                    "{{date}}",
+                    "{{items}}",
+                    "{{subtotal}}",
+                    "{{tax}}",
+                    "{{total}}",
+                  ].map((field) => (
+                    <button
+                      key={field}
+                      type="button"
+                      onClick={() =>
+                        setTemplateForm({
+                          ...templateForm,
+                          description: templateForm.description ? `${templateForm.description} ${field}` : field,
+                        })
+                      }
+                      className="px-2 py-1 bg-white dark:bg-zinc-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 hover:text-indigo-600 text-[11px] font-mono rounded border border-slate-200 dark:border-zinc-600 transition-colors"
+                    >
+                      {field}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Description / Prompt Structure
                 </label>
                 <textarea
                   rows={2}
                   value={templateForm.description}
                   onChange={(e) => setTemplateForm({ ...templateForm, description: e.target.value })}
-                  placeholder="Describe when team members should reuse this template..."
+                  placeholder="Describe standard layout, placeholders, and structure..."
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg text-slate-900 dark:text-white resize-none"
                 />
               </div>

@@ -166,7 +166,7 @@ function detectDocumentIntent(prompt) {
  */
 function extractCommonEntities(text) {
   const res = {
-    companyName: 'Dezoryn Technology', // Issuing party is ALWAYS Dezoryn Technology
+    companyName: null,
     clientName: null,
     projectName: null,
     amount: null,
@@ -204,7 +204,7 @@ function extractCommonEntities(text) {
 
   // 3. Pairwise Company Extraction:
   // Pairwise 1: "from/by X for/to Y"
-  const fromToMatch = clean.match(/(?:from|by|on\s+behalf\s+of)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,3}?)\s+(?:for|to)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,3}?)(?:\s+(?:for|worth|costing|dated|\.|$))/i);
+  const fromToMatch = clean.match(/(?:from|by|on\s+behalf\s+of)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,3}?)\s+(?:for|to)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,3}?)(?:\s+(?:for|worth|costing|dated|\.)|\s*$)/i);
   if (fromToMatch) {
     const c1 = fromToMatch[1].trim();
     const c2 = fromToMatch[2].trim();
@@ -215,7 +215,7 @@ function extractCommonEntities(text) {
 
   // Pairwise 2: "between X and Y"
   if (!res.clientName) {
-    const betweenMatch = clean.match(/between\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,3}?)\s+(?:and|&)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,3}?)(?:\s+(?:for|worth|dated|\.|$))/i);
+    const betweenMatch = clean.match(/between\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,3}?)\s+(?:and|&)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,3}?)(?:\s+(?:for|worth|dated|\.)|\s*$)/i);
     if (betweenMatch) {
       const c1 = betweenMatch[1].trim();
       const c2 = betweenMatch[2].trim();
@@ -227,7 +227,7 @@ function extractCommonEntities(text) {
 
   // Pairwise 3: "for/to Y from/by X"
   if (!res.clientName) {
-    const forByMatch = clean.match(/(?:for|to)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,3}?)\s+(?:from|by)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,3}?)(?:\s+(?:for|worth|dated|\.|$))/i);
+    const forByMatch = clean.match(/(?:for|to)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,3}?)\s+(?:from|by)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,3}?)(?:\s+(?:for|worth|dated|\.)|\s*$)/i);
     if (forByMatch) {
       const c1 = forByMatch[1].trim();
       const c2 = forByMatch[2].trim();
@@ -237,18 +237,44 @@ function extractCommonEntities(text) {
     }
   }
 
-  // Pairwise 4: Hindi "X ki taraf se Y ke liye"
+  // Pairwise 4: Hindi "X ki taraf se Y ke liye" / "X se Y ke liye" / "X ka Y ke liye"
   if (!res.clientName) {
-    const hindiMatch = clean.match(/([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,3}?)\s+ki\s+taraf\s+se\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,3}?)\s+ke\s+liye/i);
+    const hindiMatch = clean.match(/([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,3}?)\s+(?:ki\s+taraf\s+se|se|ka)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,3}?)\s+ke\s+liye/i);
     if (hindiMatch) {
-      res.companyName = hindiMatch[1].trim();
-      res.clientName = hindiMatch[2].trim();
+      const c1 = hindiMatch[1].trim();
+      const c2 = hindiMatch[2].trim();
+      const blacklist = ['hum', 'mai', 'aap', 'ek', 'mera', 'ye', 'woh', 'kisi'];
+      if (!blacklist.includes(c1.toLowerCase())) res.companyName = c1;
+      if (!blacklist.includes(c2.toLowerCase())) res.clientName = c2;
+    }
+  }
+
+  // Pairwise 5: Hindi "Y ke liye X se / X ki taraf se"
+  if (!res.clientName) {
+    const revHindiMatch = clean.match(/([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,3}?)\s+ke\s+liye\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,3}?)\s+(?:se|ki\s+taraf\s+se)/i);
+    if (revHindiMatch) {
+      const c1 = revHindiMatch[1].trim();
+      const c2 = revHindiMatch[2].trim();
+      const blacklist = ['hum', 'mai', 'aap', 'ek', 'mera', 'ye', 'woh', 'kisi'];
+      if (!blacklist.includes(c1.toLowerCase())) res.clientName = c1;
+      if (!blacklist.includes(c2.toLowerCase())) res.companyName = c2;
+    }
+  }
+
+  // Standalone Company / Issuer Name extraction
+  if (!res.companyName) {
+    const issuerMatch = clean.match(/(?:issuer|vendor|company|provider|from\s+company|by\s+company|seller)[:\s]+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,3}?)(?:\s+(?:for|to|worth|dated|\.)|\s*$)/i) ||
+                        clean.match(/([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,3}?)\s+(?:ki\s+taraf\s+se|se\s+banao|se\s+bana)/i);
+    if (issuerMatch && issuerMatch[1]) {
+      const candidate = issuerMatch[1].trim();
+      const blacklist = ['hum', 'mai', 'aap', 'ek', 'mera', 'ye', 'woh', 'kisi', 'scratch', 'ai'];
+      if (!blacklist.includes(candidate.toLowerCase())) res.companyName = candidate;
     }
   }
 
   // Standalone Client Name Extraction (if not matched above)
   if (!res.clientName) {
-    const quotationForPattern = clean.match(/(?:quotation|bid|proposal|estimate|invoice|document|agreement)\s+(?:for|to)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,4}?)(?:\s+(?:for\s+(?:₹|rs|[\d,]+|our)|worth|costing|with|dated|\.|$))/i);
+    const quotationForPattern = clean.match(/(?:quotation|bid|proposal|estimate|invoice|document|agreement)\s+(?:for|to)\s+([A-Za-z0-9&.,'-]+(?:\s+[A-Za-z0-9&.,'-]+){0,4}?)(?:\s+(?:for\s+(?:₹|rs|[\d,]+|our)|worth|costing|with|dated|\.)|\s*$)/i);
     if (quotationForPattern && quotationForPattern[1]) {
       const candidate = quotationForPattern[1].trim();
       if (!['our', 'the', 'a', 'an', 'ai', 'software', 'project'].includes(candidate.toLowerCase())) {
@@ -308,9 +334,21 @@ function extractCommonEntities(text) {
     res.projectName = 'Software Development Project';
   }
 
-  // Clean trailing commas/periods from clientName
+  function sanitizeEntityName(str) {
+    if (!str) return null;
+    let s = str.trim();
+    s = s.replace(/^(?:ek|bna\s+do|bana\s+do|banado|banao|karo|create|make|generate|draft|send|quotation|proposal|document|invoice|contract|for|from|to|by|se)\s+/i, '');
+    s = s.replace(/^(?:ek|bna\s+do|bana\s+do|banado|banao|karo|create|make|generate|draft|send|quotation|proposal|document|invoice|contract|for|from|to|by|se)\s+/i, '');
+    s = s.replace(/[.,;:]+$/, '').trim();
+    if (s.length < 2) return null;
+    return s.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  }
+
+  if (res.companyName) {
+    res.companyName = sanitizeEntityName(res.companyName);
+  }
   if (res.clientName) {
-    res.clientName = res.clientName.replace(/[.,]+$/, '').trim();
+    res.clientName = sanitizeEntityName(res.clientName);
   }
 
   return res;
@@ -344,13 +382,24 @@ async function generateStructuredDocumentFromAI({
   const detected = detectDocumentIntent(cleanPrompt);
   const entities = extractCommonEntities(cleanPrompt);
 
-  const explicitCompany = (entities.companyName || companyName || '').trim();
-  const issuingCompanyName = explicitCompany && explicitCompany !== 'Dezoryn Technology'
-    ? explicitCompany
-    : (orgProfile.companyName || 'Dezoryn Technology');
-  const issuingLegalName = explicitCompany && explicitCompany !== 'Dezoryn Technology'
-    ? (explicitCompany.toLowerCase().includes('ltd') ? explicitCompany : `${explicitCompany} Pvt Ltd`)
-    : (orgProfile.legalName || 'Dezoryn Technology Pvt Ltd');
+  const explicitCompany = (companyName || entities.companyName || '').trim();
+  let issuingCompanyName = explicitCompany;
+  if (!issuingCompanyName) {
+    const isSeedOrg = orgProfile.companyName && (
+      orgProfile.companyName.toLowerCase().includes('tcs') ||
+      orgProfile.companyName.toLowerCase().includes('tata consultancy') ||
+      orgProfile.companyName.toLowerCase().includes('dezoryn')
+    );
+    if (!isSeedOrg && orgProfile.companyName) {
+      issuingCompanyName = orgProfile.companyName;
+    } else {
+      issuingCompanyName = 'Enterprise Solutions';
+    }
+  }
+
+  const issuingLegalName = issuingCompanyName.toLowerCase().includes('ltd') || issuingCompanyName.toLowerCase().includes('inc') || issuingCompanyName.toLowerCase().includes('corp')
+    ? issuingCompanyName
+    : `${issuingCompanyName} Pvt Ltd`;
 
   const documentType = documentTypeOverride || templateContext?.documentType || detected.documentType;
   const category = categoryOverride || templateContext?.category || detected.category;
@@ -401,8 +450,8 @@ async function generateStructuredDocumentFromAI({
   }
 
   // Determine Project Title
-  const projectName = entities.projectName || (documentType === 'Quotation' ? 'AI Document Automation Solution' : 'Enterprise Engineering Project');
-  const baseAmount = entities.amount || (documentType === 'Quotation' ? 500000 : 500000);
+  const projectName = entities.projectName || (documentType === 'Quotation' ? 'Commercial Proposal & Deliverables' : 'Enterprise Professional Engagement');
+  const baseAmount = entities.amount || (documentType === 'Quotation' ? 300000 : 300000);
   const currency = entities.currency || 'INR';
 
   // Format dates
@@ -417,17 +466,22 @@ async function generateStructuredDocumentFromAI({
 
   const systemPrompt = `
 You are an Enterprise AI Document Architect.
-CRITICAL CORPORATE IDENTITY RULE:
-Every document generated is ALWAYS issued FROM the issuing company "${issuingCompanyName}" (${issuingLegalName}) as the seller, bidder, service provider, or contracting authority.
-The client company "${effectiveClientName}" is ALWAYS the recipient/client/buyer.
-Under NO circumstances should the issuer and recipient roles be reversed.
+CRITICAL CORPORATE IDENTITY & ENTITY RULES:
+1. Every document must be authentically and professionally generated FOR THE SPECIFIC COMPANIES requested in the user prompt or parameters.
+2. The Issuing Entity (Creator / Seller / Service Provider / Consultant):
+   - Issuer is "${issuingCompanyName}" (${issuingLegalName}).
+   - If the user prompt specifically named a vendor/issuer company, ALWAYS use that exact company.
+   - Under NO circumstances should you force or mention "TCS", "Tata Consultancy Services", or "Dezoryn" unless the user explicitly requested that specific brand in their prompt.
+3. The Recipient Entity (Client / Buyer / Customer / Counterparty):
+   - The recipient is "${effectiveClientName}".
+   - Ensure the issuer and recipient roles are appropriately separated and accurate.
 
 Document Type: "${documentType}"
 Category: "${category}"
 Issuer: "${issuingCompanyName}" (${issuingLegalName})
 Recipient / Client: "${effectiveClientName}"
 Project / Service: "${projectName}"
-Base Amount: ${baseAmount ? formatCurrencyINR(baseAmount) : '₹5,00,000'}
+Base Amount: ${baseAmount ? formatCurrencyINR(baseAmount) : '₹3,00,000'}
 
 Return ONLY a valid JSON object matching this schema:
 {
@@ -497,7 +551,7 @@ Base Amount: ${baseAmount}
           maxTokens: 4500,
         },
       }),
-      5000
+      35000
     );
 
     if (aiResult && aiResult.text) {
@@ -518,7 +572,7 @@ Base Amount: ${baseAmount}
     }
   }
 
-  // 6. Guarantee Corporate Identity (Dezoryn Technology)
+  // 6. Guarantee Corporate Identity
   parsed.companyName = issuingCompanyName;
   parsed.clientName = effectiveClientName;
   if (!parsed.clientEmail && clientEmail) parsed.clientEmail = clientEmail;
@@ -574,10 +628,10 @@ Base Amount: ${baseAmount}
     parsed.financialData = financials;
   }
 
-  // Sender Metadata snapshot from Dezoryn corporate profile
+  // Sender Metadata snapshot from corporate profile
   const senderData = {
-    companyName: 'Dezoryn Technology',
-    legalName: orgProfile.legalName,
+    companyName: issuingCompanyName,
+    legalName: issuingLegalName,
     tagline: orgProfile.tagline,
     registeredAddress: orgProfile.registeredAddress,
     billingAddress: orgProfile.billingAddress,
@@ -766,7 +820,7 @@ function generateHeuristicBidDocument(orgProfile, issuingCompanyName, issuingLeg
       id: 'sec_signatures',
       type: 'signature',
       title: '16. Bid Submission & Acceptance Sign-Off',
-      body: `Submitted on behalf of ${issuingCompanyName} by Authorized Signatory:\nAditya Sharma, Director & VP Enterprise Solutions\n${issuingLegalName}\n\nAccepted & Acknowledged by:\nAuthorized Representative for ${clientName}`,
+      body: `Submitted on behalf of ${issuingCompanyName} by Authorized Signatory:\n${orgProfile.authorisedSignatory?.name || 'Authorised Signatory'}, ${orgProfile.authorisedSignatory?.designation || 'Director'}\n${issuingLegalName}\n\nAccepted & Acknowledged by:\nAuthorized Representative for ${clientName}`,
     },
   ];
 
@@ -912,7 +966,7 @@ function generateHeuristicQuotationDocument(orgProfile, issuingCompanyName, issu
       id: 'sec_signature',
       type: 'signature',
       title: '8. Authorization & Client Acceptance',
-      body: `ISSUED BY:\nFor ${issuingLegalName}\nAditya Sharma, Director & Authorised Signatory\n\nACCEPTED & CONFIRMED BY:\nClient: ${clientName}\nAuthorized Signature: _______________________\nName & Designation: _______________________\nDate: _______________________`,
+      body: `ISSUED BY:\nFor ${issuingLegalName}\n${orgProfile.authorisedSignatory?.name || 'Authorised Signatory'}, ${orgProfile.authorisedSignatory?.designation || 'Director'}\n\nACCEPTED & CONFIRMED BY:\nClient: ${clientName}\nAuthorized Signature: _______________________\nName & Designation: _______________________\nDate: _______________________`,
     },
   ];
 
@@ -945,7 +999,7 @@ function generateHeuristicQuotationDocument(orgProfile, issuingCompanyName, issu
 function generateHeuristicDocument(prompt, documentType, category, clientContext, templateContext, companyName, clientName, amount, projectName, orgProfile) {
   const entities = extractCommonEntities(prompt);
   const resolvedClientName = clientContext?.name || clientName || entities.clientName || 'Valued Partner';
-  const resolvedCompanyName = companyName || entities.companyName || 'Dezoryn Technology';
+  const resolvedCompanyName = companyName || entities.companyName || (orgProfile.companyName ? orgProfile.companyName : 'Enterprise Solutions');
 
   switch (category) {
     case 'HR':
@@ -1014,7 +1068,7 @@ function generateHeuristicHrDocument(documentType, companyName, candidateName, e
         id: 'sec_5',
         type: 'signature',
         title: 'Acceptance & Sign-Off',
-        body: `For ${companyName} (Dezoryn Technology Pvt Ltd)\nAditya Sharma, Director\n\nAccepted & Confirmed:\n${candidateName}\nSignature: _______________________ Date: _______________________`,
+        body: `For ${companyName}\n${orgProfile.authorisedSignatory?.name || 'Authorised Signatory'}\n\nAccepted & Confirmed:\n${candidateName}\nSignature: _______________________ Date: _______________________`,
       },
     ],
   };
@@ -1041,7 +1095,7 @@ function generateHeuristicLegalDocument(documentType, companyName, partnerName, 
         id: 'sec_1',
         type: 'header',
         title: 'Parties & Recitals',
-        body: `This Non-Disclosure & Confidentiality Agreement is entered into as of ${todayStr} by and between:\n\n1. ${companyName} (Dezoryn Technology Pvt Ltd), having its office at ${orgProfile.registeredAddress} ("Disclosing Party"), and\n2. ${partnerName} ("Receiving Party").\n\nThe parties intend to explore strategic technical collaboration and commercial engagements requiring the mutual disclosure of proprietary and confidential information.`,
+        body: `This Non-Disclosure & Confidentiality Agreement is entered into as of ${todayStr} by and between:\n\n1. ${companyName}, having its office at ${orgProfile.registeredAddress} ("Disclosing Party"), and\n2. ${partnerName} ("Receiving Party").\n\nThe parties intend to explore strategic technical collaboration and commercial engagements requiring the mutual disclosure of proprietary and confidential information.`,
       },
       {
         id: 'sec_2',
@@ -1065,7 +1119,7 @@ function generateHeuristicLegalDocument(documentType, companyName, partnerName, 
         id: 'sec_5',
         type: 'signature',
         title: 'Authorized Execution',
-        body: `Executed on behalf of ${companyName}:\nAditya Sharma, Director\n\nExecuted on behalf of ${partnerName}:\nAuthorized Representative`,
+        body: `Executed on behalf of ${companyName}:\n${orgProfile.authorisedSignatory?.name || 'Authorised Signatory'}\n\nExecuted on behalf of ${partnerName}:\nAuthorized Representative`,
       },
     ],
   };

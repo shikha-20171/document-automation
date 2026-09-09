@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const prisma = require('../config/prismaClient');
 const { getOrganisationCompanyProfile } = require('./organisationProfileService');
 const { generateDocumentNumber } = require('../utils/documentNumberGenerator');
@@ -5,6 +7,10 @@ const { generateUnifiedDocumentPdf } = require('./documentPdfService');
 const { generateUnifiedDocumentDocx } = require('./documentDocxService');
 const transporter = require('../config/mail');
 const AuditLogService = require('./auditLogService');
+const OCRService = require('./ocrService');
+const DocumentClassifierService = require('./documentClassifierService');
+const DocumentValidationService = require('./documentValidationService');
+const DocumentChatService = require('./documentChatService');
 
 /**
  * List documents for an organisation with RBAC, tab filters, search, and relations
@@ -1657,6 +1663,321 @@ async function getAuditLogs(id, organisationId) {
   });
 }
 
+/**
+ * Upload and process document through intelligence pipeline
+ */
+async function uploadAndProcessDocument(organisationId, user, file, body = {}, req = null) {
+  if (!file || !file.buffer) {
+    throw new Error('Document file is required for processing.');
+  }
+
+  const startTime = Date.now();
+  const originalName = file.originalname || 'document.pdf';
+  const mimeType = file.mimetype || 'application/pdf';
+  const fileSize = file.size || file.buffer.length;
+
+  // 1. File Storage
+  const safeName = `${Date.now()}-${originalName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+  const uploadDir = path.join(__dirname, '../../uploads/documents');
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+  const filePath = path.join(uploadDir, safeName);
+  fs.writeFileSync(filePath, file.buffer);
+  const fileUrl = `/uploads/documents/${safeName}`;
+
+  // 2. OCR / Text Extraction
+  let rawText = '';
+  let ocrConfidence = 0.95;
+  try {
+    const ocrResult = await OCRService.extractText({
+      buffer: file.buffer,
+      mimeType,
+      language: 'eng',
+    });
+    rawText = ocrResult?.text || '';
+    ocrConfidence = ocrResult?.confidence || 0.95;
+  } catch (err) {
+    console.warn('[uploadAndProcessDocument] OCR warning, using fallback parser:', err.message);
+    rawText = file.buffer.toString('utf8').slice(0, 5000);
+  }
+
+  // 3. Document Classification
+  const classification = await DocumentClassifierService.classifyDocument(rawText, originalName);
+  const detectedDocType = classification.documentType || 'Custom Document';
+
+  // 4. Structured Field & Table Extraction
+  const UnifiedOcrService = require('./unifiedOcrService');
+  let actionType = 'extract_fields';
+  if (detectedDocType === 'Invoice') actionType = 'extract_invoice';
+  else if (detectedDocType === 'Quotation') actionType = 'extract_quotation';
+  else if (detectedDocType === 'Contract' || detectedDocType === 'Agreement' || detectedDocType === 'NDA') actionType = 'extract_contract';
+
+  const extraction = await UnifiedOcrService.extractStructuredByAction({
+    rawText,
+    action: actionType,
+    fileBuffer: file.buffer,
+    mimeType,
+    organisationId,
+  });
+
+  const extractedData = extraction.data || {};
+  const fields = extraction.fields || [];
+  const tables = extraction.tables || [];
+
+  // 5. Document Validation
+  const validation = DocumentValidationService.validate(detectedDocType, extractedData, fields);
+
+  // 6. Overall Confidence Evaluation & Initial State
+  const overallConfidence = Math.min(
+    1.0,
+    (classification.confidence * 0.4) + ((extraction.confidence || ocrConfidence) * 0.6)
+  );
+  const confidenceScore = Math.round(overallConfidence * 100);
+
+  // Confidence & Validation Rules:
+  // Low confidence (< 80%), or Validation Error/Warning -> REVIEW_REQUIRED
+  // Otherwise -> DRAFT (or ready for workflow)
+  let initialStatus = 'DRAFT';
+  if (overallConfidence < 0.80 || classification.isUnknown || !validation.isValid || validation.requiresReview) {
+    initialStatus = 'REVIEW_REQUIRED';
+  }
+
+  // Build Sections
+  const sections = [];
+  sections.push({
+    id: 'sec_overview',
+    type: 'header',
+    title: 'Document Overview',
+    body: `DOCUMENT: ${detectedDocType.toUpperCase()}\nCLASSIFICATION CONFIDENCE: ${confidenceScore}%\nSOURCE: Uploaded File (${originalName})\nVALIDATION: ${validation.status}`,
+  });
+
+  if (tables && tables.length > 0) {
+    tables.forEach((t, i) => {
+      sections.push({
+        id: `sec_tbl_${i + 1}`,
+        type: 'table',
+        title: t.title || `Table #${i + 1}`,
+        tableData: {
+          headers: t.headers || ['Item', 'Description', 'Rate', 'Amount'],
+          rows: t.rows || [],
+        },
+      });
+    });
+  }
+
+  sections.push({
+    id: 'sec_content',
+    type: 'text',
+    title: 'Extracted Content',
+    body: rawText.slice(0, 4000) || 'Document content extracted and indexed.',
+  });
+
+  // Financial Data
+  const financialData = {
+    subtotal: extractedData.subtotal || 0,
+    tax: extractedData.taxAmount || extractedData.tax || 0,
+    discount: extractedData.discount || 0,
+    total: extractedData.total || extractedData.grandTotal || 0,
+    currency: extractedData.currency || 'INR',
+  };
+
+  const clientName = extractedData.clientName || extractedData.vendorName || extractedData.partyB || body.clientName || 'Counterparty';
+  const clientEmail = extractedData.clientEmail || extractedData.email || body.clientEmail || null;
+
+  const docNumber = await generateDocumentNumber(organisationId, detectedDocType);
+
+  // 7. Persist UnifiedDocument
+  const newDoc = await prisma.unifiedDocument.create({
+    data: {
+      organisationId,
+      documentNumber: docNumber,
+      title: body.title || `${detectedDocType}: ${originalName.replace(/\.[^/.]+$/, '')}`,
+      documentType: detectedDocType,
+      category: body.category || (detectedDocType === 'Invoice' || detectedDocType === 'Quotation' ? 'Sales' : 'General'),
+      status: initialStatus,
+      clientName,
+      clientEmail,
+      clientId: body.clientId || null,
+      content: sections,
+      financialData,
+      variables: {
+        document_number: docNumber,
+        client_name: clientName,
+        source_file: originalName,
+      },
+      currentVersion: 1,
+      pdfUrl: fileUrl,
+      createdByUserId: user.id ? parseInt(user.id, 10) : null,
+      createdByName: user.name || user.full_name || 'System User',
+      metadata: {
+        originalFileName: originalName,
+        fileSize,
+        mimeType,
+        fileUrl,
+        rawText: rawText.slice(0, 20000),
+        extractedData,
+        fields,
+        tables,
+        validation,
+        classification,
+        confidenceScore,
+        latencyMs: Date.now() - startTime,
+        ingestedAt: new Date().toISOString(),
+      },
+    },
+  });
+
+  // Record Audit Log
+  await prisma.unifiedDocumentAuditLog.create({
+    data: {
+      organisationId,
+      documentId: newDoc.id,
+      documentNumber: newDoc.documentNumber,
+      documentTitle: newDoc.title,
+      userId: user.id ? parseInt(user.id, 10) : null,
+      userName: user.name || user.full_name || 'System User',
+      userRole: user.role || 'STAFF',
+      action: 'UPLOADED',
+      details: `Document "${originalName}" uploaded and processed: classified as "${detectedDocType}" (${confidenceScore}% confidence, validation: ${validation.status}). Status: ${initialStatus}.`,
+      metadata: {
+        fileName: originalName,
+        fileSize,
+        detectedDocType,
+        confidenceScore,
+        validationStatus: validation.status,
+      },
+    },
+  });
+
+  return newDoc;
+}
+
+/**
+ * Process Human Review Action
+ */
+async function processReviewAction(id, organisationId, user, payload, req = null) {
+  const doc = await getDocumentById(id, organisationId);
+  const { action, documentType, correctedFields = {}, comments = '' } = payload;
+
+  const currentMeta = doc.metadata || {};
+  const currentExtracted = currentMeta.extractedData || {};
+
+  // Apply corrections
+  const updatedExtracted = { ...currentExtracted, ...correctedFields };
+  const updatedDocType = documentType || doc.documentType;
+
+  // Re-run validation on updated fields
+  const revalidation = DocumentValidationService.validate(updatedDocType, updatedExtracted, currentMeta.fields || []);
+
+  let newStatus = doc.status;
+  if (action === 'APPROVE_EXTRACTION') {
+    newStatus = 'DRAFT';
+  } else if (action === 'REJECT_EXTRACTION') {
+    newStatus = 'REJECTED';
+  }
+
+  const updated = await prisma.unifiedDocument.update({
+    where: { id },
+    data: {
+      documentType: updatedDocType,
+      status: newStatus,
+      financialData: {
+        ...(doc.financialData || {}),
+        total: updatedExtracted.total !== undefined ? Number(updatedExtracted.total) : (doc.financialData?.total || 0),
+        subtotal: updatedExtracted.subtotal !== undefined ? Number(updatedExtracted.subtotal) : (doc.financialData?.subtotal || 0),
+      },
+      clientName: updatedExtracted.clientName || updatedExtracted.vendorName || doc.clientName,
+      metadata: {
+        ...currentMeta,
+        extractedData: updatedExtracted,
+        validation: revalidation,
+        reviewHistory: [
+          ...(currentMeta.reviewHistory || []),
+          {
+            action,
+            reviewerId: user.id,
+            reviewerName: user.name || user.full_name,
+            timestamp: new Date().toISOString(),
+            comments,
+            correctedFields,
+          },
+        ],
+      },
+    },
+  });
+
+  // Audit log
+  await prisma.unifiedDocumentAuditLog.create({
+    data: {
+      organisationId,
+      documentId: id,
+      documentNumber: doc.documentNumber,
+      documentTitle: doc.title,
+      userId: user.id ? parseInt(user.id, 10) : null,
+      userName: user.name || user.full_name || 'System Reviewer',
+      userRole: user.role || 'STAFF',
+      action: 'REVIEWED',
+      previousStatus: doc.status,
+      newStatus,
+      details: `Human review completed (${action}). Document type: ${updatedDocType}. Remarks: ${comments || 'Fields verified.'}`,
+      metadata: { action, correctedFields, comments },
+    },
+  });
+
+  return updated;
+}
+
+/**
+ * Chat with a document
+ */
+async function chatWithDocument(id, organisationId, user, query) {
+  const doc = await getDocumentById(id, organisationId);
+  return DocumentChatService.chatWithDocument({ document: doc, query });
+}
+
+/**
+ * Get all organisation audit logs
+ */
+async function getOrganisationAuditLogs(organisationId, query = {}) {
+  const { search, action, userId, documentId, limit = 100, page = 1 } = query;
+  const where = { organisationId };
+
+  if (action && action !== 'ALL') {
+    where.action = action.toUpperCase();
+  }
+  if (userId) {
+    where.userId = parseInt(userId, 10);
+  }
+  if (documentId) {
+    where.documentId = documentId;
+  }
+  if (search) {
+    where.OR = [
+      { documentTitle: { contains: search, mode: 'insensitive' } },
+      { documentNumber: { contains: search, mode: 'insensitive' } },
+      { userName: { contains: search, mode: 'insensitive' } },
+      { details: { contains: search, mode: 'insensitive' } },
+      { action: { contains: search, mode: 'insensitive' } },
+    ];
+  }
+
+  const take = Math.min(200, Math.max(1, parseInt(limit, 10)));
+  const skip = (Math.max(1, parseInt(page, 10)) - 1) * take;
+
+  const [total, logs] = await Promise.all([
+    prisma.unifiedDocumentAuditLog.count({ where }),
+    prisma.unifiedDocumentAuditLog.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take,
+      skip,
+    }),
+  ]);
+
+  return { total, page: parseInt(page, 10), limit: take, logs };
+}
+
 module.exports = {
   listDocuments,
   getDocumentMetrics,
@@ -1684,5 +2005,9 @@ module.exports = {
   restoreDocument,
   addComment,
   getAuditLogs,
+  uploadAndProcessDocument,
+  processReviewAction,
+  chatWithDocument,
+  getOrganisationAuditLogs,
 };
 

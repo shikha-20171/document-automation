@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { eSignatureApi } from "@/services/eSignatureApi";
+import apiClient from "@/lib/axios";
 
 type SignatureStatus = "Pending" | "Signed" | "Declined" | "Changes Requested";
 type ApprovalState = "Approved" | "Pending" | "Changes Requested";
@@ -35,6 +36,7 @@ type SignatureModal = "none" | "sign" | "request-changes" | "decline" | "view-do
 
 type SignatureRequest = {
   id: number;
+  realDocId?: string;
   document: string;
   createdBy: string;
   department: string;
@@ -234,12 +236,69 @@ export default function OrgAdminESignaturesPage() {
   useEffect(() => {
     const fetchEnvelopes = async () => {
       try {
-        const res = await eSignatureApi.getEnvelopes();
-        if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
-          // Live envelopes synced
+        const [envRes, docRes] = await Promise.allSettled([
+          eSignatureApi.getEnvelopes(),
+          apiClient.get("/api/unified-documents", { params: { limit: 50 } }),
+        ]);
+
+        const realPending: SignatureRequest[] = [];
+        const realHistory: SignatureHistory[] = [];
+
+        if (docRes.status === "fulfilled" && docRes.value?.data?.success && Array.isArray(docRes.value.data.data)) {
+          const docs = docRes.value.data.data;
+          docs.forEach((d: any, idx: number) => {
+            const isDocSigned = d.status === "SIGNED" || d.isSigned || !!d.metadata?.signatureDataUrl;
+            const isPendingSig = d.status === "PENDING_SIGNATURE" || d.status === "SIGNATURE_PENDING" || d.status === "DRAFT" || d.status === "REVIEW_REQUIRED";
+
+            if (isDocSigned) {
+              realHistory.push({
+                id: 5000 + idx,
+                document: d.title || d.documentNumber || "Document",
+                signedBy: d.metadata?.signerName || "Organisation Admin",
+                date: new Date(d.updatedAt || Date.now()).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+                status: "Signed",
+                department: d.department || d.category || "Operations",
+                documentType: d.documentType || "Document",
+                certificateId: `SIG-CERT-${d.id ? String(d.id).slice(0, 8) : "2026"}`,
+              });
+            } else if (isPendingSig) {
+              const previewLines = Array.isArray(d.content)
+                ? d.content.slice(0, 4).map((c: any) => `${c.title ? c.title + ": " : ""}${typeof c.body === "string" ? c.body.slice(0, 120) : ""}`)
+                : [`Document ${d.documentNumber || ""}`, `Client: ${d.clientName || "Valued Client"}`, `Status: ${d.status}`];
+
+              realPending.push({
+                id: 2000 + idx,
+                realDocId: d.id,
+                document: d.title || d.documentNumber || "Document",
+                createdBy: d.createdByName || "Document Builder",
+                department: d.department || d.category || "Operations",
+                approvalStatus: d.status === "APPROVED" ? "Approved" : "Pending",
+                signatureStatus: "Pending",
+                workflow: `${d.documentType || "Document"} Execution Flow`,
+                signer: "Organisation Admin",
+                role: "Authorised Signatory",
+                sentAt: new Date(d.createdAt || Date.now()).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+                expiry: "7 Days Validity",
+                documentType: d.documentType || "Document",
+                statusNote: `Ready for electronic signature. ${d.clientName ? "Client: " + d.clientName : ""}`,
+                previewLines: previewLines.filter(Boolean),
+              });
+            }
+          });
         }
-      } catch {
-        // Resilient fallback
+
+        if (realPending.length > 0) {
+          setRequests((prev) => {
+            const combined = [...realPending, ...prev.filter(p => !realPending.some(rp => rp.document === p.document))];
+            return combined;
+          });
+          setSelectedId(realPending[0].id);
+        }
+        if (realHistory.length > 0) {
+          setHistory((prev) => [...realHistory, ...prev.filter(h => !realHistory.some(rh => rh.document === h.document))]);
+        }
+      } catch (err) {
+        console.warn("Signature loading note:", err);
       }
     };
     void fetchEnvelopes();
@@ -454,6 +513,22 @@ export default function OrgAdminESignaturesPage() {
           : request,
       ),
     );
+
+    // Sync to backend database if real document
+    if (selectedRequest.realDocId) {
+      apiClient
+        .put(`/api/unified-documents/${selectedRequest.realDocId}`, {
+          status: "SIGNED",
+          isSigned: true,
+          metadata: {
+            signerName: currentSignerName,
+            signedAt: nextSignedAt,
+            certificateId: certCode,
+            signatureDataUrl: finalSignatureData,
+          },
+        })
+        .catch((err) => console.warn("Doc update on sign note:", err));
+    }
 
     setHistory((prev) => [
       {

@@ -708,8 +708,6 @@ export default function SuperAdminAuditLogsPage() {
                   <option value="DEPARTMENT_MANAGER">DEPARTMENT_MANAGER</option>
                   <option value="TEAM_LEADER">TEAM_LEADER</option>
                   <option value="EMPLOYEE">EMPLOYEE</option>
-                  <option value="VIEWER">VIEWER</option>
-                  <option value="GUEST">GUEST</option>
                   <option value="SYSTEM">SYSTEM</option>
                 </select>
               </div>
