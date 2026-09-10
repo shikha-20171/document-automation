@@ -1722,21 +1722,31 @@ function CleanDocumentBuilderInner({
         <div className="w-full max-w-4xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl shadow-lg p-8 lg:p-14 min-h-[1050px] flex flex-col justify-between">
           <div>
             {/* A4 Document Header with Corporate Branding */}
-            <div className="border-b border-slate-200 dark:border-zinc-800 pb-6 mb-6">
+            <div className="border-b-2 border-indigo-600 dark:border-indigo-500 pb-6 mb-6">
+              {/* COMPANY LETTERHEAD — Big prominent name at top */}
+              <div className="mb-4">
+                <input
+                  type="text"
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  placeholder="CLICK TO ENTER YOUR COMPANY NAME"
+                  className={`w-full bg-transparent font-extrabold uppercase tracking-widest focus:outline-none border-b-2 border-transparent hover:border-indigo-300 focus:border-indigo-500 transition-colors pb-1 ${
+                    companyName
+                      ? "text-3xl lg:text-4xl text-slate-900 dark:text-white"
+                      : "text-xl text-slate-300 dark:text-zinc-600 italic"
+                  }`}
+                />
+                {companyName && (
+                  <div className="mt-1 h-1 w-16 rounded-full bg-indigo-600 dark:bg-indigo-400" />
+                )}
+              </div>
+
               <div className="flex items-start justify-between">
                 <div>
-                  <div className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
-                    <input
-                      type="text"
-                      value={companyName}
-                      onChange={(e) => setCompanyName(e.target.value)}
-                      placeholder="ENTER YOUR COMPANY NAME"
-                      className="bg-transparent text-indigo-600 dark:text-indigo-400 uppercase tracking-wider font-bold focus:outline-none border-b border-transparent hover:border-indigo-300 focus:border-indigo-500 w-72"
-                    />
-                  </div>
-                  <h1 className="text-2xl lg:text-3xl font-bold text-slate-900 dark:text-white mt-1">
+                  <h1 className="text-xl lg:text-2xl font-bold text-slate-800 dark:text-white">
                     {documentTitle}
                   </h1>
+                  <div className="text-xs text-slate-500 mt-0.5 uppercase tracking-wider">{documentType}</div>
                 </div>
 
                 <div className="text-right text-xs text-slate-500">
