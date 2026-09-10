@@ -54,13 +54,13 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (mobile, curl, server-to-server)
+      
       if (!origin) return callback(null, true);
-      // Allow any vercel deployment
+      
       if (origin.endsWith(".vercel.app") || origin.includes("vercel.app")) {
         return callback(null, true);
       }
-      // Allow local development
+      
       if (origin.startsWith("http://localhost:") || origin.startsWith("http://127.0.0.1:")) {
         return callback(null, true);
       }

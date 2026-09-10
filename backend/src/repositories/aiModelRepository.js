@@ -1,9 +1,6 @@
 const prisma = require("../config/prismaClient");
 
-/**
- * AI Model Repository
- * Handles AIModel and OrganizationAIModelAssignment database operations
- */
+
 
 const findById = async (id) => {
   return await prisma.aIModel.findUnique({

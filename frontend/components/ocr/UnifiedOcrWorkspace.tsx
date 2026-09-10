@@ -94,8 +94,9 @@ export default function UnifiedOcrWorkspace({ userRole = "STAFF" }: { userRole?:
       });
 
       if (res.data?.success) {
-        setOcrResult(res.data.data);
-        showToast("Extraction Complete", `Successfully extracted data with ${res.data.data.confidenceScore}% confidence.`);
+        // Backend returns the full structured result at res.data level (controller does res.json(result))
+        setOcrResult(res.data);
+        showToast("Extraction Complete", `Successfully extracted data with ${res.data?.confidenceScore ?? "N/A"}% confidence.`);
       } else {
         throw new Error(res.data?.message || "Failed to process OCR");
       }
@@ -116,9 +117,12 @@ export default function UnifiedOcrWorkspace({ userRole = "STAFF" }: { userRole?:
     try {
       const res = await apiClient.post("/api/ocr/create-document", {
         jobId: ocrResult.jobId,
-        title: `${ocrResult.documentType || "Extracted"} - ${new Date().toISOString().slice(0, 10)}`,
+        title: `${ocrResult.actionLabel || ocrResult.documentType || "Extracted"} - ${new Date().toISOString().slice(0, 10)}`,
         category: "Finance",
-        extractedData: ocrResult,
+        ocrData: ocrResult.extractedData || {},
+        rawText: ocrResult.extractedText || "",
+        fileName: ocrResult.fileName,
+        documentType: ocrResult.actionLabel || "Extracted Document",
       });
 
       if (res.data?.success) {
@@ -139,29 +143,68 @@ export default function UnifiedOcrWorkspace({ userRole = "STAFF" }: { userRole?:
   // Action: Use with AI Builder
   const handleUseWithAi = () => {
     if (!ocrResult) return;
-    const summaryData = JSON.stringify(ocrResult.fields || ocrResult);
-    sessionStorage.setItem("ai_builder_context", summaryData);
-    router.push(`/documents/editor?fromOcr=true&action=${selectedAction}`);
+
+    // Build structured field object from detectedFields array
+    const fieldsArr: any[] = Array.isArray(ocrResult.detectedFields) ? ocrResult.detectedFields : [];
+    const fieldsObj: Record<string, string> = fieldsArr.reduce((acc: any, f: any) => {
+      acc[f.key] = f.value;
+      return acc;
+    }, {});
+
+    // Build a human-readable AI prompt from extracted fields
+    const actionLabel = EXTRACTION_ACTIONS.find((a) => a.id === selectedAction)?.label || selectedAction;
+    const fieldLines = fieldsArr
+      .filter((f) => f.value && String(f.value).trim())
+      .slice(0, 15)
+      .map((f) => `${f.label || f.key}: ${f.value}`)
+      .join(", ");
+
+    const clientName = fieldsObj.clientName || fieldsObj.client_name || fieldsObj.vendorName || "";
+    const docTypeGuess = ocrResult.actionLabel || selectedAction.replace("extract_", "").replace(/_/g, " ");
+    const autoPrompt = `Create a professional ${docTypeGuess} document.${clientName ? ` Client/Party: ${clientName}.` : ""} Extracted data from OCR: ${fieldLines || "See extracted data below"}.${ocrResult.extractedText ? ` Raw document text: ${ocrResult.extractedText.slice(0, 800)}` : ""}`;
+
+    // Save rich prefill context for AI Builder to consume
+    const prefillPayload = {
+      prompt: autoPrompt,
+      documentType: docTypeGuess,
+      clientName,
+      action: selectedAction,
+      actionLabel,
+      fields: fieldsObj,
+      rawText: ocrResult.extractedText || "",
+      extractedData: ocrResult.extractedData || {},
+      fromOcr: true,
+    };
+    sessionStorage.setItem("ocr_ai_prefill", JSON.stringify(prefillPayload));
+
+    // Navigate to AI builder — try to detect role from current path
+    const currentPath = window.location.pathname;
+    let builderPath = "/org-admin/ai-builder";
+    if (currentPath.includes("department-manager")) builderPath = "/department-manager/ai-builder";
+    else if (currentPath.includes("team-leader")) builderPath = "/team-leader/ai-builder";
+    else if (currentPath.includes("employee")) builderPath = "/employee/ai-builder";
+    router.push(`${builderPath}?fromOcr=true&action=${selectedAction}`);
   };
 
   // Action: Save as Template
   const handleSaveAsTemplate = async () => {
     if (!ocrResult) return;
     try {
+      const docType = ocrResult.actionLabel || ocrResult.documentType || "Extracted Document";
+      // detectedFields is an array of {key, label, value, confidence}
+      const fieldsArr: any[] = Array.isArray(ocrResult.detectedFields) ? ocrResult.detectedFields : [];
       const sections = [
         {
           id: "header",
           type: "header",
-          title: ocrResult.documentType || "Extracted Document",
-          body: `Template generated from OCR extraction for ${ocrResult.documentType}.`,
+          title: docType,
+          body: `Template generated from OCR extraction for ${docType}.`,
         },
         {
           id: "fields",
           type: "text",
           title: "Extracted Key Fields",
-          body: Object.entries(ocrResult.fields || {})
-            .map(([k, v]) => `• ${k}: {{${k}}}`)
-            .join("\n"),
+          body: fieldsArr.map((f: any) => `• ${f.label || f.key}: {{${f.key}}}`).join("\n"),
         },
       ];
 
@@ -174,14 +217,16 @@ export default function UnifiedOcrWorkspace({ userRole = "STAFF" }: { userRole?:
           ...(ocrResult.tables[0] ? { tableData: ocrResult.tables[0] } : {}),
         });
       }
+      // Build variable map from detected fields
+      const variablesMap = fieldsArr.reduce((acc: any, f: any) => { acc[f.key] = f.value; return acc; }, {});
 
       await apiClient.post("/api/unified-templates", {
-        name: `${ocrResult.documentType || "OCR"} Master Template`,
+        name: `${docType} Master Template`,
         category: "Operations",
-        documentType: ocrResult.documentType || "Custom Document",
+        documentType: docType,
         description: `Reusable template structured from ${selectedAction} OCR.`,
         content: sections,
-        variables: ocrResult.fields || {},
+        variables: variablesMap,
       });
 
       showToast("Template Saved", "Template added to Reusable Templates library.");
@@ -354,7 +399,7 @@ export default function UnifiedOcrWorkspace({ userRole = "STAFF" }: { userRole?:
                 {ocrResult && (
                   <span className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
                     <ShieldCheck className="w-3 h-3" />
-                    {ocrResult.confidenceScore}% Confidence
+                    {ocrResult.confidenceScore ?? Math.round((ocrResult.confidence ?? 0.95) * 100)}% Confidence
                   </span>
                 )}
               </div>
@@ -390,7 +435,7 @@ export default function UnifiedOcrWorkspace({ userRole = "STAFF" }: { userRole?:
                       : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
                   }`}
                 >
-                  Key-Value Fields ({Object.keys(ocrResult.fields || {}).length})
+                  Key-Value Fields ({Array.isArray(ocrResult.detectedFields) ? ocrResult.detectedFields.length : 0})
                 </button>
                 <button
                   onClick={() => setActiveTab("tables")}
@@ -456,19 +501,36 @@ export default function UnifiedOcrWorkspace({ userRole = "STAFF" }: { userRole?:
                   {/* TAB 1: KEY-VALUE FIELDS */}
                   {activeTab === "fields" && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {Object.entries(ocrResult.fields || {}).map(([key, val]: any) => (
-                        <div
-                          key={key}
-                          className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40"
-                        >
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
-                            {key.replace(/_/g, " ")}
-                          </span>
-                          <span className="text-xs font-semibold text-slate-900 dark:text-white break-words">
-                            {typeof val === "object" ? JSON.stringify(val) : String(val || "—")}
-                          </span>
-                        </div>
-                      ))}
+                      {Array.isArray(ocrResult.detectedFields) && ocrResult.detectedFields.length > 0 ? (
+                        ocrResult.detectedFields.map((field: any) => (
+                          <div
+                            key={field.key}
+                            className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40"
+                          >
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+                              {(field.label || field.key || "").replace(/_/g, " ")}
+                            </span>
+                            <span className="text-xs font-semibold text-slate-900 dark:text-white break-words">
+                              {typeof field.value === "object" ? JSON.stringify(field.value) : String(field.value ?? "—")}
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        // Fallback: render extractedData object if no detectedFields
+                        Object.entries(ocrResult.extractedData || {}).map(([key, val]: any) => (
+                          <div
+                            key={key}
+                            className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40"
+                          >
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+                              {key.replace(/_/g, " ")}
+                            </span>
+                            <span className="text-xs font-semibold text-slate-900 dark:text-white break-words">
+                              {typeof val === "object" ? JSON.stringify(val) : String(val ?? "—")}
+                            </span>
+                          </div>
+                        ))
+                      )}
                     </div>
                   )}
 
@@ -517,7 +579,7 @@ export default function UnifiedOcrWorkspace({ userRole = "STAFF" }: { userRole?:
                   {/* TAB 3: RAW DETECTED TEXT */}
                   {activeTab === "raw" && (
                     <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 font-mono text-xs text-slate-800 dark:text-slate-200 whitespace-pre-wrap leading-relaxed max-h-[400px] overflow-y-auto">
-                      {ocrResult.rawText || "No raw text recorded."}
+                      {ocrResult.extractedText || ocrResult.rawText || "No raw text recorded."}
                     </div>
                   )}
 

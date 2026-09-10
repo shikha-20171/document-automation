@@ -125,6 +125,9 @@ function CleanDocumentBuilderInner({
   const [autoTemplateName, setAutoTemplateName] = useState<string>("");
   const [isGeneratingAi, setIsGeneratingAi] = useState<boolean>(false);
 
+  // OCR Prefill Banner State (shown when arriving from OCR workspace)
+  const [ocrPrefillBanner, setOcrPrefillBanner] = useState<string | null>(null);
+
   // Template Selection States
   const [templates, setTemplates] = useState<any[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<any | null>(null);
@@ -279,6 +282,29 @@ function CleanDocumentBuilderInner({
           showToast("Template Editor", `Editing template "${payload.templateName}". You can update its sections and save.`);
         } else {
           showToast("Template Loaded", "Template variables populated into editor canvas.");
+        }
+      }
+    } catch {}
+  }, []);
+
+  // Read OCR prefill payload from sessionStorage (set by UnifiedOcrWorkspace "Use with AI" button)
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem("ocr_ai_prefill");
+      if (stored) {
+        sessionStorage.removeItem("ocr_ai_prefill");
+        const prefill = JSON.parse(stored);
+        if (prefill?.fromOcr) {
+          // Pre-fill AI form fields
+          if (prefill.prompt) setAiPrompt(prefill.prompt);
+          if (prefill.documentType) setAiDocType(prefill.documentType);
+          if (prefill.clientName) {
+            setAiClient(prefill.clientName);
+            setClientName(prefill.clientName);
+          }
+          setOcrPrefillBanner(
+            `📄 Pre-filled from OCR extraction (${prefill.actionLabel || prefill.action || "OCR"}). Review the prompt below and click "Generate Document" to build your document.`
+          );
         }
       }
     } catch {}
@@ -562,8 +588,18 @@ function CleanDocumentBuilderInner({
             status: "DRAFT",
           });
           if (autoDocRes.data?.success && autoDocRes.data.data) {
-            setDocId(autoDocRes.data.data.id);
+            const newDocId = autoDocRes.data.data.id;
+            setDocId(newDocId);
             setDocumentNumber(autoDocRes.data.data.documentNumber || "");
+            // Auto-redirect to sign page after generation
+            showToast(
+              "Document Generated!",
+              `"${gen.title || aiDocType}" created. Redirecting to signature page...`
+            );
+            setTimeout(() => {
+              router.push(`/documents/sign/${newDocId}?returnTo=/${roleSlug}/documents`);
+            }, 1500);
+            return; // skip setMode("EDITOR") since we're navigating away
           }
         } catch (autoDocErr) {
           console.warn("Auto document save note:", autoDocErr);
@@ -1075,6 +1111,23 @@ function CleanDocumentBuilderInner({
               Describe what you want to create in natural language. AI understands your requirements, structures sections, adds pricing tables, and loads it directly into the editor.
             </p>
           </div>
+
+          {/* OCR Prefill Banner */}
+          {ocrPrefillBanner && (
+            <div className="mb-4 flex items-start gap-3 px-4 py-3.5 rounded-2xl bg-teal-50 dark:bg-teal-900/30 border border-teal-200 dark:border-teal-700 text-teal-800 dark:text-teal-200">
+              <span className="text-lg leading-none mt-0.5">📄</span>
+              <div className="flex-1 text-xs font-medium leading-relaxed">
+                {ocrPrefillBanner}
+              </div>
+              <button
+                onClick={() => setOcrPrefillBanner(null)}
+                className="text-teal-500 hover:text-teal-700 dark:hover:text-teal-300 ml-2 text-base leading-none"
+                title="Dismiss"
+              >
+                ✕
+              </button>
+            </div>
+          )}
 
           {/* HERO PROMPT BOX */}
           <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl p-6 lg:p-8 shadow-sm mb-8 space-y-6">

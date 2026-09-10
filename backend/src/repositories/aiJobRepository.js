@@ -1,11 +1,6 @@
 const prisma = require("../config/prismaClient");
 
-/**
- * AI Job & Tools Repository
- * Handles AIJobQueue, DepartmentAiToolRun, DepartmentAiTemplate, DepartmentAiExtractedRecord, AILog
- */
 
-/* AI Job Queue */
 const createJob = async (jobData) => {
   return await prisma.aIJobQueue.create({
     data: {

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   PenTool, CheckCircle2, ShieldCheck, Download, AlertCircle,
@@ -13,7 +13,9 @@ import apiClient from "@/lib/axios";
 export default function DocumentSigningPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const docId = params.id as string;
+  const returnTo = searchParams.get("returnTo") || "/org-admin/documents";
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -159,6 +161,10 @@ export default function DocumentSigningPage() {
       if (res.data?.success) {
         setIsCompleted(true);
         showToast("Document Signed Successfully!", "Your signature has been cryptographically registered.");
+        // Auto-redirect to documents list after 2.5 seconds
+        setTimeout(() => {
+          router.push(returnTo);
+        }, 2500);
       }
     } catch (err: any) {
       showToast("Signing Failed", err.response?.data?.message || err.message, "error");
@@ -214,12 +220,20 @@ export default function DocumentSigningPage() {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
-            <Link
-              href={`/documents/final/${docId}`}
+            <button
+              onClick={() => router.push(returnTo)}
               className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-md shadow-blue-500/20 flex items-center justify-center gap-2"
             >
-              <span>View Certified Final</span>
+              <span>Go to My Documents</span>
               <ArrowRight className="w-4 h-4" />
+            </button>
+
+            <Link
+              href={`/documents/final/${docId}`}
+              className="py-3 px-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-xs flex items-center justify-center gap-1.5"
+            >
+              <span>View Certified Final</span>
+              <ExternalLink className="w-3.5 h-3.5" />
             </Link>
 
             <button
@@ -230,6 +244,8 @@ export default function DocumentSigningPage() {
               <span>Download PDF</span>
             </button>
           </div>
+
+          <p className="text-[11px] text-slate-400 text-center">Redirecting to your Documents in 2 seconds...</p>
         </div>
       </div>
     );
