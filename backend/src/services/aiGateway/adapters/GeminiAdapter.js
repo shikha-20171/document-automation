@@ -1,16 +1,16 @@
 const AIProviderAdapter = require("./AIProviderAdapter");
 
-// Confirmed working Gemini models (in preference order for automatic failover)
+// Confirmed working Gemini models for this key (in fallover preference order)
 const GEMINI_MODELS_POOL = [
-  "gemini-2.0-flash-exp",       // Primary – confirmed free-tier, supports vision
-  "gemini-1.5-flash-latest",    // Stable alias
-  "gemini-1.5-flash",           // Stable
-  "gemini-1.5-pro-latest",      // Pro tier
-  "gemini-1.5-pro",             // Pro stable
+  "gemini-3.6-flash",         // Primary – latest stable for this key
+  "gemini-3.5-flash",         // Stable fallback
+  "gemini-3.1-flash-lite",    // Lite fallback
+  "gemini-flash-latest",      // Alias fallback
+  "gemini-2.5-flash",         // Legacy fallback
 ];
 
 // Resolve model from env or use confirmed default
-const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash-exp";
+const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash";
 
 class GeminiAdapter extends AIProviderAdapter {
   constructor(config = {}) {
@@ -23,22 +23,23 @@ class GeminiAdapter extends AIProviderAdapter {
   _normalizeModel(modelName) {
     if (!modelName) return DEFAULT_GEMINI_MODEL;
     const clean = modelName.replace(/^models\//, "").trim();
-    // Map any legacy/invalid model names to working equivalents
+    // Map any model names to working equivalents for this key
     const legacyMap = {
-      "gemini-3.6-flash":          "gemini-2.0-flash-exp",
-      "gemini-3.7-flash":          "gemini-2.0-flash-exp",
-      "gemini-3.5-flash":          "gemini-1.5-flash-latest",
-      "gemini-3.5-flash-lite":     "gemini-1.5-flash",
-      "gemini-3.1-flash-lite":     "gemini-1.5-flash",
-      "gemini-flash-latest":       "gemini-1.5-flash-latest",
-      "gemini-2.5-pro":            "gemini-1.5-pro-latest",
+      // Old gemini-1.x and 2.x models (not available on this key) → working equivalents
+      "gemini-2.0-flash-exp":      "gemini-3.5-flash",
+      "gemini-2.0-flash":          "gemini-3.5-flash",
+      "gemini-1.5-flash-latest":   "gemini-3.5-flash",
+      "gemini-1.5-flash":          "gemini-3.5-flash",
+      "gemini-1.5-pro-latest":     "gemini-3.6-flash",
+      "gemini-1.5-pro":            "gemini-3.6-flash",
+      "gemini-3.7-flash":          "gemini-3.6-flash",
+      "gemini-3.8-flash":          "gemini-3.6-flash",
+      "gemini-flash-lite-latest":  "gemini-3.1-flash-lite",
+      "gemini-pro-latest":         "gemini-3.6-flash",
       "default":                   DEFAULT_GEMINI_MODEL,
-      "gemini-2.5-flash":          "gemini-2.0-flash-exp",
-      "gemini-flash-lite-latest":  "gemini-1.5-flash",
     };
     return legacyMap[clean] || clean;
   }
-
 
   _cleanBase64(data) {
     if (!data) return "";

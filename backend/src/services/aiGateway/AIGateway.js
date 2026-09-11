@@ -16,7 +16,7 @@ class AIGateway {
   static setOrgDefaultConfig(orgId, { provider, model }) {
     orgAiConfigStore.set(Number(orgId), {
       provider: provider || "gemini",
-      model: model || process.env.GEMINI_MODEL || "gemini-2.0-flash-exp",
+      model: model || process.env.GEMINI_MODEL || "gemini-3.6-flash",
     });
   }
 
@@ -27,7 +27,7 @@ class AIGateway {
     return (
       orgAiConfigStore.get(Number(orgId)) || {
         provider: "gemini",
-        model: process.env.GEMINI_MODEL || "gemini-2.0-flash-exp",
+        model: process.env.GEMINI_MODEL || "gemini-3.6-flash",
       }
     );
   }
@@ -73,7 +73,7 @@ class AIGateway {
         });
         await prisma.aIModel.createMany({
           data: [
-            { providerId: geminiDb.id, modelName: "Gemini 2.0 Flash", modelCode: "gemini-2.0-flash-exp", isDefault: true, status: "ACTIVE" },
+            { providerId: geminiDb.id, modelName: "Gemini 2.0 Flash", modelCode: "gemini-3.6-flash", isDefault: true, status: "ACTIVE" },
             { providerId: geminiDb.id, modelName: "Gemini 1.5 Flash", modelCode: "gemini-1.5-flash-latest", isDefault: false, status: "ACTIVE" },
             { providerId: geminiDb.id, modelName: "Gemini 1.5 Pro", modelCode: "gemini-1.5-pro-latest", isDefault: false, status: "ACTIVE" },
           ],
@@ -178,7 +178,7 @@ class AIGateway {
       apiKey,
       baseUrl,
       apiVersion: provider?.apiVersion || "v1",
-      defaultModel: modelCode || (code.includes("gemini") ? (process.env.GEMINI_MODEL || "gemini-2.0-flash-exp") : "gpt-4o-mini"),
+      defaultModel: modelCode || (code.includes("gemini") ? (process.env.GEMINI_MODEL || "gemini-3.6-flash") : "gpt-4o-mini"),
       timeoutMs: provider?.requestTimeoutMs || 60000,
     };
 
@@ -266,7 +266,7 @@ class AIGateway {
 
     if (!resolvedModelCode) {
       resolvedModelCode = resolvedProviderCode.toLowerCase().includes("gemini")
-        ? (process.env.GEMINI_MODEL || "gemini-2.0-flash-exp")
+        ? (process.env.GEMINI_MODEL || "gemini-3.6-flash")
         : "gpt-4o-mini";
     }
 
@@ -329,7 +329,7 @@ class AIGateway {
             routingConfig?.fallbackModel && fbProviderCode === routingConfig?.fallbackProviderCode
               ? routingConfig.fallbackModel
               : fbProviderCode.includes("gemini")
-              ? (process.env.GEMINI_MODEL || "gemini-2.0-flash-exp")
+              ? (process.env.GEMINI_MODEL || "gemini-3.6-flash")
               : "gpt-4o-mini";
           const fallbackResolved = await this.getAdapter(fbProviderCode, fbModelCode);
 

@@ -70,7 +70,7 @@ class PlatformSettingsService {
       aiRoutingCache = config || {
         routingEnabled: true,
         primaryProviderCode: process.env.AI_PRIMARY_PROVIDER || "gemini",
-        primaryModel: process.env.GEMINI_MODEL || "gemini-2.0-flash-exp",
+        primaryModel: process.env.GEMINI_MODEL || "gemini-3.6-flash",
         fallbackProviderCode: "gemini",
         fallbackModel: "gemini-1.5-flash-latest",
         fallbackEnabled: true,
@@ -78,7 +78,7 @@ class PlatformSettingsService {
       aiRoutingTimestamp = now;
       return aiRoutingCache;
     } catch (err) {
-      return { routingEnabled: true, primaryProviderCode: "gemini", primaryModel: process.env.GEMINI_MODEL || "gemini-2.0-flash-exp", fallbackEnabled: true };
+      return { routingEnabled: true, primaryProviderCode: "gemini", primaryModel: process.env.GEMINI_MODEL || "gemini-3.6-flash", fallbackEnabled: true };
     }
   }
 
@@ -104,9 +104,9 @@ class PlatformSettingsService {
   static async getActiveAIProvider() {
     const routingConfig = await PlatformSettingsService.getAIRoutingConfig();
     if (routingConfig?.routingEnabled && routingConfig?.primaryProviderCode) {
-      return { providerCode: routingConfig.primaryProviderCode, model: routingConfig.primaryModel || (process.env.GEMINI_MODEL || "gemini-2.0-flash-exp") };
+      return { providerCode: routingConfig.primaryProviderCode, model: routingConfig.primaryModel || (process.env.GEMINI_MODEL || "gemini-3.6-flash") };
     }
-    return { providerCode: "gemini", model: process.env.GEMINI_MODEL || "gemini-2.0-flash-exp" };
+    return { providerCode: "gemini", model: process.env.GEMINI_MODEL || "gemini-3.6-flash" };
   }
 
   static async getActiveOCREngine() {
