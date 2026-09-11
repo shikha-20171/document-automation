@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   getPlatformSettings,
   updatePlatformSettings,
+  testEmail,
 } = require("../controllers/superAdminSettingsController");
 
 /**
@@ -37,5 +38,6 @@ const {
  */
 router.get("/", getPlatformSettings);
 router.put("/", updatePlatformSettings);
+router.post("/test-email", testEmail);
 
 module.exports = router;
