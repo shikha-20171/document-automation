@@ -245,6 +245,7 @@ class SubscriptionService {
   static async getAllPlans() {
     await this.ensurePlansSeeded();
     return await prisma.subscriptionPlan.findMany({
+      where: { isActive: true },
       orderBy: { displayOrder: "asc" },
     });
   }
@@ -262,6 +263,7 @@ class SubscriptionService {
     return plans.map((p) => ({
       id: p.id,
       name: p.planName,
+      planName: p.planName,
       code: p.planCode,
       description: p.description,
       monthlyPrice: Number(p.monthlyPrice),
@@ -291,14 +293,15 @@ class SubscriptionService {
    * Create custom subscription plan (Super Admin)
    */
   static async createPlan(data) {
-    const code = (data.planCode || data.planName || "custom")
+    const cleanPlanName = (data.planName || "Custom Tier").trim();
+    const code = (data.planCode || cleanPlanName)
       .toLowerCase()
       .replace(/[^a-z0-9]/g, "-")
       .replace(/-+/g, "-");
 
     return await prisma.subscriptionPlan.create({
       data: {
-        planName: data.planName,
+        planName: cleanPlanName,
         planCode: `${code}-${Date.now()}`,
         description: data.description,
         monthlyPrice: Number(data.monthlyPrice) || 0,
@@ -328,6 +331,7 @@ class SubscriptionService {
       where: { id: String(id) },
       data: {
         ...data,
+        planName: data.planName ? String(data.planName).trim() : undefined,
         monthlyPrice: data.monthlyPrice !== undefined ? Number(data.monthlyPrice) : undefined,
         yearlyPrice: data.yearlyPrice !== undefined ? Number(data.yearlyPrice) : undefined,
         userLimit: data.userLimit !== undefined ? Number(data.userLimit) : undefined,
@@ -342,16 +346,33 @@ class SubscriptionService {
    * Delete custom plan (Super Admin)
    */
   static async deletePlan(id) {
+    const planIdStr = String(id);
     const activeSubs = await prisma.organisationSubscription.count({
-      where: { planId: String(id), status: "ACTIVE" },
+      where: { planId: planIdStr, status: "ACTIVE" },
     });
 
     if (activeSubs > 0) {
       throw new Error(`Cannot delete plan: ${activeSubs} active organization subscription(s) are assigned to it. Please reassign them first.`);
     }
 
+    const totalSubs = await prisma.organisationSubscription.count({
+      where: { planId: planIdStr },
+    });
+    const totalRequests = await prisma.subscriptionRequest.count({
+      where: { OR: [{ currentPlanId: planIdStr }, { requestedPlanId: planIdStr }] },
+    }).catch(() => 0);
+
+    if (totalSubs > 0 || totalRequests > 0) {
+      // Soft-delete to preserve foreign key references
+      return await prisma.subscriptionPlan.update({
+        where: { id: planIdStr },
+        data: { isActive: false },
+      });
+    }
+
+    await prisma.subscriptionPlanFeature.deleteMany({ where: { planId: planIdStr } }).catch(() => {});
     return await prisma.subscriptionPlan.delete({
-      where: { id: String(id) },
+      where: { id: planIdStr },
     });
   }
 

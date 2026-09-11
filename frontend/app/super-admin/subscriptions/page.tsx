@@ -28,6 +28,7 @@ import {
   HelpCircle,
   Settings,
   UserPlus,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -71,6 +72,7 @@ export default function SubscriptionsAndPlansPage() {
   // Modal States
   const [editingPlan, setEditingPlan] = useState<PlanItem | null>(null);
   const [assigningPlan, setAssigningPlan] = useState<PlanItem | null>(null);
+  const [deletingPlanId, setDeletingPlanId] = useState<string | null>(null);
 
   // Assign Form State
   const [assignForm, setAssignForm] = useState({
@@ -414,6 +416,28 @@ export default function SubscriptionsAndPlansPage() {
     }
   };
 
+  // 3. DELETE PLAN
+  const handleDeletePlan = async (plan: PlanItem) => {
+    if (!confirm(`Are you sure you want to delete the "${plan.planName}" subscription tier?`)) {
+      return;
+    }
+    try {
+      setDeletingPlanId(plan.id);
+      const res = await apiClient.delete(`/super-admin/subscriptions/plans/${plan.id}`);
+      if (res.data?.success || res.status === 200) {
+        showToast(`🗑️ Tier "${plan.planName}" deleted successfully!`);
+        if (editingPlan?.id === plan.id) {
+          setEditingPlan(null);
+        }
+        await loadSubscriptionData();
+      }
+    } catch (err: any) {
+      showToast("Failed to delete plan: " + (err.response?.data?.message || err.message));
+    } finally {
+      setDeletingPlanId(null);
+    }
+  };
+
   const handleCreatePlan = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -450,6 +474,7 @@ export default function SubscriptionsAndPlansPage() {
       };
       setPlans((prev) => [createdPlanItem, ...prev]);
       showToast(`✅ Plan "${newPlan.name}" saved!`);
+      await loadSubscriptionData();
       setActiveTab("plans");
     } finally {
       setCreating(false);
@@ -655,12 +680,12 @@ export default function SubscriptionsAndPlansPage() {
               </div>
 
               {/* ACTION BUTTONS (100% FUNCTIONAL MODALS) */}
-              <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex gap-2">
+              <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setEditingPlan(plan)}
-                  className="w-full text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer hover:bg-slate-100"
+                  className="flex-1 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer hover:bg-slate-100"
                 >
                   <Settings size={13} />
                   Configure
@@ -675,10 +700,20 @@ export default function SubscriptionsAndPlansPage() {
                       customUserLimit: String(plan.userLimit || ""),
                     }));
                   }}
-                  className="w-full bg-[#274690] hover:bg-[#1f3561] text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="flex-1 bg-[#274690] hover:bg-[#1f3561] text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <UserPlus size={13} />
                   Assign Tier
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDeletePlan(plan)}
+                  disabled={deletingPlanId === plan.id}
+                  className="px-2.5 text-xs font-bold rounded-xl text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 dark:border-rose-900/40 cursor-pointer"
+                  title="Delete Plan"
+                >
+                  <Trash2 size={13} className={deletingPlanId === plan.id ? "animate-spin" : ""} />
                 </Button>
               </div>
             </Card>
@@ -797,13 +832,26 @@ export default function SubscriptionsAndPlansPage() {
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-                <Button type="button" variant="outline" size="sm" onClick={() => setEditingPlan(null)} className="rounded-xl cursor-pointer">
-                  Cancel
+              <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDeletePlan(editingPlan)}
+                  disabled={deletingPlanId === editingPlan.id}
+                  className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 rounded-xl cursor-pointer flex items-center gap-1.5"
+                >
+                  <Trash2 size={14} className={deletingPlanId === editingPlan.id ? "animate-spin" : ""} />
+                  Delete Tier
                 </Button>
-                <Button type="submit" size="sm" disabled={savingEdit} className="bg-[#274690] hover:bg-[#1f3561] text-white font-bold rounded-xl px-5 cursor-pointer">
-                  {savingEdit ? "Saving..." : "Save Tier Configuration"}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => setEditingPlan(null)} className="rounded-xl cursor-pointer">
+                    Cancel
+                  </Button>
+                  <Button type="submit" size="sm" disabled={savingEdit} className="bg-[#274690] hover:bg-[#1f3561] text-white font-bold rounded-xl px-5 cursor-pointer">
+                    {savingEdit ? "Saving..." : "Save Tier Configuration"}
+                  </Button>
+                </div>
               </div>
             </form>
           </Card>

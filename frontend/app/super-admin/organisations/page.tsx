@@ -360,17 +360,44 @@ export default function SuperAdminOrganisationsPage() {
   // 1. Fetch Subscription Plans
   const fetchPlans = async () => {
     try {
-      const res = await axios.get("/public/subscription-plans");
-      const list = res.data?.data || res.data;
+      let list: any[] = [];
+      try {
+        const res = await axios.get("/super-admin/subscriptions/plans");
+        list = res.data?.data || (Array.isArray(res.data) ? res.data : []);
+      } catch (err) {
+        // Fallback to public plans
+        const res = await axios.get("/public/subscription-plans");
+        list = res.data?.data || (Array.isArray(res.data) ? res.data : []);
+      }
+
       if (Array.isArray(list) && list.length > 0) {
-        setAvailablePlans(list);
-        if (!formData.planId) {
-          setFormData((prev) => ({
-            ...prev,
-            subscriptionPlan: list[0].planName || list[0].name || "Starter",
-            planId: list[0].id,
-          }));
-        }
+        // Filter active plans if isActive field exists
+        const activeList = list.filter((p: any) => p.isActive !== false);
+        const finalList = activeList.length > 0 ? activeList : list;
+        setAvailablePlans(finalList);
+
+        // Ensure formData selects a valid plan
+        setFormData((prev) => {
+          const matched = finalList.find(
+            (p: any) =>
+              (prev.planId && String(p.id) === String(prev.planId)) ||
+              (p.planName || p.name)?.toLowerCase() === prev.subscriptionPlan?.toLowerCase()
+          );
+          if (matched) {
+            return {
+              ...prev,
+              subscriptionPlan: matched.planName || matched.name,
+              planId: matched.id,
+            };
+          } else {
+            const first = finalList[0];
+            return {
+              ...prev,
+              subscriptionPlan: first.planName || first.name || "Starter",
+              planId: first.id,
+            };
+          }
+        });
       }
     } catch (err) {
       console.warn("[Plans] Using preset plans:", err);
@@ -404,6 +431,13 @@ export default function SuperAdminOrganisationsPage() {
     fetchOrganisations();
     fetchPlans();
   }, []);
+
+  // When switching to the "create" tab, dynamically re-fetch plans so newly created/edited plans reflect immediately
+  useEffect(() => {
+    if (activeTab === "create") {
+      fetchPlans();
+    }
+  }, [activeTab]);
 
   // Compute live limits based on currently selected plan in form
   const selectedPlanDetails = useMemo(() => {
@@ -1532,21 +1566,29 @@ export default function SuperAdminOrganisationsPage() {
                   <select
                     value={formData.subscriptionPlan}
                     onChange={(e) => {
-                      const selectedName = e.target.value;
-                      const matched = availablePlans.find((p) => p.planName === selectedName || p.name === selectedName);
+                      const selectedVal = e.target.value;
+                      const matched = availablePlans.find(
+                        (p) =>
+                          (p.planName || p.name) === selectedVal ||
+                          String(p.id) === selectedVal
+                      );
+                      const finalName = matched?.planName || matched?.name || selectedVal;
                       setFormData({
                         ...formData,
-                        subscriptionPlan: selectedName,
+                        subscriptionPlan: finalName,
                         planId: matched?.id || "",
                       });
                     }}
                     className="w-full bg-slate-50 dark:bg-[#0b1120] border border-slate-300 dark:border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-[#274690]"
                   >
-                    {availablePlans.map((p) => (
-                      <option key={p.id} value={p.planName || p.name}>
-                        {p.planName || p.name} Plan
-                      </option>
-                    ))}
+                    {availablePlans.map((p) => {
+                      const planTitle = p.planName || p.name || "Plan";
+                      return (
+                        <option key={p.id || planTitle} value={planTitle}>
+                          {planTitle} Plan {p.monthlyPrice ? `(₹${p.monthlyPrice}/mo)` : ""}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
 
