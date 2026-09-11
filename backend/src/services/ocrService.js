@@ -20,7 +20,7 @@ class OCRService {
   /**
    * Extract text from document buffer or file path
    */
-  static async extractText({ filePath, buffer, mimeType = "", language = "eng", imageBase64 }) {
+  static async extractText({ filePath, buffer, mimeType = "", language = "eng", imageBase64, organisationId = null, userId = null }) {
     const startTime = Date.now();
     let text = "";
     let pageCount = 1;
@@ -163,7 +163,8 @@ class OCRService {
           mimeType: isPdf ? "application/pdf" : mimeType || "image/jpeg",
           language: language === "English" || language === "eng" ? "eng" : language,
           documentId: null,
-          organisationId: 1,
+          organisationId: organisationId || null,
+          userId: userId || null,
         });
 
         if (ocrRes?.text?.trim()) {

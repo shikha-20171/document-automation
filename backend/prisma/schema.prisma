@@ -8,6 +8,7 @@ datasource db {
   provider = "postgresql"
 }
 
+
 model Organisation {
   id          Int      @id @default(autoincrement())
   name        String

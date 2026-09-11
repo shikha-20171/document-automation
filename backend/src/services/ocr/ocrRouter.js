@@ -2,36 +2,45 @@ const prisma = require("../../config/prismaClient");
 const { decryptApiKey } = require("../../utils/aiEncryption");
 const tesseractService = require("./tesseractService");
 const googleDocumentAIService = require("./googleDocumentAIService");
+const PlatformSettingsService = require("../platformSettingsService");
 
 class OCRRouter {
   /**
-   * Get active OCR Routing configuration or return default
+   * Get active OCR Routing configuration via PlatformSettingsService (TTL-cached)
+   * This ensures Super Admin config changes take effect within 60 seconds everywhere.
    */
   async getRoutingConfig() {
-    let config = await prisma.oCRRoutingConfig.findFirst({
-      orderBy: { createdAt: "desc" },
-    });
+    // Use PlatformSettingsService which manages TTL cache and DB reads
+    const config = await PlatformSettingsService.getOCRRoutingConfig();
 
-    if (!config) {
-      config = await prisma.oCRRoutingConfig.create({
-        data: {
-          primaryEngineCode: "TESSERACT",
-          fallbackEngineCode: "TESSERACT",
-          fallbackEnabled: true,
-          defaultLanguage: "eng",
-          autoRotate: true,
-          deskew: true,
-          denoise: true,
-          enhanceImage: true,
-          confidenceThreshold: 80.0,
-          layoutDetection: true,
-          tableDetection: true,
-        },
-      });
+    // If we need the actual DB record ID, fall back to direct DB
+    if (!config.id) {
+      try {
+        const dbConfig = await prisma.oCRRoutingConfig.findFirst({ orderBy: { createdAt: "desc" } });
+        if (dbConfig) return dbConfig;
+        // Create default if missing
+        return await prisma.oCRRoutingConfig.create({
+          data: {
+            primaryEngineCode: "TESSERACT",
+            fallbackEngineCode: "TESSERACT",
+            fallbackEnabled: true,
+            defaultLanguage: "eng",
+            autoRotate: true,
+            deskew: true,
+            denoise: true,
+            enhanceImage: true,
+            confidenceThreshold: 80.0,
+            layoutDetection: true,
+            tableDetection: true,
+          },
+        });
+      } catch {
+        return config;
+      }
     }
-
     return config;
   }
+
 
   /**
    * Process document buffer through dynamic routing with automatic fallback

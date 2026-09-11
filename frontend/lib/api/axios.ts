@@ -4,9 +4,10 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from "axios";
 
-// ─── ONE Canonical API Base URL ──────────────────────────────────────────────
+// ─── ONE Canonical API Base URL ───────────────────────────────────────────────
 export function getApiBaseUrl(): string {
-  // If running in browser and NOT localhost/127.0.0.1, automatically target production Render backend
+  const envUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+
   if (typeof window !== "undefined") {
     const host = window.location.hostname;
     const isLocalhost =
@@ -17,27 +18,20 @@ export function getApiBaseUrl(): string {
       host.startsWith("10.");
 
     if (!isLocalhost) {
-      const envUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
       if (envUrl && envUrl.trim().startsWith("https://")) {
-        let clean = envUrl.trim().replace(/\/+$/, "");
-        if (!clean.endsWith("/api")) clean = `${clean}/api`;
-        return clean;
+        const clean = envUrl.trim().replace(/\/+$/, "");
+        return clean.endsWith("/api") ? clean : `${clean}/api`;
       }
       return "https://document-automation-backend-1jte.onrender.com/api";
     }
   }
 
-  const envUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
   if (envUrl && envUrl.trim()) {
-    let clean = envUrl.trim().replace(/\/+$/, "");
-    if (!clean.endsWith("/api")) {
-      clean = `${clean}/api`;
-    }
-    return clean;
+    const clean = envUrl.trim().replace(/\/+$/, "");
+    return clean.endsWith("/api") ? clean : `${clean}/api`;
   }
 
-  // Server-side production build on Vercel
-  if (process.env.NODE_ENV === "production") {
+  if (typeof process !== "undefined" && process.env.NODE_ENV === "production") {
     return "https://document-automation-backend-1jte.onrender.com/api";
   }
 
@@ -46,11 +40,9 @@ export function getApiBaseUrl(): string {
 
 export const API_BASE = getApiBaseUrl();
 
-// ─── Standard Custom Error ───────────────────────────────────────────────────
 export class ApiError extends Error {
   status: number;
   data: unknown;
-
   constructor(message: string, status: number, data?: unknown) {
     super(message);
     this.name = "ApiError";
@@ -59,7 +51,6 @@ export class ApiError extends Error {
   }
 }
 
-// ─── Shared Response Wrapper ──────────────────────────────────────────────────
 export interface ApiResponse<T = any> {
   success: boolean;
   message?: string;
@@ -68,22 +59,20 @@ export interface ApiResponse<T = any> {
   errors?: any;
 }
 
-// ─── ONE Centralized Axios Instance ───────────────────────────────────────────
+// ─── ONE Centralized Axios Instance ──────────────────────────────────────────
 export const api: AxiosInstance = axios.create({
   baseURL: API_BASE,
-  timeout: 120_000, // 120s timeout resilience
+  timeout: 180_000, // 3 min – large OCR file uploads need more time
   withCredentials: true,
-  headers: {
-    "Content-Type": "application/json",
-  },
+  headers: { "Content-Type": "application/json" },
 });
 
-// ─── Request Interceptor (Auth token & Path normalization) ─────────────────────
+// ─── Request Interceptor ─────────────────────────────────────────────────────
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     config.baseURL = getApiBaseUrl();
 
-    // Prevent duplicate /api/api if caller passed "/api/something"
+    // Prevent duplicate /api/api prefix
     if (config.url) {
       if (config.url.startsWith("/api/")) {
         config.url = config.url.substring(4);
@@ -93,9 +82,7 @@ api.interceptors.request.use(
     }
 
     if (typeof window !== "undefined") {
-      const token =
-        localStorage.getItem("token") ||
-        localStorage.getItem("accessToken");
+      const token = localStorage.getItem("token") || localStorage.getItem("accessToken");
       if (token && config.headers) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -105,26 +92,24 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// ─── Response Interceptor (Error handling & Safe 401 redirect) ─────────────────
+// ─── Response Interceptor ────────────────────────────────────────────────────
 api.interceptors.response.use(
   (response: AxiosResponse) => response,
   (error) => {
     if (axios.isAxiosError(error)) {
       const status = error.response?.status ?? 0;
       const data = error.response?.data as { message?: string } | undefined;
-      const message =
-        data?.message ?? error.message ?? "Something went wrong.";
+      const message = data?.message ?? error.message ?? "Something went wrong.";
 
-      // 401: clear tokens and redirect if on a protected route and not already on public/auth routes
       if (status === 401 && typeof window !== "undefined") {
         const path = window.location.pathname;
-        const isAuthOrPublic =
+        const isPublic =
           path.startsWith("/auth/") ||
           path.startsWith("/accept-invitation") ||
           path === "/" ||
           path === "/pricing";
 
-        if (!isAuthOrPublic) {
+        if (!isPublic) {
           localStorage.removeItem("accessToken");
           localStorage.removeItem("refreshToken");
           localStorage.removeItem("token");
@@ -137,13 +122,6 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
-
-// Non-blocking background health check using Axios only (no fetch)
-if (typeof window !== "undefined") {
-  try {
-    api.get("/health").catch(() => {});
-  } catch {}
-}
 
 export const apiClient = api;
 export default api;

@@ -1,29 +1,44 @@
 const AIProviderAdapter = require("./AIProviderAdapter");
 
+// Confirmed working Gemini models (in preference order for automatic failover)
 const GEMINI_MODELS_POOL = [
-  "gemini-3.6-flash",
-  "gemini-3.5-flash",
-  "gemini-3.5-flash-lite",
-  "gemini-3.1-flash-lite",
-  "gemini-flash-latest",
+  "gemini-2.0-flash-exp",       // Primary – confirmed free-tier, supports vision
+  "gemini-1.5-flash-latest",    // Stable alias
+  "gemini-1.5-flash",           // Stable
+  "gemini-1.5-pro-latest",      // Pro tier
+  "gemini-1.5-pro",             // Pro stable
 ];
+
+// Resolve model from env or use confirmed default
+const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash-exp";
 
 class GeminiAdapter extends AIProviderAdapter {
   constructor(config = {}) {
     super(config);
     this.baseUrl = config.baseUrl || "https://generativelanguage.googleapis.com/v1beta";
-    this.defaultModel = config.defaultModel || process.env.GEMINI_MODEL || "gemini-3.6-flash";
+    this.defaultModel = config.defaultModel || DEFAULT_GEMINI_MODEL;
     this.apiKey = config.apiKey || process.env.GEMINI_API_KEY;
   }
 
   _normalizeModel(modelName) {
-    if (!modelName) return "gemini-3.6-flash";
+    if (!modelName) return DEFAULT_GEMINI_MODEL;
     const clean = modelName.replace(/^models\//, "").trim();
-    if (clean === "default" || clean === "gemini-2.5-flash" || clean === "gemini-flash-lite-latest") {
-      return "gemini-3.6-flash";
-    }
-    return clean;
+    // Map any legacy/invalid model names to working equivalents
+    const legacyMap = {
+      "gemini-3.6-flash":          "gemini-2.0-flash-exp",
+      "gemini-3.7-flash":          "gemini-2.0-flash-exp",
+      "gemini-3.5-flash":          "gemini-1.5-flash-latest",
+      "gemini-3.5-flash-lite":     "gemini-1.5-flash",
+      "gemini-3.1-flash-lite":     "gemini-1.5-flash",
+      "gemini-flash-latest":       "gemini-1.5-flash-latest",
+      "gemini-2.5-pro":            "gemini-1.5-pro-latest",
+      "default":                   DEFAULT_GEMINI_MODEL,
+      "gemini-2.5-flash":          "gemini-2.0-flash-exp",
+      "gemini-flash-lite-latest":  "gemini-1.5-flash",
+    };
+    return legacyMap[clean] || clean;
   }
+
 
   _cleanBase64(data) {
     if (!data) return "";

@@ -1,4 +1,5 @@
 const UnifiedOcrService = require("../services/unifiedOcrService");
+const { getOrgIdSafe, getUserId } = require("../utils/authContext");
 
 const unifiedOcrController = {
   /**
@@ -11,8 +12,8 @@ const unifiedOcrController = {
         return res.status(400).json({ success: false, message: "Please upload a document or image file." });
       }
 
-      const orgId = req.user?.organisationId || req.user?.organisation_id || req.user?.organization_id || 1;
-      const userId = req.user?.id || req.user?.userId || null;
+      const orgId = getOrgIdSafe(req);
+      const userId = getUserId(req);
       const userName = req.user?.full_name || req.user?.name || req.user?.email || "System User";
       const { action = "extract_text", customPrompt = "" } = req.body;
 
@@ -39,8 +40,8 @@ const unifiedOcrController = {
    */
   async createDocumentFromOcr(req, res) {
     try {
-      const orgId = req.user?.organisationId || req.user?.organisation_id || req.user?.organization_id || 1;
-      const userId = req.user?.id || req.user?.userId || null;
+      const orgId = getOrgIdSafe(req);
+      const userId = getUserId(req);
       const userName = req.user?.full_name || req.user?.name || req.user?.email || "System User";
       const { ocrData, rawText, fileName, title, documentType, category } = req.body;
 

@@ -46,7 +46,7 @@ export default function ApprovalWorkspace({
   const fetchApprovals = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiClient.get("/api/approvals", {
+      const res = await apiClient.get("/approvals", {
         params: { tab: activeTab },
       });
       if (res.data?.success) {
@@ -69,7 +69,7 @@ export default function ApprovalWorkspace({
     if (!activeRequest) return;
     setIsSubmittingAction(true);
     try {
-      const res = await apiClient.post(`/api/approvals/${activeRequest.id}/action`, {
+      const res = await apiClient.post(`/approvals/${activeRequest.id}/action`, {
         action,
         comment: actionComment,
         forwardToRole: action === "FORWARD" ? forwardRole : undefined,
@@ -96,7 +96,7 @@ export default function ApprovalWorkspace({
 
     setIsDispatchingSignature(true);
     try {
-      const res = await apiClient.post(`/api/unified-documents/${docId}/send-for-signature`, {
+      const res = await apiClient.post(`/unified-documents/${docId}/send-for-signature`, {
         signerName,
         signerEmail,
       });

@@ -4,6 +4,7 @@ const AuditLogService = require("./auditLogService");
 const tesseractService = require("./ocr/tesseractService");
 const googleDocumentAIService = require("./ocr/googleDocumentAIService");
 const ocrRouter = require("./ocr/ocrRouter");
+const PlatformSettingsService = require("./platformSettingsService");
 
 // Initial OCR Providers
 const INITIAL_OCR_PROVIDERS = [
@@ -965,6 +966,9 @@ class SuperAdminOcrService {
         fallbackEnabled: updated.fallbackEnabled,
       },
     }).catch(() => {});
+
+    // Invalidate OCR routing cache so all modules pick up the new config immediately
+    PlatformSettingsService.invalidateCache();
 
     return updated;
   }

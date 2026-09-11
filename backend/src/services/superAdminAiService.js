@@ -4,6 +4,7 @@ const GeminiAdapter = require("./aiGateway/adapters/GeminiAdapter");
 const OpenAIAdapter = require("./aiGateway/adapters/OpenAIAdapter");
 const AnthropicAdapter = require("./aiGateway/adapters/AnthropicAdapter");
 const AuditLogService = require("./auditLogService");
+const PlatformSettingsService = require("./platformSettingsService");
 
 // Initial 3 Providers only
 const INITIAL_AI_PROVIDERS = [
@@ -1038,14 +1039,26 @@ class SuperAdminAiService {
       updated = await prisma.aIRoutingConfig.create({
         data: {
           primaryProviderCode: data.primaryProviderCode || "gemini",
-          primaryModel: data.primaryModel || "gemini-2.5-flash",
-          fallbackProviderCode: data.fallbackProviderCode || "openai",
-          fallbackModel: data.fallbackModel || "gpt-4o-mini",
+          primaryModel: data.primaryModel || process.env.GEMINI_MODEL || "gemini-2.0-flash-exp",
+          fallbackProviderCode: data.fallbackProviderCode || "gemini",
+          fallbackModel: data.fallbackModel || "gemini-1.5-flash-latest",
           routingEnabled: data.routingEnabled !== undefined ? Boolean(data.routingEnabled) : true,
           updatedBy: user?.email || "Super Admin",
         },
       });
     }
+
+    // Invalidate platform settings cache so all modules pick up new provider immediately
+    PlatformSettingsService.invalidateCache();
+
+    // Also broadcast to in-memory AIGateway store for the current process
+    try {
+      const AIGateway = require("./aiGateway/AIGateway");
+      AIGateway.setOrgDefaultConfig("global", {
+        provider: updated.primaryProviderCode,
+        model: updated.primaryModel,
+      });
+    } catch {}
 
     AuditLogService.log({
       actorName: user?.email || "Super Admin",
