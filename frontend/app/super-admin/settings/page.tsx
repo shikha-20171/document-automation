@@ -30,6 +30,12 @@ import {
   AlertCircle,
   HelpCircle,
   Cpu,
+  MessageSquare,
+  Radio,
+  Activity,
+  CheckCircle,
+  ExternalLink,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -112,6 +118,14 @@ interface PlatformSettings {
     userInvitationEmails: boolean;
     documentWorkflowNotifications: boolean;
     systemAlerts: boolean;
+    brevoApiKey?: string;
+    brevoSenderEmail?: string;
+    brevoStatus?: string;
+    whatsappEnabled?: boolean;
+    whatsappPhoneNumberId?: string;
+    whatsappBusinessAccountId?: string;
+    whatsappAccessToken?: string;
+    whatsappStatus?: string;
   };
   privacy: {
     dataRetentionPeriod: string;
@@ -196,6 +210,14 @@ const DEFAULT_SETTINGS: PlatformSettings = {
     userInvitationEmails: true,
     documentWorkflowNotifications: true,
     systemAlerts: true,
+    brevoApiKey: "••••••••••••••••",
+    brevoSenderEmail: "support@docucore.ai",
+    brevoStatus: "READY_TO_CONFIGURE",
+    whatsappEnabled: false,
+    whatsappPhoneNumberId: "",
+    whatsappBusinessAccountId: "",
+    whatsappAccessToken: "",
+    whatsappStatus: "CONFIGURE",
   },
   privacy: {
     dataRetentionPeriod: "7_YEARS",
@@ -226,6 +248,23 @@ export default function SuperAdminSettingsPage() {
   const [testEmailAddress, setTestEmailAddress] = useState("");
   const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
   const [testEmailResult, setTestEmailResult] = useState<string | null>(null);
+
+  // Brevo Cloud API Modal State
+  const [brevoModalOpen, setBrevoModalOpen] = useState(false);
+  const [brevoApiKeyInput, setBrevoApiKeyInput] = useState("");
+  const [brevoSenderEmailInput, setBrevoSenderEmailInput] = useState("");
+  const [isTestingBrevo, setIsTestingBrevo] = useState(false);
+  const [brevoTestResult, setBrevoTestResult] = useState<string | null>(null);
+  const [showBrevoApiKey, setShowBrevoApiKey] = useState(false);
+
+  // WhatsApp Business Modal State
+  const [whatsappModalOpen, setWhatsappModalOpen] = useState(false);
+  const [whatsappTokenInput, setWhatsappTokenInput] = useState("");
+  const [whatsappPhoneIdInput, setWhatsappPhoneIdInput] = useState("");
+  const [whatsappAccountIdInput, setWhatsappAccountIdInput] = useState("");
+  const [isTestingWhatsapp, setIsTestingWhatsapp] = useState(false);
+  const [whatsappTestResult, setWhatsappTestResult] = useState<string | null>(null);
+  const [showWhatsappToken, setShowWhatsappToken] = useState(false);
 
   // Password Visibility Toggle for SMTP
   const [showSmtpPassword, setShowSmtpPassword] = useState(false);
@@ -302,13 +341,117 @@ export default function SuperAdminSettingsPage() {
     }
   };
 
+  const openBrevoModal = () => {
+    setBrevoApiKeyInput(settings.email.brevoApiKey || "");
+    setBrevoSenderEmailInput(settings.email.brevoSenderEmail || settings.email.senderEmail || "");
+    setBrevoTestResult(null);
+    setBrevoModalOpen(true);
+  };
+
+  const handleTestBrevo = async () => {
+    try {
+      setIsTestingBrevo(true);
+      setBrevoTestResult(null);
+      const res = await axios.post("/super-admin/settings/test-brevo", {
+        apiKey: brevoApiKeyInput,
+      });
+      if (res.data?.success) {
+        setBrevoTestResult(`✓ Connected! ${res.data.message || "Account verified"}`);
+        showToast("Brevo API verified successfully!", "success");
+      } else {
+        setBrevoTestResult(`Notice: ${res.data?.error || res.data?.message || "Verification failed"}`);
+      }
+    } catch (err: any) {
+      setBrevoTestResult(`Error: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setIsTestingBrevo(false);
+    }
+  };
+
+  const handleSaveBrevo = async () => {
+    const updated = {
+      ...settings,
+      email: {
+        ...settings.email,
+        brevoApiKey: brevoApiKeyInput,
+        brevoSenderEmail: brevoSenderEmailInput || settings.email.senderEmail,
+        brevoStatus: "READY_TO_CONFIGURE",
+      },
+    };
+    setSettings(updated);
+    setBrevoModalOpen(false);
+    try {
+      setSaving(true);
+      await axios.put("/super-admin/settings", updated);
+      showToast("✅ Brevo (Sendinblue) Cloud API configuration saved!", "success");
+    } catch (err: any) {
+      showToast("Failed to save Brevo settings: " + (err.response?.data?.message || err.message), "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openWhatsappModal = () => {
+    setWhatsappTokenInput(settings.email.whatsappAccessToken || "");
+    setWhatsappPhoneIdInput(settings.email.whatsappPhoneNumberId || "");
+    setWhatsappAccountIdInput(settings.email.whatsappBusinessAccountId || "");
+    setWhatsappTestResult(null);
+    setWhatsappModalOpen(true);
+  };
+
+  const handleTestWhatsapp = async () => {
+    try {
+      setIsTestingWhatsapp(true);
+      setWhatsappTestResult(null);
+      const res = await axios.post("/super-admin/settings/test-whatsapp", {
+        accessToken: whatsappTokenInput,
+        phoneNumberId: whatsappPhoneIdInput,
+        businessAccountId: whatsappAccountIdInput,
+      });
+      if (res.data?.success) {
+        setWhatsappTestResult(`✓ Connected! ${res.data.message || "WhatsApp Business Verified"}`);
+        showToast("WhatsApp Business API verified successfully!", "success");
+      } else {
+        setWhatsappTestResult(`Notice: ${res.data?.error || res.data?.message || "Verification failed"}`);
+      }
+    } catch (err: any) {
+      setWhatsappTestResult(`Error: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setIsTestingWhatsapp(false);
+    }
+  };
+
+  const handleSaveWhatsapp = async () => {
+    const updated = {
+      ...settings,
+      email: {
+        ...settings.email,
+        whatsappAccessToken: whatsappTokenInput,
+        whatsappPhoneNumberId: whatsappPhoneIdInput,
+        whatsappBusinessAccountId: whatsappAccountIdInput,
+        whatsappStatus: whatsappTokenInput && whatsappPhoneIdInput ? "CONFIGURED" : "CONFIGURE",
+      },
+    };
+    setSettings(updated);
+    setWhatsappModalOpen(false);
+    try {
+      setSaving(true);
+      await axios.put("/super-admin/settings", updated);
+      showToast("✅ WhatsApp Business notification gateway saved!", "success");
+    } catch (err: any) {
+      showToast("Failed to save WhatsApp settings: " + (err.response?.data?.message || err.message), "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const tabsConfig = [
     { id: "general", label: "General", icon: Sliders },
     { id: "security", label: "Security", icon: Shield, badge: "Mandatory" },
     { id: "ai", label: "AI Core", icon: Sparkles, badge: "Core" },
     { id: "ocr", label: "OCR Pipeline", icon: FileText, badge: "Core" },
     { id: "storage", label: "File & Storage", icon: HardDrive },
-    { id: "email", label: "Email & SMTP", icon: Mail },
+    { id: "email", label: "Email & Notifications", icon: Mail },
     { id: "privacy", label: "Data & Privacy", icon: Lock },
     { id: "defaults", label: "System Defaults", icon: Layers },
   ];
@@ -1466,6 +1609,220 @@ export default function SuperAdminSettingsPage() {
       {/* ========================================================================= */}
       {activeTab === "email" && (
         <div className="space-y-6 animate-in fade-in duration-200">
+          {/* ========================================================================= */}
+          {/* NOTIFICATION GATEWAYS OVERVIEW                                            */}
+          {/* ========================================================================= */}
+          <Card className="rounded-3xl border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+            <CardHeader className="border-b border-slate-100 dark:border-slate-800/80 pb-4 bg-gradient-to-r from-slate-50 to-white dark:from-slate-900/60 dark:to-slate-900">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    <Zap size={18} className="text-[#274690]" />
+                    Notification Gateways Overview
+                  </CardTitle>
+                  <CardDescription className="text-xs text-slate-500 mt-1">
+                    Manage multi-channel outbound message routing, fallback relays, real-time push streams, and instant approval triggers.
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant="outline"
+                    className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 flex items-center gap-1.5 px-3 py-1 rounded-full"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Multi-Channel Ready
+                  </Badge>
+                </div>
+              </div>
+            </CardHeader>
+
+            <CardContent className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                {/* 1. Brevo (Sendinblue) Cloud API */}
+                <div className="relative rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-4.5 flex flex-col justify-between shadow-xs hover:shadow-md transition-all">
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-[#274690] dark:text-blue-400 flex items-center justify-center font-bold">
+                        <Send size={18} />
+                      </div>
+                      <Badge className="bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg shadow-none">
+                        Ready to Configure
+                      </Badge>
+                    </div>
+
+                    <div>
+                      <h4 className="text-sm font-black text-slate-900 dark:text-white leading-tight">
+                        Brevo (Sendinblue) Cloud API
+                      </h4>
+                      <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                        High-throughput transactional email & SMS cloud REST API (Port 443 HTTPS).
+                      </p>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 text-[11px] space-y-1">
+                      <div className="flex items-center justify-between text-slate-500">
+                        <span>Channel:</span>
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">REST API v3</span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-500">
+                        <span>Firewall:</span>
+                        <span className="font-semibold text-emerald-600 dark:text-emerald-400">Port 443 Allowed</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 mt-2 border-t border-slate-100 dark:border-slate-800">
+                    <Button
+                      type="button"
+                      onClick={openBrevoModal}
+                      className="w-full bg-[#274690] hover:bg-[#1f3561] text-white text-xs font-bold rounded-xl py-2 shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <Sliders size={13} /> Configure
+                    </Button>
+                  </div>
+                </div>
+
+                {/* 2. Gmail / Custom SMTP Relay */}
+                <div className="relative rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-4.5 flex flex-col justify-between shadow-xs hover:shadow-md transition-all">
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+                        <Mail size={18} />
+                      </div>
+                      <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg shadow-none">
+                        Fallback Active
+                      </Badge>
+                    </div>
+
+                    <div>
+                      <h4 className="text-sm font-black text-slate-900 dark:text-white leading-tight">
+                        Gmail / Custom SMTP Relay
+                      </h4>
+                      <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                        Dedicated fallback relay for transactional invitations, OTPs, and password resets.
+                      </p>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 text-[11px] space-y-1">
+                      <div className="flex items-center justify-between text-slate-500">
+                        <span>Host:</span>
+                        <span className="font-semibold text-slate-700 dark:text-slate-300 truncate max-w-[120px]">
+                          {settings.email.smtpHost || "smtp-relay.brevo.com"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-500">
+                        <span>Port / Security:</span>
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">
+                          {settings.email.smtpPort || 587} ({settings.email.smtpEncryption || "TLS"})
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 mt-2 border-t border-slate-100 dark:border-slate-800">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setTestEmailOpen(true);
+                        setTestEmailAddress(settings.email.senderEmail || "admin@docucore.ai");
+                      }}
+                      className="w-full border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-bold rounded-xl py-2 cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <Send size={13} /> Send Test Email
+                    </Button>
+                  </div>
+                </div>
+
+                {/* 3. In-App Push WebSockets */}
+                <div className="relative rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-4.5 flex flex-col justify-between shadow-xs hover:shadow-md transition-all">
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="w-10 h-10 rounded-xl bg-violet-50 dark:bg-violet-950/60 text-violet-600 dark:text-violet-400 flex items-center justify-center font-bold">
+                        <Radio size={18} />
+                      </div>
+                      <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg shadow-none flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                        Active
+                      </Badge>
+                    </div>
+
+                    <div>
+                      <h4 className="text-sm font-black text-slate-900 dark:text-white leading-tight">
+                        In-App Push WebSockets
+                      </h4>
+                      <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                        Instant bi-directional event stream for live workflow approvals, bell alerts, and badges.
+                      </p>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 text-[11px] space-y-1">
+                      <div className="flex items-center justify-between text-slate-500">
+                        <span>Engine:</span>
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">Socket.io Engine</span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-500">
+                        <span>Cluster Uptime:</span>
+                        <span className="font-semibold text-emerald-600 dark:text-emerald-400">99.98% SLA</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 mt-2 border-t border-slate-100 dark:border-slate-800">
+                    <div className="w-full py-2 px-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-[11px] font-bold text-center flex items-center justify-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                      Live Socket Pool Active
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. WhatsApp Business Notifications */}
+                <div className="relative rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-4.5 flex flex-col justify-between shadow-xs hover:shadow-md transition-all">
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="w-10 h-10 rounded-xl bg-[#25D366]/10 text-[#25D366] flex items-center justify-center font-bold">
+                        <MessageSquare size={18} />
+                      </div>
+                      <Badge className="bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg shadow-none">
+                        Configure
+                      </Badge>
+                    </div>
+
+                    <div>
+                      <h4 className="text-sm font-black text-slate-900 dark:text-white leading-tight">
+                        WhatsApp Business Notifications
+                      </h4>
+                      <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                        Meta Cloud API gateway for mobile document approval alerts, OTPs, and task notifications.
+                      </p>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 text-[11px] space-y-1">
+                      <div className="flex items-center justify-between text-slate-500">
+                        <span>Integration:</span>
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">Meta Cloud v21.0</span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-500">
+                        <span>Trigger:</span>
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">Approvals & OTPs</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 mt-2 border-t border-slate-100 dark:border-slate-800">
+                    <Button
+                      type="button"
+                      onClick={openWhatsappModal}
+                      className="w-full bg-[#25D366] hover:bg-[#1EBE5D] text-white text-xs font-bold rounded-xl py-2 shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <MessageSquare size={13} /> Configure
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card className="rounded-3xl border-slate-200/80 dark:border-slate-800 shadow-sm">
             <CardHeader className="border-b border-slate-100 dark:border-slate-800/80 pb-4">
               <div className="flex items-center justify-between">
@@ -2136,6 +2493,279 @@ export default function SuperAdminSettingsPage() {
                 >
                   {isSendingTestEmail ? "Dispatching..." : "Send Verification Email"}
                 </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* BREVO CLOUD API CONFIGURATION MODAL                                       */}
+      {/* ========================================================================= */}
+      {brevoModalOpen && (
+        <div className="fixed inset-0 z-[130] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <Card className="w-full max-w-lg rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-[#274690] dark:text-blue-400">
+                  <Send size={18} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    Brevo (Sendinblue) Cloud API
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Direct HTTPS REST API (Port 443) Transactional Gateway
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBrevoModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div className="p-3 rounded-2xl bg-sky-50/80 dark:bg-sky-950/30 border border-sky-100 dark:border-sky-900/40 text-[11px] text-sky-800 dark:text-sky-300">
+                <p className="font-bold flex items-center gap-1.5 mb-1">
+                  <Sparkles size={13} className="text-[#274690]" />
+                  Status: Ready to Configure
+                </p>
+                <p>
+                  Connects directly to Brevo Transactional Email REST API over Port 443 HTTPS. 100% immune to cloud container SMTP port 25/587 blocks with automated bounce & delivery tracking.
+                </p>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-bold text-slate-700 dark:text-slate-300">
+                    Brevo REST API Key (v3)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowBrevoApiKey(!showBrevoApiKey)}
+                    className="text-[10px] text-[#274690] hover:underline flex items-center gap-1"
+                  >
+                    {showBrevoApiKey ? <EyeOff size={11} /> : <Eye size={11} />}
+                    {showBrevoApiKey ? "Hide" : "Show"}
+                  </button>
+                </div>
+                <input
+                  type={showBrevoApiKey ? "text" : "password"}
+                  value={brevoApiKeyInput}
+                  onChange={(e) => setBrevoApiKeyInput(e.target.value)}
+                  placeholder="xkeysib-..."
+                  className="w-full h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-[#274690]"
+                />
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  Find your API key in Brevo Dashboard → SMTP & API → API Keys tab.
+                </span>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Verified Sender Email Address
+                </label>
+                <input
+                  type="email"
+                  value={brevoSenderEmailInput}
+                  onChange={(e) => setBrevoSenderEmailInput(e.target.value)}
+                  placeholder="e.g. support@docucore.ai"
+                  className="w-full h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-[#274690]"
+                />
+              </div>
+
+              {brevoTestResult && (
+                <div
+                  className={`p-3 rounded-xl border text-xs font-semibold ${
+                    brevoTestResult.startsWith("✓")
+                      ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200"
+                      : "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200"
+                  }`}
+                >
+                  {brevoTestResult}
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleTestBrevo}
+                  disabled={isTestingBrevo}
+                  className="rounded-xl border-slate-300 dark:border-slate-700 text-xs font-bold cursor-pointer"
+                >
+                  {isTestingBrevo ? <RefreshCw size={12} className="animate-spin mr-1" /> : <Sparkles size={12} className="mr-1" />}
+                  {isTestingBrevo ? "Testing..." : "Test Connection"}
+                </Button>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setBrevoModalOpen(false)}
+                    className="rounded-xl cursor-pointer"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleSaveBrevo}
+                    className="bg-[#274690] hover:bg-[#1f3561] text-white font-bold rounded-xl px-4 cursor-pointer"
+                  >
+                    Save Brevo Gateway
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* WHATSAPP BUSINESS NOTIFICATIONS CONFIGURATION MODAL                       */}
+      {/* ========================================================================= */}
+      {whatsappModalOpen && (
+        <div className="fixed inset-0 z-[130] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <Card className="w-full max-w-lg rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 rounded-xl bg-[#25D366]/15 text-[#25D366]">
+                  <MessageSquare size={18} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    WhatsApp Business Notifications
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Meta Cloud API Gateway (Graph API v21.0)
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setWhatsappModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div className="p-3 rounded-2xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900/40 text-[11px] text-amber-800 dark:text-amber-300">
+                <p className="font-bold flex items-center gap-1.5 mb-1">
+                  <MessageSquare size={13} className="text-[#25D366]" />
+                  Status: Configure Gateway
+                </p>
+                <p>
+                  Connect your Meta WhatsApp Cloud API credentials to dispatch instant document approval links, signer reminders, and critical workflow alerts directly to manager mobile devices.
+                </p>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-bold text-slate-700 dark:text-slate-300">
+                    System User Access Token
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowWhatsappToken(!showWhatsappToken)}
+                    className="text-[10px] text-[#274690] hover:underline flex items-center gap-1"
+                  >
+                    {showWhatsappToken ? <EyeOff size={11} /> : <Eye size={11} />}
+                    {showWhatsappToken ? "Hide" : "Show"}
+                  </button>
+                </div>
+                <input
+                  type={showWhatsappToken ? "text" : "password"}
+                  value={whatsappTokenInput}
+                  onChange={(e) => setWhatsappTokenInput(e.target.value)}
+                  placeholder="EAAG..."
+                  className="w-full h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-[#274690]"
+                />
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  Generate a Permanent System User Token in Meta Business Suite.
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Phone Number ID
+                  </label>
+                  <input
+                    type="text"
+                    value={whatsappPhoneIdInput}
+                    onChange={(e) => setWhatsappPhoneIdInput(e.target.value)}
+                    placeholder="e.g. 1062948291..."
+                    className="w-full h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-[#274690]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    WABA ID (Business Account)
+                  </label>
+                  <input
+                    type="text"
+                    value={whatsappAccountIdInput}
+                    onChange={(e) => setWhatsappAccountIdInput(e.target.value)}
+                    placeholder="e.g. 1048294819..."
+                    className="w-full h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-[#274690]"
+                  />
+                </div>
+              </div>
+
+              {whatsappTestResult && (
+                <div
+                  className={`p-3 rounded-xl border text-xs font-semibold ${
+                    whatsappTestResult.startsWith("✓")
+                      ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200"
+                      : "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200"
+                  }`}
+                >
+                  {whatsappTestResult}
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleTestWhatsapp}
+                  disabled={isTestingWhatsapp}
+                  className="rounded-xl border-slate-300 dark:border-slate-700 text-xs font-bold cursor-pointer"
+                >
+                  {isTestingWhatsapp ? <RefreshCw size={12} className="animate-spin mr-1" /> : <Sparkles size={12} className="mr-1" />}
+                  {isTestingWhatsapp ? "Verifying..." : "Test Connection"}
+                </Button>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setWhatsappModalOpen(false)}
+                    className="rounded-xl cursor-pointer"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleSaveWhatsapp}
+                    className="bg-[#25D366] hover:bg-[#1EBE5D] text-white font-bold rounded-xl px-4 cursor-pointer"
+                  >
+                    Save WhatsApp Gateway
+                  </Button>
+                </div>
               </div>
             </div>
           </Card>

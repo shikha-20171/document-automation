@@ -1,6 +1,8 @@
 const prisma = require("../config/prismaClient");
 const mailTransporter = require("../config/mail");
 const PlatformSettingsService = require("../services/platformSettingsService");
+const BrevoEmailAdapter = require("../services/integrations/BrevoEmailAdapter");
+const WhatsAppAdapter = require("../services/integrations/WhatsAppAdapter");
 
 const DEFAULT_PLATFORM_SETTINGS = {
   general: {
@@ -68,6 +70,15 @@ const DEFAULT_PLATFORM_SETTINGS = {
     userInvitationEmails: true,
     documentWorkflowNotifications: true,
     systemAlerts: true,
+    // Gateway configs
+    brevoApiKey: process.env.BREVO_API_KEY ? "••••••••••••••••" : "",
+    brevoSenderEmail: process.env.SMTP_FROM || "support@docucore.ai",
+    brevoStatus: "READY_TO_CONFIGURE",
+    whatsappEnabled: false,
+    whatsappPhoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || "",
+    whatsappBusinessAccountId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || "",
+    whatsappAccessToken: process.env.WHATSAPP_ACCESS_TOKEN ? "••••••••••••••••" : "",
+    whatsappStatus: "CONFIGURE",
   },
   privacy: {
     dataRetentionPeriod: "7_YEARS",
@@ -120,9 +131,15 @@ const getPlatformSettings = async (req, res, next) => {
       defaults: { ...DEFAULT_PLATFORM_SETTINGS.defaults, ...(savedConfig.defaults || {}) },
     };
 
-    // Mask password in response
+    // Mask passwords in response
     if (merged.email?.smtpPassword) {
       merged.email.smtpPassword = "••••••••••••••••";
+    }
+    if (merged.email?.brevoApiKey && merged.email.brevoApiKey.length > 8) {
+      merged.email.brevoApiKey = "••••••••••••••••";
+    }
+    if (merged.email?.whatsappAccessToken && merged.email.whatsappAccessToken.length > 8) {
+      merged.email.whatsappAccessToken = "••••••••••••••••";
     }
 
     res.status(200).json({
@@ -140,13 +157,26 @@ const updatePlatformSettings = async (req, res, next) => {
     const existing = await prisma.platformSetting.findFirst();
 
     const currentConfig = (existing?.customConfig && typeof existing.customConfig === "object") ? existing.customConfig : {};
+    
+    // Preserve existing sensitive keys if masked ones were sent back
+    const incomingEmail = payload.email || {};
+    if (incomingEmail.smtpPassword === "••••••••••••••••" && currentConfig.email?.smtpPassword) {
+      incomingEmail.smtpPassword = currentConfig.email.smtpPassword;
+    }
+    if (incomingEmail.brevoApiKey === "••••••••••••••••" && currentConfig.email?.brevoApiKey) {
+      incomingEmail.brevoApiKey = currentConfig.email.brevoApiKey;
+    }
+    if (incomingEmail.whatsappAccessToken === "••••••••••••••••" && currentConfig.email?.whatsappAccessToken) {
+      incomingEmail.whatsappAccessToken = currentConfig.email.whatsappAccessToken;
+    }
+
     const updatedCustomConfig = {
       general: { ...DEFAULT_PLATFORM_SETTINGS.general, ...(currentConfig.general || {}), ...(payload.general || {}) },
       security: { ...DEFAULT_PLATFORM_SETTINGS.security, ...(currentConfig.security || {}), ...(payload.security || {}) },
       ai: { ...DEFAULT_PLATFORM_SETTINGS.ai, ...(currentConfig.ai || {}), ...(payload.ai || {}) },
       ocr: { ...DEFAULT_PLATFORM_SETTINGS.ocr, ...(currentConfig.ocr || {}), ...(payload.ocr || {}) },
       storage: { ...DEFAULT_PLATFORM_SETTINGS.storage, ...(currentConfig.storage || {}), ...(payload.storage || {}) },
-      email: { ...DEFAULT_PLATFORM_SETTINGS.email, ...(currentConfig.email || {}), ...(payload.email || {}) },
+      email: { ...DEFAULT_PLATFORM_SETTINGS.email, ...(currentConfig.email || {}), ...incomingEmail },
       privacy: { ...DEFAULT_PLATFORM_SETTINGS.privacy, ...(currentConfig.privacy || {}), ...(payload.privacy || {}) },
       defaults: { ...DEFAULT_PLATFORM_SETTINGS.defaults, ...(currentConfig.defaults || {}), ...(payload.defaults || {}) },
     };
@@ -236,8 +266,41 @@ const testEmail = async (req, res, next) => {
   }
 };
 
+const testBrevo = async (req, res) => {
+  try {
+    const { apiKey } = req.body || {};
+    const keyToTest = (apiKey && apiKey !== "••••••••••••••••") ? apiKey : process.env.BREVO_API_KEY;
+    const adapter = new BrevoEmailAdapter({ apiKey: keyToTest });
+    const result = await adapter.testConnection();
+    return res.status(200).json(result);
+  } catch (err) {
+    return res.status(200).json({ success: false, status: "ERROR", error: err.message });
+  }
+};
+
+const testWhatsapp = async (req, res) => {
+  try {
+    const { accessToken, phoneNumberId, businessAccountId } = req.body || {};
+    const tokenToTest = (accessToken && accessToken !== "••••••••••••••••") ? accessToken : process.env.WHATSAPP_ACCESS_TOKEN;
+    const phoneIdToTest = phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+    const businessIdToTest = businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+
+    const adapter = new WhatsAppAdapter({
+      accessToken: tokenToTest,
+      phoneNumberId: phoneIdToTest,
+      businessAccountId: businessIdToTest,
+    });
+    const result = await adapter.testConnection();
+    return res.status(200).json(result);
+  } catch (err) {
+    return res.status(200).json({ success: false, status: "ERROR", error: err.message });
+  }
+};
+
 module.exports = {
   getPlatformSettings,
   updatePlatformSettings,
   testEmail,
+  testBrevo,
+  testWhatsapp,
 };

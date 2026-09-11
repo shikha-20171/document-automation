@@ -4,6 +4,8 @@ const {
   getPlatformSettings,
   updatePlatformSettings,
   testEmail,
+  testBrevo,
+  testWhatsapp,
 } = require("../controllers/superAdminSettingsController");
 
 /**
@@ -39,5 +41,7 @@ const {
 router.get("/", getPlatformSettings);
 router.put("/", updatePlatformSettings);
 router.post("/test-email", testEmail);
+router.post("/test-brevo", testBrevo);
+router.post("/test-whatsapp", testWhatsapp);
 
 module.exports = router;
