@@ -338,6 +338,7 @@ class SubscriptionService {
         storageLimitGB: data.storageLimitGB !== undefined ? Number(data.storageLimitGB) : undefined,
         aiCredits: data.aiCredits !== undefined ? Number(data.aiCredits) : undefined,
         ocrLimit: data.ocrLimit !== undefined ? Number(data.ocrLimit) : undefined,
+        features: data.features !== undefined ? data.features : undefined,
       },
     });
   }

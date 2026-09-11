@@ -71,16 +71,11 @@ export default function SubscriptionsAndPlansPage() {
 
   // Modal States
   const [editingPlan, setEditingPlan] = useState<PlanItem | null>(null);
-  const [assigningPlan, setAssigningPlan] = useState<PlanItem | null>(null);
   const [deletingPlanId, setDeletingPlanId] = useState<string | null>(null);
 
-  // Assign Form State
-  const [assignForm, setAssignForm] = useState({
-    organisationId: "",
-    billingCycle: "MONTHLY",
-    customStorageLimitGB: "",
-    customUserLimit: "",
-  });
+  // Feature input states
+  const [newFeatureInput, setNewFeatureInput] = useState("");
+  const [editFeatureInput, setEditFeatureInput] = useState("");
 
   // Create Form State
   const [newPlan, setNewPlan] = useState({
@@ -97,6 +92,12 @@ export default function SubscriptionsAndPlansPage() {
     badge: "Most Popular",
     isMostPopular: false,
     apiAccess: true,
+    featuresList: [
+      "25 User Seats & 250 GB Storage",
+      "25,000 AI Credits/mo & OCR Processing",
+      "Multi-step Approval Workflows",
+      "Role-Based Access Control & Audit Vault",
+    ],
   });
 
   const showToast = (msg: string) => {
@@ -180,8 +181,19 @@ export default function SubscriptionsAndPlansPage() {
     const inc: string[] = [];
     const exc: string[] = [];
 
+    if (Array.isArray(p.features) && p.features.length > 0) {
+      return { included: p.features, excluded: [] };
+    }
+    if (p.features?.list && Array.isArray(p.features.list) && p.features.list.length > 0) {
+      return { included: p.features.list, excluded: p.features.excluded || [] };
+    }
+    if (Array.isArray(p.includedFeatures) && p.includedFeatures.length > 0) {
+      return { included: p.includedFeatures, excluded: p.excludedFeatures || [] };
+    }
+
     if (p.features && typeof p.features === "object") {
       Object.entries(p.features).forEach(([k, val]) => {
+        if (k === "list" || k === "excluded") return;
         const label = k.replace(/[._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
         if (val === true) inc.push(label);
         else if (val === false) exc.push(label);
@@ -368,51 +380,20 @@ export default function SubscriptionsAndPlansPage() {
         description: editingPlan.description,
         badge: editingPlan.badge,
         isMostPopular: editingPlan.isMostPopular,
+        features: {
+          list: editingPlan.includedFeatures || [],
+        },
       });
 
       if (res.data?.success || res.status === 200) {
-        showToast(`✅ Tier "${editingPlan.planName}" updated successfully!`);
+        showToast(`✅ Tier "${editingPlan.planName}" updated successfully with features!`);
         setEditingPlan(null);
-        loadSubscriptionData();
+        await loadSubscriptionData();
       }
     } catch (err: any) {
       showToast("Error updating plan: " + (err.response?.data?.message || err.message));
     } finally {
       setSavingEdit(false);
-    }
-  };
-
-  // 2. ASSIGN TIER TO ORGANISATION
-  const handleAssignTierSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!assigningPlan || !assignForm.organisationId) {
-      showToast("Please select an organization");
-      return;
-    }
-
-    try {
-      setAssigning(true);
-      const res = await apiClient.post("/super-admin/subscriptions/assign", {
-        organisationId: assignForm.organisationId,
-        planId: assigningPlan.id,
-        billingCycle: assignForm.billingCycle,
-        customLimits: {
-          storageLimitGB: assignForm.customStorageLimitGB ? Number(assignForm.customStorageLimitGB) : undefined,
-          userLimit: assignForm.customUserLimit ? Number(assignForm.customUserLimit) : undefined,
-        },
-      });
-
-      if (res.data?.success || res.status === 200) {
-        showToast(`✅ Successfully assigned ${assigningPlan.planName} Tier to organization!`);
-        setAssigningPlan(null);
-        setAssignForm({ organisationId: "", billingCycle: "MONTHLY", customStorageLimitGB: "", customUserLimit: "" });
-        setActiveTab("active");
-        loadSubscriptionData();
-      }
-    } catch (err: any) {
-      showToast("Error assigning tier: " + (err.response?.data?.message || err.message));
-    } finally {
-      setAssigning(false);
     }
   };
 
@@ -450,10 +431,14 @@ export default function SubscriptionsAndPlansPage() {
         userLimit: Number(newPlan.maxUsers) || 25,
         storageLimitGB: Number(newPlan.storage) || 250,
         aiCredits: Number(newPlan.aiCredits) || 25000,
+        ocrLimit: Number(newPlan.ocrPages) || 2500,
         description: newPlan.description || `Includes ${newPlan.maxUsers} users, ${newPlan.storage}GB storage, and ${newPlan.aiCredits} AI credits.`,
         supportLevel: newPlan.supportLevel,
         badge: newPlan.badge,
         isMostPopular: newPlan.isMostPopular,
+        features: {
+          list: newPlan.featuresList,
+        },
       });
 
       const createdPlan = res.data?.data || res.data;
@@ -468,12 +453,12 @@ export default function SubscriptionsAndPlansPage() {
         aiCredits: Number(newPlan.aiCredits),
         badge: newPlan.badge,
         isMostPopular: newPlan.isMostPopular,
-        includedFeatures: details.included,
+        includedFeatures: newPlan.featuresList.length > 0 ? newPlan.featuresList : details.included,
         excludedFeatures: details.excluded,
         isActive: true,
       };
       setPlans((prev) => [createdPlanItem, ...prev]);
-      showToast(`✅ Plan "${newPlan.name}" saved!`);
+      showToast(`✅ Plan "${newPlan.name}" saved with ${newPlan.featuresList.length} features!`);
       await loadSubscriptionData();
       setActiveTab("plans");
     } finally {
@@ -679,31 +664,19 @@ export default function SubscriptionsAndPlansPage() {
                 )}
               </div>
 
-              {/* ACTION BUTTONS (100% FUNCTIONAL MODALS) */}
+              {/* ACTION BUTTONS (EDIT & DELETE ONLY) */}
               <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setEditingPlan(plan)}
-                  className="flex-1 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer hover:bg-slate-100"
+                  onClick={() => {
+                    setEditingPlan(plan);
+                    setEditFeatureInput("");
+                  }}
+                  className="flex-1 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800"
                 >
                   <Settings size={13} />
-                  Configure
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setAssigningPlan(plan);
-                    setAssignForm((prev) => ({
-                      ...prev,
-                      customStorageLimitGB: String(plan.storageLimitGB || ""),
-                      customUserLimit: String(plan.userLimit || ""),
-                    }));
-                  }}
-                  className="flex-1 bg-[#274690] hover:bg-[#1f3561] text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <UserPlus size={13} />
-                  Assign Tier
+                  Configure & Features
                 </Button>
                 <Button
                   variant="outline"
@@ -822,6 +795,74 @@ export default function SubscriptionsAndPlansPage() {
                 </div>
               </div>
 
+              {/* Plan Features Manager inside Edit Modal */}
+              <div className="space-y-1.5">
+                <label className="block font-bold text-slate-700 dark:text-slate-300 text-xs flex items-center justify-between">
+                  <span>Included Features ({editingPlan.includedFeatures?.length || 0})</span>
+                  <span className="text-[10px] text-slate-400 font-normal">Add custom features for this tier</span>
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Type new feature (e.g. Dedicated Account Manager)..."
+                    value={editFeatureInput}
+                    onChange={(e) => setEditFeatureInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        if (editFeatureInput.trim()) {
+                          setEditingPlan({
+                            ...editingPlan,
+                            includedFeatures: [...(editingPlan.includedFeatures || []), editFeatureInput.trim()],
+                          });
+                          setEditFeatureInput("");
+                        }
+                      }
+                    }}
+                    className="flex-1 h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      if (editFeatureInput.trim()) {
+                        setEditingPlan({
+                          ...editingPlan,
+                          includedFeatures: [...(editingPlan.includedFeatures || []), editFeatureInput.trim()],
+                        });
+                        setEditFeatureInput("");
+                      }
+                    }}
+                    className="bg-[#274690] hover:bg-[#1f3561] text-white text-xs font-bold rounded-xl px-3 cursor-pointer"
+                  >
+                    <Plus size={14} className="mr-1" /> Add
+                  </Button>
+                </div>
+                <div className="max-h-28 overflow-y-auto space-y-1 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                  {(editingPlan.includedFeatures || []).map((feat, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-xs py-1 px-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
+                      <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-200">
+                        <Check size={12} className="text-emerald-500 shrink-0" />
+                        <span>{feat}</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingPlan({
+                            ...editingPlan,
+                            includedFeatures: editingPlan.includedFeatures.filter((_, i) => i !== idx),
+                          });
+                        }}
+                        className="text-slate-400 hover:text-rose-500 p-0.5 cursor-pointer ml-2"
+                        title="Remove feature"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div>
                 <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Description</label>
                 <textarea
@@ -852,130 +893,6 @@ export default function SubscriptionsAndPlansPage() {
                     {savingEdit ? "Saving..." : "Save Tier Configuration"}
                   </Button>
                 </div>
-              </div>
-            </form>
-          </Card>
-        </div>
-      )}
-
-      {/* MODAL 2: ASSIGN TIER TO ORGANISATION (FUNCTIONAL) */}
-      {assigningPlan && (
-        <div className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <Card className="w-full max-w-lg rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700">
-                  <UserPlus size={18} />
-                </div>
-                <div>
-                  <h3 className="text-base font-black text-slate-900 dark:text-slate-100">
-                    Assign Tier: {assigningPlan.planName}
-                  </h3>
-                  <p className="text-xs text-slate-500">Apply this tier to a tenant organization and update their limits.</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setAssigningPlan(null)}
-                className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleAssignTierSubmit} className="space-y-4 text-xs font-semibold">
-              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 space-y-1 text-slate-700 dark:text-slate-300">
-                <div className="flex justify-between font-bold">
-                  <span>Selected Tier:</span>
-                  <span className="text-[#274690] dark:text-blue-300">{assigningPlan.planName} (₹{Number(assigningPlan.monthlyPrice).toLocaleString()}/mo)</span>
-                </div>
-                <div className="text-[11px] text-slate-500">
-                  Includes {assigningPlan.userLimit} Users, {assigningPlan.storageLimitGB} GB AWS S3 Storage, {Number(assigningPlan.aiCredits).toLocaleString()} AI Docs/mo.
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Target Organization <span className="text-rose-500">*</span>
-                </label>
-                <select
-                  required
-                  value={assignForm.organisationId}
-                  onChange={(e) => setAssignForm({ ...assignForm, organisationId: e.target.value })}
-                  className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-[#274690]"
-                >
-                  <option value="">-- Select Tenant Organization --</option>
-                  {(organisationsList.length > 0 ? organisationsList : orgSubscriptions).map((org: any) => {
-                    const id = org.id || org.organisationId || org.organisation?.id;
-                    const name = org.name || org.organisation?.name || `Organization #${id}`;
-                    const currentPlan = org.plan || org.plan?.planName || "Starter";
-                    return (
-                      <option key={id} value={String(id)}>
-                        {name} (Currently: {currentPlan})
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Billing Cycle</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setAssignForm({ ...assignForm, billingCycle: "MONTHLY" })}
-                    className={`py-2 rounded-xl font-bold border transition cursor-pointer ${
-                      assignForm.billingCycle === "MONTHLY"
-                        ? "bg-slate-900 text-white border-slate-900 shadow-xs"
-                        : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
-                    }`}
-                  >
-                    Monthly Billing
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAssignForm({ ...assignForm, billingCycle: "ANNUAL" })}
-                    className={`py-2 rounded-xl font-bold border transition cursor-pointer ${
-                      assignForm.billingCycle === "ANNUAL"
-                        ? "bg-slate-900 text-white border-slate-900 shadow-xs"
-                        : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
-                    }`}
-                  >
-                    Annual Billing (Save 20%)
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                <div>
-                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Custom User Limit (Optional)</label>
-                  <input
-                    type="number"
-                    placeholder={`Default: ${assigningPlan.userLimit}`}
-                    value={assignForm.customUserLimit}
-                    onChange={(e) => setAssignForm({ ...assignForm, customUserLimit: e.target.value })}
-                    className="w-full h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Custom Storage GB (Optional)</label>
-                  <input
-                    type="number"
-                    placeholder={`Default: ${assigningPlan.storageLimitGB} GB`}
-                    value={assignForm.customStorageLimitGB}
-                    onChange={(e) => setAssignForm({ ...assignForm, customStorageLimitGB: e.target.value })}
-                    className="w-full h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-                <Button type="button" variant="outline" size="sm" onClick={() => setAssigningPlan(null)} className="rounded-xl cursor-pointer">
-                  Cancel
-                </Button>
-                <Button type="submit" size="sm" disabled={assigning} className="bg-[#274690] hover:bg-[#1f3561] text-white font-bold rounded-xl px-5 cursor-pointer">
-                  {assigning ? "Assigning Tier..." : "Confirm & Assign Tier"}
-                </Button>
               </div>
             </form>
           </Card>
@@ -1068,6 +985,73 @@ export default function SubscriptionsAndPlansPage() {
                     onChange={(e) => setNewPlan({ ...newPlan, aiCredits: e.target.value })}
                     className="w-full h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none"
                   />
+                </div>
+              </div>
+
+              {/* Feature adder in Create Plan */}
+              <div className="space-y-2">
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+                  <span>Plan Features & Capabilities ({newPlan.featuresList.length})</span>
+                  <span className="text-[11px] text-slate-400 font-normal">Add custom features for this new tier</span>
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Type a new feature (e.g. WhatsApp Bot Notifications)..."
+                    value={newFeatureInput}
+                    onChange={(e) => setNewFeatureInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        if (newFeatureInput.trim()) {
+                          setNewPlan((prev) => ({
+                            ...prev,
+                            featuresList: [...prev.featuresList, newFeatureInput.trim()],
+                          }));
+                          setNewFeatureInput("");
+                        }
+                      }
+                    }}
+                    className="flex-1 h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-800 dark:text-slate-200"
+                  />
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      if (newFeatureInput.trim()) {
+                        setNewPlan((prev) => ({
+                          ...prev,
+                          featuresList: [...prev.featuresList, newFeatureInput.trim()],
+                        }));
+                        setNewFeatureInput("");
+                      }
+                    }}
+                    className="bg-[#274690] hover:bg-[#1f3561] text-white text-xs font-bold rounded-xl px-4 cursor-pointer"
+                  >
+                    <Plus size={14} className="mr-1" /> Add Feature
+                  </Button>
+                </div>
+                <div className="max-h-36 overflow-y-auto space-y-1.5 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                  {newPlan.featuresList.map((feat, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-xs py-1.5 px-3 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                      <span className="flex items-center gap-2 text-slate-700 dark:text-slate-200 font-medium">
+                        <Check size={13} className="text-emerald-500 shrink-0" />
+                        <span>{feat}</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewPlan((prev) => ({
+                            ...prev,
+                            featuresList: prev.featuresList.filter((_, i) => i !== idx),
+                          }));
+                        }}
+                        className="text-slate-400 hover:text-rose-500 p-0.5 cursor-pointer ml-2"
+                        title="Remove feature"
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
+                  ))}
                 </div>
               </div>
 

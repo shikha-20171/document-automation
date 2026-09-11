@@ -305,6 +305,11 @@ export default function SuperAdminOrganisationsPage() {
   const [editModalOrg, setEditModalOrg] = useState<any | null>(null);
   const [deleteModalOrg, setDeleteModalOrg] = useState<any | null>(null);
 
+  // Drawer Subscription Assignment State
+  const [drawerPlanId, setDrawerPlanId] = useState<string>("");
+  const [drawerBillingCycle, setDrawerBillingCycle] = useState<"MONTHLY" | "ANNUAL">("MONTHLY");
+  const [isAssigningDrawerSub, setIsAssigningDrawerSub] = useState<boolean>(false);
+
   // Toast Notification
   const [toastMessage, setToastMessage] = useState<{ text: string; type: "success" | "error" | "info" } | null>(null);
 
@@ -438,6 +443,64 @@ export default function SuperAdminOrganisationsPage() {
       fetchPlans();
     }
   }, [activeTab]);
+
+  // When an organisation drawer is opened, dynamically re-fetch plans and bind the current plan
+  useEffect(() => {
+    if (selectedOrg) {
+      fetchPlans();
+      const currentPlanName = (selectedOrg.plan || selectedOrg.subscription?.planName || "").toLowerCase();
+      const matched = availablePlans.find(
+        (p) =>
+          (p.planName || p.name)?.toLowerCase() === currentPlanName ||
+          String(p.id) === String(selectedOrg.subscription?.planId)
+      );
+      setDrawerPlanId(matched?.id || availablePlans[0]?.id || "");
+    }
+  }, [selectedOrg]);
+
+  // Handle assigning/changing subscription directly from the Organisation Drawer
+  const handleAssignSubscriptionFromDrawer = async () => {
+    if (!selectedOrg || !drawerPlanId) return;
+    const targetPlan = availablePlans.find((p) => String(p.id) === String(drawerPlanId));
+    if (!targetPlan) return;
+
+    try {
+      setIsAssigningDrawerSub(true);
+      const res = await axios.post("/super-admin/subscriptions/assign", {
+        organisationId: selectedOrg.id,
+        planId: targetPlan.id,
+        billingCycle: drawerBillingCycle,
+      });
+
+      if (res.data?.success || res.status === 200) {
+        const planName = targetPlan.planName || targetPlan.name;
+        showToast(`✅ Subscription successfully updated to "${planName}"!`, "success");
+
+        // Immediately update selectedOrg state to reflect in drawer
+        setSelectedOrg((prev: any) => ({
+          ...prev,
+          plan: planName,
+          subscription: {
+            ...prev?.subscription,
+            planName: planName,
+            planId: targetPlan.id,
+            status: "ACTIVE",
+            userLimit: targetPlan.userLimit || prev?.subscription?.userLimit,
+            storageLimitGB: targetPlan.storageLimitGB || prev?.subscription?.storageLimitGB,
+            aiCredits: targetPlan.aiCredits || prev?.subscription?.aiCredits,
+            ocrLimit: targetPlan.ocrLimit || prev?.subscription?.ocrLimit,
+          },
+        }));
+
+        // Refresh organisations table
+        fetchOrganisations();
+      }
+    } catch (err: any) {
+      showToast("Failed to assign subscription: " + (err.response?.data?.message || err.message), "error");
+    } finally {
+      setIsAssigningDrawerSub(false);
+    }
+  };
 
   // Compute live limits based on currently selected plan in form
   const selectedPlanDetails = useMemo(() => {
@@ -1981,6 +2044,146 @@ export default function SuperAdminOrganisationsPage() {
                         {(selectedOrg.subscription?.ocrLimit || 1000).toLocaleString()} pgs
                       </p>
                       <span className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 block">Monthly quota</span>
+                    </div>
+                  </div>
+
+                  {/* CHANGE / ASSIGN SUBSCRIPTION TIER IN DRAWER */}
+                  <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-4 shadow-xs">
+                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 rounded-lg bg-[#274690]/10 text-[#274690] dark:text-[#5b83e0]">
+                          <Zap size={16} />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                            Assign / Change Subscription Tier
+                          </h4>
+                          <p className="text-[11px] text-slate-500">
+                            Apply any created or edited subscription tier to this tenant organization.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                          Select Subscription Tier
+                        </label>
+                        <select
+                          value={drawerPlanId}
+                          onChange={(e) => setDrawerPlanId(e.target.value)}
+                          className="w-full bg-slate-50 dark:bg-[#0b1120] border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-[#274690]"
+                        >
+                          {availablePlans.map((p) => {
+                            const name = p.planName || p.name;
+                            return (
+                              <option key={p.id} value={p.id}>
+                                {name} Plan {p.monthlyPrice ? `(₹${Number(p.monthlyPrice).toLocaleString()}/mo)` : ""}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+
+                      {/* Live specs preview of the selected plan */}
+                      {(() => {
+                        const selPlan = availablePlans.find((p) => String(p.id) === String(drawerPlanId));
+                        if (!selPlan) return null;
+                        const featuresList: string[] = Array.isArray(selPlan.features?.list)
+                          ? selPlan.features.list
+                          : Array.isArray(selPlan.features)
+                          ? selPlan.features
+                          : [
+                              `${selPlan.userLimit || 10} User Seats`,
+                              `${selPlan.storageLimitGB || 50} GB Storage`,
+                              `${Number(selPlan.aiCredits || 2000).toLocaleString()} AI Credits`,
+                              `${Number(selPlan.ocrLimit || 1000).toLocaleString()} OCR Pages`,
+                            ];
+
+                        return (
+                          <div className="rounded-xl bg-slate-50 dark:bg-slate-950 p-3 border border-slate-200/80 dark:border-slate-800/80 space-y-2">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="font-bold text-slate-800 dark:text-slate-200">
+                                {selPlan.planName || selPlan.name} Tier Specs
+                              </span>
+                              <span className="font-mono font-bold text-[#274690] dark:text-[#5b83e0]">
+                                ₹{Number(selPlan.monthlyPrice || 0).toLocaleString()}/mo
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                              <div className="bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-100 dark:border-slate-800">
+                                <span className="text-slate-400 block text-[10px]">Users</span>
+                                <span className="font-bold text-slate-800 dark:text-slate-200">{selPlan.userLimit || 10}</span>
+                              </div>
+                              <div className="bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-100 dark:border-slate-800">
+                                <span className="text-slate-400 block text-[10px]">Storage</span>
+                                <span className="font-bold text-slate-800 dark:text-slate-200">{selPlan.storageLimitGB || 50} GB</span>
+                              </div>
+                              <div className="bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-100 dark:border-slate-800">
+                                <span className="text-slate-400 block text-[10px]">AI Docs</span>
+                                <span className="font-bold text-slate-800 dark:text-slate-200">{Number(selPlan.aiCredits || 2000).toLocaleString()}</span>
+                              </div>
+                              <div className="bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-100 dark:border-slate-800">
+                                <span className="text-slate-400 block text-[10px]">OCR Pages</span>
+                                <span className="font-bold text-slate-800 dark:text-slate-200">{Number(selPlan.ocrLimit || 1000).toLocaleString()}</span>
+                              </div>
+                            </div>
+
+                            {featuresList.length > 0 && (
+                              <div className="pt-1.5 border-t border-slate-200 dark:border-slate-800/80">
+                                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Included Features</span>
+                                <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                                  {featuresList.map((f, i) => (
+                                    <Badge key={i} variant="outline" className="text-[10px] bg-white dark:bg-slate-900 border-slate-200 text-slate-600 dark:text-slate-300">
+                                      <Check size={10} className="text-emerald-500 mr-1" />
+                                      {f}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      <div className="flex items-center justify-between gap-3 pt-2">
+                        <div className="flex items-center gap-1.5 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => setDrawerBillingCycle("MONTHLY")}
+                            className={`px-3 py-1.5 rounded-lg font-semibold text-xs transition cursor-pointer ${
+                              drawerBillingCycle === "MONTHLY"
+                                ? "bg-[#274690] text-white"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                            }`}
+                          >
+                            Monthly
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDrawerBillingCycle("ANNUAL")}
+                            className={`px-3 py-1.5 rounded-lg font-semibold text-xs transition cursor-pointer ${
+                              drawerBillingCycle === "ANNUAL"
+                                ? "bg-[#274690] text-white"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                            }`}
+                          >
+                            Annual
+                          </button>
+                        </div>
+
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={handleAssignSubscriptionFromDrawer}
+                          disabled={isAssigningDrawerSub || !drawerPlanId}
+                          className="bg-[#274690] hover:bg-[#1f3561] text-white font-bold rounded-xl px-4 cursor-pointer text-xs"
+                        >
+                          {isAssigningDrawerSub ? "Assigning..." : "Assign Subscription to Org"}
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>
