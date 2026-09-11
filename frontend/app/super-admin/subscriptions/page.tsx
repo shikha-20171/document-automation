@@ -56,7 +56,7 @@ interface PlanItem {
 
 export default function SubscriptionsAndPlansPage() {
   const [activeTab, setActiveTab] = useState<
-    "plans" | "create-plan" | "active" | "comparison" | "limits"
+    "plans" | "create-plan" | "active"
   >("plans");
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -528,10 +528,8 @@ export default function SubscriptionsAndPlansPage() {
       <div className="flex items-center gap-1.5 border-b border-slate-200 dark:border-slate-800 pb-2 overflow-x-auto text-xs font-bold">
         {[
           { id: "plans", label: "Subscription Tiers", icon: Package, count: plans.length },
-          { id: "comparison", label: "Included vs Excluded Matrix", icon: Sliders },
           { id: "create-plan", label: "+ Create Plan", icon: Plus, highlight: true },
           { id: "active", label: "Active Subscriptions", icon: CheckCircle2, count: orgSubscriptions.length },
-          { id: "limits", label: "Limits & Quota Matrix", icon: HardDrive },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -936,181 +934,6 @@ export default function SubscriptionsAndPlansPage() {
         </div>
       )}
 
-      {/* TAB 2: INCLUDED VS EXCLUDED COMPARISON MATRIX TABLE */}
-      {activeTab === "comparison" && (
-        <Card className="rounded-3xl border-slate-200/80 dark:border-slate-800 p-6 shadow-sm">
-          <div className="mb-6">
-            <CardTitle className="text-base font-black text-slate-900 dark:text-slate-100">
-              Comprehensive Feature Comparison Matrix
-            </CardTitle>
-            <p className="text-xs text-slate-500">
-              Clear breakdown of exact capabilities included (✓) vs restricted (✕) across Starter, Business, and Enterprise plans.
-            </p>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 font-black border-b border-slate-200 dark:border-slate-700">
-                <tr>
-                  <th className="p-4 pl-6 w-1/3">Feature / Capability</th>
-                  <th className="p-4 text-center">Starter<br/><span className="text-[10px] font-normal text-slate-400">₹4,999/mo</span></th>
-                  <th className="p-4 text-center bg-blue-50/50 dark:bg-blue-950/20 text-[#274690] dark:text-blue-300">
-                    Business (Most Popular)<br/><span className="text-[10px] font-normal text-slate-400">₹14,999/mo</span>
-                  </th>
-                  <th className="p-4 text-center">Enterprise<br/><span className="text-[10px] font-normal text-slate-400">₹39,999/mo</span></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {/* 1. Core Quotas */}
-                <tr className="bg-slate-100/50 dark:bg-slate-800/40 font-black text-slate-700 dark:text-slate-200 text-[11px]">
-                  <td colSpan={4} className="p-3 pl-6 uppercase tracking-wider text-[#274690]">1. Resource Quotas & Limits</td>
-                </tr>
-                <tr>
-                  <td className="p-3 pl-6 font-semibold text-slate-800 dark:text-slate-200">User Seats</td>
-                  <td className="p-3 text-center font-bold">10 Users</td>
-                  <td className="p-3 text-center font-bold bg-blue-50/30 dark:bg-blue-950/10 text-[#274690]">50 Users</td>
-                  <td className="p-3 text-center font-bold">500+ (Unlimited)</td>
-                </tr>
-                <tr>
-                  <td className="p-3 pl-6 font-semibold text-slate-800 dark:text-slate-200">AWS S3 Cloud Storage</td>
-                  <td className="p-3 text-center font-bold">50 GB</td>
-                  <td className="p-3 text-center font-bold bg-blue-50/30 dark:bg-blue-950/10 text-[#274690]">250 GB</td>
-                  <td className="p-3 text-center font-bold">1,000 GB (1 TB+)</td>
-                </tr>
-                <tr>
-                  <td className="p-3 pl-6 font-semibold text-slate-800 dark:text-slate-200">Monthly AI Processing</td>
-                  <td className="p-3 text-center font-bold">2,000 Docs/mo</td>
-                  <td className="p-3 text-center font-bold bg-blue-50/30 dark:bg-blue-950/10 text-[#274690]">10,000 Docs/mo</td>
-                  <td className="p-3 text-center font-bold">50,000+ Docs/mo</td>
-                </tr>
-                <tr>
-                  <td className="p-3 pl-6 font-semibold text-slate-800 dark:text-slate-200">OCR Document Pages</td>
-                  <td className="p-3 text-center font-bold">1,000 Pages</td>
-                  <td className="p-3 text-center font-bold bg-blue-50/30 dark:bg-blue-950/10 text-[#274690]">5,000 Pages</td>
-                  <td className="p-3 text-center font-bold">25,000 Pages</td>
-                </tr>
-                <tr>
-                  <td className="p-3 pl-6 font-semibold text-slate-800 dark:text-slate-200">AI Prompt Templates</td>
-                  <td className="p-3 text-center font-bold">10 Templates</td>
-                  <td className="p-3 text-center font-bold bg-blue-50/30 dark:bg-blue-950/10 text-[#274690]">50 Templates</td>
-                  <td className="p-3 text-center font-bold">Unlimited</td>
-                </tr>
-
-                {/* 2. AI Intelligence */}
-                <tr className="bg-slate-100/50 dark:bg-slate-800/40 font-black text-slate-700 dark:text-slate-200 text-[11px]">
-                  <td colSpan={4} className="p-3 pl-6 uppercase tracking-wider text-[#274690]">2. AI Intelligence & OCR</td>
-                </tr>
-                <tr>
-                  <td className="p-3 pl-6 font-semibold">AI Classification & Data Extraction</td>
-                  <td className="p-3 text-center"><Check size={16} className="text-emerald-500 mx-auto" /></td>
-                  <td className="p-3 text-center bg-blue-50/30 dark:bg-blue-950/10"><Check size={16} className="text-emerald-500 mx-auto" /></td>
-                  <td className="p-3 text-center"><Check size={16} className="text-emerald-500 mx-auto" /></td>
-                </tr>
-                <tr>
-                  <td className="p-3 pl-6 font-semibold">AI Document Summarizer & Chat Q&A</td>
-                  <td className="p-3 text-center"><Check size={16} className="text-emerald-500 mx-auto" /></td>
-                  <td className="p-3 text-center bg-blue-50/30 dark:bg-blue-950/10"><Check size={16} className="text-emerald-500 mx-auto" /></td>
-                  <td className="p-3 text-center"><Check size={16} className="text-emerald-500 mx-auto" /></td>
-                </tr>
-                <tr>
-                  <td className="p-3 pl-6 font-semibold">Batch Document OCR & Comparison</td>
-                  <td className="p-3 text-center"><X size={16} className="text-rose-400 mx-auto" /></td>
-                  <td className="p-3 text-center bg-blue-50/30 dark:bg-blue-950/10"><Check size={16} className="text-emerald-500 mx-auto" /></td>
-                  <td className="p-3 text-center"><Check size={16} className="text-emerald-500 mx-auto" /></td>
-                </tr>
-                <tr>
-                  <td className="p-3 pl-6 font-semibold">Custom AI Models & Dynamic Routing</td>
-                  <td className="p-3 text-center"><X size={16} className="text-rose-400 mx-auto" /></td>
-                  <td className="p-3 text-center bg-blue-50/30 dark:bg-blue-950/10"><X size={16} className="text-rose-400 mx-auto" /></td>
-                  <td className="p-3 text-center"><Check size={16} className="text-emerald-500 mx-auto" /></td>
-                </tr>
-
-                {/* 3. Automation & Workflows */}
-                <tr className="bg-slate-100/50 dark:bg-slate-800/40 font-black text-slate-700 dark:text-slate-200 text-[11px]">
-                  <td colSpan={4} className="p-3 pl-6 uppercase tracking-wider text-[#274690]">3. Workflows & Approvals</td>
-                </tr>
-                <tr>
-                  <td className="p-3 pl-6 font-semibold">Standard Approval Chains</td>
-                  <td className="p-3 text-center"><Check size={16} className="text-emerald-500 mx-auto" /></td>
-                  <td className="p-3 text-center bg-blue-50/30 dark:bg-blue-950/10"><Check size={16} className="text-emerald-500 mx-auto" /></td>
-                  <td className="p-3 text-center"><Check size={16} className="text-emerald-500 mx-auto" /></td>
-                </tr>
-                <tr>
-                  <td className="p-3 pl-6 font-semibold">Multi-Step & Conditional Workflows</td>
-                  <td className="p-3 text-center"><X size={16} className="text-rose-400 mx-auto" /></td>
-                  <td className="p-3 text-center bg-blue-50/30 dark:bg-blue-950/10"><Check size={16} className="text-emerald-500 mx-auto" /></td>
-                  <td className="p-3 text-center"><Check size={16} className="text-emerald-500 mx-auto" /></td>
-                </tr>
-                <tr>
-                  <td className="p-3 pl-6 font-semibold">Cross-Department & Event-Triggered Automation</td>
-                  <td className="p-3 text-center"><X size={16} className="text-rose-400 mx-auto" /></td>
-                  <td className="p-3 text-center bg-blue-50/30 dark:bg-blue-950/10"><X size={16} className="text-rose-400 mx-auto" /></td>
-                  <td className="p-3 text-center"><Check size={16} className="text-emerald-500 mx-auto" /></td>
-                </tr>
-
-                {/* 4. Integrations */}
-                <tr className="bg-slate-100/50 dark:bg-slate-800/40 font-black text-slate-700 dark:text-slate-200 text-[11px]">
-                  <td colSpan={4} className="p-3 pl-6 uppercase tracking-wider text-[#274690]">4. Connected Apps & Integrations</td>
-                </tr>
-                <tr>
-                  <td className="p-3 pl-6 font-semibold">Google Workspace & SMTP Email</td>
-                  <td className="p-3 text-center"><Check size={16} className="text-emerald-500 mx-auto" /></td>
-                  <td className="p-3 text-center bg-blue-50/30 dark:bg-blue-950/10"><Check size={16} className="text-emerald-500 mx-auto" /></td>
-                  <td className="p-3 text-center"><Check size={16} className="text-emerald-500 mx-auto" /></td>
-                </tr>
-                <tr>
-                  <td className="p-3 pl-6 font-semibold">Microsoft 365, Slack & Microsoft Teams</td>
-                  <td className="p-3 text-center"><X size={16} className="text-rose-400 mx-auto" /></td>
-                  <td className="p-3 text-center bg-blue-50/30 dark:bg-blue-950/10"><Check size={16} className="text-emerald-500 mx-auto" /></td>
-                  <td className="p-3 text-center"><Check size={16} className="text-emerald-500 mx-auto" /></td>
-                </tr>
-                <tr>
-                  <td className="p-3 pl-6 font-semibold">REST API & Webhooks Access</td>
-                  <td className="p-3 text-center"><X size={16} className="text-rose-400 mx-auto" /></td>
-                  <td className="p-3 text-center bg-blue-50/30 dark:bg-blue-950/10"><Check size={16} className="text-emerald-500 mx-auto" /></td>
-                  <td className="p-3 text-center"><Check size={16} className="text-emerald-500 mx-auto" /></td>
-                </tr>
-                <tr>
-                  <td className="p-3 pl-6 font-semibold">WhatsApp Business API & Custom Integrations</td>
-                  <td className="p-3 text-center"><X size={16} className="text-rose-400 mx-auto" /></td>
-                  <td className="p-3 text-center bg-blue-50/30 dark:bg-blue-950/10"><X size={16} className="text-rose-400 mx-auto" /></td>
-                  <td className="p-3 text-center"><Check size={16} className="text-emerald-500 mx-auto" /></td>
-                </tr>
-
-                {/* 5. Security & Governance */}
-                <tr className="bg-slate-100/50 dark:bg-slate-800/40 font-black text-slate-700 dark:text-slate-200 text-[11px]">
-                  <td colSpan={4} className="p-3 pl-6 uppercase tracking-wider text-[#274690]">5. Security, Governance & Support</td>
-                </tr>
-                <tr>
-                  <td className="p-3 pl-6 font-semibold">Role-Based Access Control (RBAC) & MFA</td>
-                  <td className="p-3 text-center"><Check size={16} className="text-emerald-500 mx-auto" /></td>
-                  <td className="p-3 text-center bg-blue-50/30 dark:bg-blue-950/10"><Check size={16} className="text-emerald-500 mx-auto" /></td>
-                  <td className="p-3 text-center"><Check size={16} className="text-emerald-500 mx-auto" /></td>
-                </tr>
-                <tr>
-                  <td className="p-3 pl-6 font-semibold">Audit Log Retention</td>
-                  <td className="p-3 text-center font-bold">30 Days</td>
-                  <td className="p-3 text-center font-bold bg-blue-50/30 dark:bg-blue-950/10 text-[#274690]">1 Year</td>
-                  <td className="p-3 text-center font-bold">7 Years</td>
-                </tr>
-                <tr>
-                  <td className="p-3 pl-6 font-semibold">Single Sign-On (SSO) & IP Whitelisting</td>
-                  <td className="p-3 text-center"><X size={16} className="text-rose-400 mx-auto" /></td>
-                  <td className="p-3 text-center bg-blue-50/30 dark:bg-blue-950/10"><X size={16} className="text-rose-400 mx-auto" /></td>
-                  <td className="p-3 text-center"><Check size={16} className="text-emerald-500 mx-auto" /></td>
-                </tr>
-                <tr>
-                  <td className="p-3 pl-6 font-semibold">Customer Support SLA</td>
-                  <td className="p-3 text-center">Standard Support</td>
-                  <td className="p-3 text-center bg-blue-50/30 dark:bg-blue-950/10 text-[#274690] font-bold">Priority Support</td>
-                  <td className="p-3 text-center font-bold">Dedicated Manager + 99.9% SLA</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
-
       {/* TAB 3: CREATE CUSTOM PLAN */}
       {activeTab === "create-plan" && (
         <Card className="rounded-3xl border-slate-200/80 dark:border-slate-800 p-6 shadow-sm">
@@ -1295,64 +1118,6 @@ export default function SubscriptionsAndPlansPage() {
         </Card>
       )}
 
-      {/* TAB 5: LIMITS MATRIX */}
-      {activeTab === "limits" && (
-        <Card className="rounded-3xl border-slate-200/80 dark:border-slate-800 p-6">
-          <CardTitle className="text-base font-black text-slate-900 dark:text-slate-100 mb-4">
-            Tier Limits & Feature Entitlements Matrix
-          </CardTitle>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-            <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <p className="font-black text-slate-900 dark:text-slate-100 text-sm">Starter</p>
-                <span className="font-bold text-slate-500">₹4,999/mo</span>
-              </div>
-              <p className="text-slate-600 dark:text-slate-400 font-semibold">• 10 Users Maximum</p>
-              <p className="text-slate-600 dark:text-slate-400 font-semibold">• 50 GB AWS S3 Storage</p>
-              <p className="text-slate-600 dark:text-slate-400 font-semibold">• 2,000 AI Documents / Month</p>
-              <p className="text-slate-600 dark:text-slate-400 font-semibold">• 1,000 OCR Pages / Month</p>
-              <p className="text-slate-600 dark:text-slate-400 font-semibold">• 10 AI Templates & Basic Workflows</p>
-              <p className="text-slate-600 dark:text-slate-400 font-semibold">• Google Workspace & SMTP Email</p>
-              <p className="text-slate-600 dark:text-slate-400 font-semibold">• RBAC, MFA & Basic Audit Logs</p>
-            </div>
-
-            <div className="p-5 rounded-2xl bg-blue-50/50 dark:bg-blue-950/20 border-2 border-[#274690]/40 space-y-2.5 shadow-xs">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <p className="font-black text-[#274690] dark:text-blue-300 text-sm">Business</p>
-                  <span className="bg-[#274690] text-white text-[9px] font-black px-2 py-0.5 rounded-full">POPULAR</span>
-                </div>
-                <span className="font-bold text-[#274690] dark:text-blue-300">₹14,999/mo</span>
-              </div>
-              <p className="text-slate-700 dark:text-slate-300 font-semibold">• 50 Users Maximum</p>
-              <p className="text-slate-700 dark:text-slate-300 font-semibold">• 250 GB AWS S3 Storage</p>
-              <p className="text-slate-700 dark:text-slate-300 font-semibold">• 10,000 AI Documents / Month</p>
-              <p className="text-slate-700 dark:text-slate-300 font-semibold">• 5,000 Advanced OCR Pages</p>
-              <p className="text-slate-700 dark:text-slate-300 font-semibold">• Batch Processing & Comparison</p>
-              <p className="text-slate-700 dark:text-slate-300 font-semibold">• Multi-Step & Conditional Approvals</p>
-              <p className="text-slate-700 dark:text-slate-300 font-semibold">• 50 AI Templates & Custom Prompts</p>
-              <p className="text-slate-700 dark:text-slate-300 font-semibold">• Google, Microsoft 365, Slack & Teams</p>
-              <p className="text-slate-700 dark:text-slate-300 font-semibold">• REST API, Webhooks & 1-Yr Audit Vault</p>
-            </div>
-
-            <div className="p-5 rounded-2xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <p className="font-black text-purple-900 dark:text-purple-300 text-sm">Enterprise</p>
-                <span className="font-bold text-purple-900 dark:text-purple-300">₹39,999/mo</span>
-              </div>
-              <p className="text-slate-700 dark:text-slate-300 font-semibold">• 500+ Users (Unlimited Scaling)</p>
-              <p className="text-slate-700 dark:text-slate-300 font-semibold">• 1 TB+ Dedicated Storage</p>
-              <p className="text-slate-700 dark:text-slate-300 font-semibold">• 50,000+ AI Documents / Month</p>
-              <p className="text-slate-700 dark:text-slate-300 font-semibold">• 25,000 High-Volume OCR Pages</p>
-              <p className="text-slate-700 dark:text-slate-300 font-semibold">• Custom AI Models & Routing</p>
-              <p className="text-slate-700 dark:text-slate-300 font-semibold">• Unlimited Workflows & Cross-Dept Rules</p>
-              <p className="text-slate-700 dark:text-slate-300 font-semibold">• SSO, MFA Enforcement & IP Whitelisting</p>
-              <p className="text-slate-700 dark:text-slate-300 font-semibold">• Full Integrations + WhatsApp Business API</p>
-              <p className="text-slate-700 dark:text-slate-300 font-semibold">• 7-Year Audit Vault & 99.9% Custom SLA</p>
-            </div>
-          </div>
-        </Card>
-      )}
     </div>
   );
 }

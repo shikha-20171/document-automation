@@ -54,11 +54,6 @@ export const superAdminNavSections: MenuSection[] = [
         icon: Building2,
       },
       {
-        title: "Users & Access",
-        href: "/super-admin/users-access",
-        icon: Users,
-      },
-      {
         title: "Subscriptions",
         href: "/super-admin/subscriptions",
         icon: CreditCard,
@@ -102,19 +97,9 @@ export const superAdminNavSections: MenuSection[] = [
         icon: LifeBuoy,
       },
       {
-        title: "Notifications",
-        href: "/super-admin/notifications",
-        icon: Bell,
-      },
-      {
         title: "Analytics & Reports",
         href: "/super-admin/analytics",
         icon: BarChart3,
-      },
-      {
-        title: "Security & Compliance",
-        href: "/super-admin/security",
-        icon: ShieldAlert,
       },
       {
         title: "Activity & Audit Logs",

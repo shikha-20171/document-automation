@@ -393,28 +393,10 @@ export default function SuperAdminDashboardPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
-            {/* Top Platform Status Summary Banner */}
-            <div className="bg-white/15 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white/20 flex items-center gap-2">
-              <div className="text-right">
-                <span className="text-[10px] font-bold text-white/70 block uppercase tracking-wider">Platform Status</span>
-                <span className="text-xs font-black text-white flex items-center justify-end gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  {healthData.overall}
-                </span>
-              </div>
-            </div>
-
             <Link href="/super-admin/organisations">
               <Button className="rounded-xl bg-white text-[#274690] hover:bg-slate-100 font-bold shadow-md text-xs h-9">
                 <Building2 size={14} className="mr-1.5" />
                 All Organisations
-              </Button>
-            </Link>
-
-            <Link href="/super-admin/ai-automation">
-              <Button variant="outline" className="rounded-xl bg-white/10 hover:bg-white/20 text-white border-white/30 font-bold text-xs h-9">
-                <Bot size={14} className="mr-1.5" />
-                AI Gateway
               </Button>
             </Link>
           </div>

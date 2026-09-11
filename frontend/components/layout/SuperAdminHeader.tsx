@@ -36,20 +36,15 @@ export default function SuperAdminHeader({ onMenuClick }: SuperAdminHeaderProps)
   const pathname = usePathname();
   const [searchTerm, setSearchTerm] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
-  const notifRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
 
   // Close dropdowns on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
-        setIsNotifOpen(false);
-      }
       if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
         setIsProfileOpen(false);
       }
@@ -132,11 +127,7 @@ export default function SuperAdminHeader({ onMenuClick }: SuperAdminHeaderProps)
     return "Super Admin Command Suite";
   };
 
-  const notifications = [
-    { id: 1, title: "Storage Quota Warning", desc: "Organization Reliance Tech reached 84% quota", time: "10m ago", unread: true, type: "warning" },
-    { id: 2, title: "AI Model Latency Optimized", desc: "Gemini Flash latency avg 240ms", time: "35m ago", unread: true, type: "success" },
-    { id: 3, title: "Database Backup Completed", desc: "Automated snapshot verified in ap-south-1", time: "2h ago", unread: false, type: "success" },
-  ];
+
 
   return (
     <>
@@ -177,57 +168,6 @@ export default function SuperAdminHeader({ onMenuClick }: SuperAdminHeaderProps)
         </div>
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-          {/* Notifications Popover */}
-          <div className="relative" ref={notifRef}>
-            <Button
-              variant="ghost"
-              onClick={() => setIsNotifOpen(!isNotifOpen)}
-              className="relative h-9 w-9 p-0 rounded-xl border border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 hover:text-[#274690] dark:hover:text-blue-400"
-              title="Platform Alerts & Notifications"
-            >
-              <Bell size={16} />
-              <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-[#c96f4a] ring-2 ring-white dark:ring-slate-900 animate-pulse" />
-            </Button>
-
-            {isNotifOpen && (
-              <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-2xl dark:border-slate-800 dark:bg-slate-900 z-50 animate-in fade-in zoom-in-95">
-                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5 px-1">
-                  <div className="flex items-center gap-2">
-                    <Bell size={15} className="text-[#274690]" />
-                    <span className="text-xs font-black text-slate-900 dark:text-slate-100">Platform Notifications</span>
-                  </div>
-                  <Badge variant="outline" className="text-[10px] font-bold border-[#c96f4a]/30 text-[#c96f4a] bg-[#c96f4a]/10">
-                    2 New
-                  </Badge>
-                </div>
-
-                <div className="divide-y divide-slate-100 dark:divide-slate-800 my-1 max-h-64 overflow-y-auto">
-                  {notifications.map((n) => (
-                    <div key={n.id} className="py-2.5 px-1 hover:bg-slate-50 dark:hover:bg-slate-800/60 rounded-lg transition cursor-pointer">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-xs font-bold text-slate-900 dark:text-slate-100">{n.title}</p>
-                        <span className="text-[10px] text-slate-400 shrink-0">{n.time}</span>
-                      </div>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{n.desc}</p>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-center">
-                  <button
-                    onClick={() => {
-                      setIsNotifOpen(false);
-                      router.push("/super-admin/audit-logs");
-                    }}
-                    className="text-xs font-bold text-[#274690] hover:text-[#c96f4a] transition"
-                  >
-                    View All Security & Audit Events →
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
           <ThemeToggle />
 
           <div className="hidden h-6 w-px bg-slate-200 dark:bg-slate-700 sm:block" />

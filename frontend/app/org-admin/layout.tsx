@@ -8,6 +8,8 @@ import { Search, Bell, Menu } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import apiClient from "@/lib/axios";
 
+import RoleGuard from "@/components/auth/RoleGuard";
+
 export default function OrgAdminLayout({
   children,
 }: {
@@ -33,10 +35,11 @@ export default function OrgAdminLayout({
   }, []);
 
   return (
-    <div
-      className="flex h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(39,70,144,0.06),transparent_28%),linear-gradient(180deg,#f8fbff_0%,#eef4fb_100%)]"
-      style={{ ["--org-brand" as string]: "#274690" }}
-    >
+    <RoleGuard allowedRoles={["ORGANISATION_ADMIN", "SUPER_ADMIN"]}>
+      <div
+        className="flex h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(39,70,144,0.06),transparent_28%),linear-gradient(180deg,#f8fbff_0%,#eef4fb_100%)]"
+        style={{ ["--org-brand" as string]: "#274690" }}
+      >
       <OrgAdminSidebar
         mobileOpen={mobileSidebarOpen}
         onClose={() => setMobileSidebarOpen(false)}
@@ -83,5 +86,6 @@ export default function OrgAdminLayout({
         <main className="p-3.5 sm:p-6 flex-1 overflow-y-auto scrollbar-none">{children}</main>
       </div>
     </div>
+    </RoleGuard>
   );
 }

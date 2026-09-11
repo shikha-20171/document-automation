@@ -27,7 +27,7 @@ import { Input } from "@/components/ui/input";
 import apiClient from "@/lib/axios";
 
 export default function SuperAdminStoragePage() {
-  const [activeTab, setActiveTab] = useState<"configuration" | "overview" | "organizations" | "quotas">("configuration");
+  const [activeTab, setActiveTab] = useState<"configuration" | "organizations">("configuration");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [savingS3, setSavingS3] = useState(false);
@@ -399,8 +399,6 @@ export default function SuperAdminStoragePage() {
         {[
           { id: "configuration", label: "AWS S3 Configuration" },
           { id: "organizations", label: "Organization Storage Usages" },
-          { id: "overview", label: "Platform Metrics & Architecture" },
-          { id: "quotas", label: "Subscription Quota Policy" },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -722,89 +720,6 @@ export default function SuperAdminStoragePage() {
         </Card>
       )}
 
-      {/* TAB 3: PLATFORM METRICS & ARCHITECTURE */}
-      {activeTab === "overview" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="rounded-3xl border-slate-200 bg-white p-6 shadow-xs space-y-4">
-            <h3 className="font-black text-slate-900 text-sm flex items-center gap-2">
-              <Database size={16} className="text-[#274690]" />
-              Database vs S3 Storage Division
-            </h3>
-            <div className="space-y-3 text-xs text-slate-600 leading-relaxed">
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                <span className="font-bold text-slate-900">PostgreSQL Relational Layer:</span>
-                <p className="text-[11px] text-slate-500">
-                  Stores document metadata, S3 object keys, MIME types, file sizes, folder structures, timestamps, quotas, and audit events. Zero large binaries in PostgreSQL.
-                </p>
-              </div>
-              <div className="p-3 rounded-xl bg-blue-50/60 border border-blue-200 space-y-1">
-                <span className="font-bold text-[#274690]">AWS S3 Binary Layer:</span>
-                <p className="text-[11px] text-slate-600">
-                  Stores original PDFs, DOCX, OCR outputs, and AI generated documents with multi-tenant key prefixes: <code className="font-mono text-[10px]">&#123;orgId&#125;/documents/&#123;docId&#125;/original/...</code>
-                </p>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="rounded-3xl border-slate-200 bg-white p-6 shadow-xs space-y-4">
-            <h3 className="font-black text-slate-900 text-sm flex items-center gap-2">
-              <Server size={16} className="text-[#274690]" />
-              Secure File Access Architecture
-            </h3>
-            <div className="space-y-3 text-xs text-slate-600 leading-relaxed">
-              <p>
-                1. S3 bucket is strictly <strong>private</strong> (no public access).
-              </p>
-              <p>
-                2. When an authorized user requests a file, backend verifies organization ownership and issues a short-lived <strong>presigned GET URL (15 minutes expiry)</strong>.
-              </p>
-              <p>
-                3. Tenant users cannot access or guess another organization's S3 object keys.
-              </p>
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {/* TAB 4: QUOTAS */}
-      {activeTab === "quotas" && (
-        <Card className="rounded-3xl border-slate-200 bg-white p-6 shadow-xs space-y-4">
-          <CardTitle className="text-base font-black text-slate-900">
-            Subscription Storage Quota & Enforcement Policy
-          </CardTitle>
-          <p className="text-xs text-slate-500">
-            Every document upload executes a server-side check: <code className="font-mono font-bold text-[#274690]">Current Usage + File Size ≤ Plan Storage Limit</code>.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-            <div className="p-4 rounded-2xl border border-amber-200 bg-amber-50/60 space-y-1.5">
-              <div className="flex items-center gap-2 font-bold text-amber-700 text-xs">
-                <AlertTriangle size={15} /> 80% Usage — Warning Alert
-              </div>
-              <p className="text-xs text-slate-600">
-                Displays storage warning badge in tenant dashboard.
-              </p>
-            </div>
-
-            <div className="p-4 rounded-2xl border border-rose-200 bg-rose-50/60 space-y-1.5">
-              <div className="flex items-center gap-2 font-bold text-rose-700 text-xs">
-                <ShieldAlert size={15} /> 95% Usage — Critical Alert
-              </div>
-              <p className="text-xs text-slate-600">
-                Displays prominent upgrade banner to tenant administrators.
-              </p>
-            </div>
-
-            <div className="p-4 rounded-2xl border border-slate-300 bg-slate-50 space-y-1.5">
-              <div className="flex items-center gap-2 font-bold text-slate-800 text-xs">
-                <Lock size={15} /> 100% Usage — Upload Blocked
-              </div>
-              <p className="text-xs text-slate-600">
-                Blocks new uploads with HTTP 403 <code className="text-[10px]">Storage limit reached</code>. Existing documents remain accessible.
-              </p>
-            </div>
-          </div>
-        </Card>
-      )}
     </div>
   );
 }

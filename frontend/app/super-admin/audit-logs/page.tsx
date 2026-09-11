@@ -90,7 +90,7 @@ export interface AuditOverviewData {
 
 export default function SuperAdminAuditLogsPage() {
   const [activeTab, setActiveTab] = useState<
-    "overview" | "activity_logs" | "admin_actions" | "export"
+    "overview" | "activity_logs"
   >("overview");
 
   const [loading, setLoading] = useState(true);
@@ -129,9 +129,7 @@ export default function SuperAdminAuditLogsPage() {
   // Selected Log Drawer / Modal
   const [selectedLog, setSelectedLog] = useState<AuditLogItem | null>(null);
 
-  // Export State
-  const [exportFormat, setExportFormat] = useState<"csv" | "json">("csv");
-  const [isExporting, setIsExporting] = useState(false);
+
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToastMessage(msg);
@@ -181,18 +179,11 @@ export default function SuperAdminAuditLogsPage() {
       if (startDate) params.startDate = startDate;
       if (endDate) params.endDate = endDate;
 
-      let res;
-      if (activeTab === "admin_actions") {
-        res = await apiClient.get("/super-admin/audit-logs/admin-actions", { params });
-      } else {
-        params.excludeSecurity = "true";
-        res = await apiClient.get("/super-admin/audit-logs", { params });
-      }
+      params.excludeSecurity = "true";
+      const res = await apiClient.get("/super-admin/audit-logs", { params });
 
       if (res.data?.data) {
-        const filtered = activeTab === "admin_actions"
-          ? res.data.data
-          : res.data.data.filter((l: AuditLogItem) => l.module !== "SECURITY");
+        const filtered = res.data.data.filter((l: AuditLogItem) => l.module !== "SECURITY");
         setLogs(filtered);
         if (res.data.pagination) {
           setPagination((prev) => ({
@@ -215,7 +206,7 @@ export default function SuperAdminAuditLogsPage() {
   }, [timelineDays]);
 
   useEffect(() => {
-    if (activeTab !== "overview" && activeTab !== "export") {
+    if (activeTab !== "overview") {
       loadLogs();
     }
   }, [
@@ -248,48 +239,7 @@ export default function SuperAdminAuditLogsPage() {
     setPagination((p) => ({ ...p, page: 1 }));
   };
 
-  const handleExport = async () => {
-    setIsExporting(true);
-    showToast(`Generating ${exportFormat.toUpperCase()} audit export...`);
-    try {
-      const params: Record<string, any> = {
-        format: exportFormat,
-        search: search.trim() || undefined,
-        organisationId: filterOrg !== "ALL" ? filterOrg : undefined,
-        role: filterRole !== "ALL" ? filterRole : undefined,
-        category: filterCategory !== "ALL" ? filterCategory : undefined,
-        action: filterAction !== "ALL" ? filterAction : undefined,
-        severity: filterSeverity !== "ALL" ? filterSeverity : undefined,
-        status: filterStatus !== "ALL" ? filterStatus : undefined,
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
-      };
 
-      const response = await apiClient.get("/super-admin/audit-logs/export", {
-        params,
-        responseType: "blob",
-      });
-
-      const blob = new Blob([response.data], {
-        type: exportFormat === "csv" ? "text/csv;charset=utf-8;" : "application/json",
-      });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", `audit-logs-${Date.now()}.${exportFormat}`);
-      document.body.appendChild(link);
-      link.click();
-      link.parentNode?.removeChild(link);
-      window.URL.revokeObjectURL(url);
-
-      showToast(`Successfully exported audit logs in ${exportFormat.toUpperCase()} format!`);
-      loadOverview();
-    } catch (err: any) {
-      showToast(`Export error: ${err.message || "Failed to download"}`, "error");
-    } finally {
-      setIsExporting(false);
-    }
-  };
 
   const getSeverityBadge = (sev: string) => {
     const s = (sev || "INFO").toUpperCase();
@@ -383,7 +333,7 @@ export default function SuperAdminAuditLogsPage() {
           <Button
             onClick={() => {
               loadOverview(timelineDays);
-              if (activeTab !== "overview" && activeTab !== "export") loadLogs();
+              if (activeTab !== "overview") loadLogs();
             }}
             variant="outline"
             size="sm"
@@ -393,24 +343,14 @@ export default function SuperAdminAuditLogsPage() {
             <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
             Refresh
           </Button>
-          <Button
-            onClick={() => setActiveTab("export")}
-            size="sm"
-            className="bg-[#274690] hover:bg-[#1f3561] text-white text-xs font-bold gap-1.5 h-9 rounded-xl shadow-xs"
-          >
-            <Download size={15} />
-            Export Logs
-          </Button>
         </div>
       </div>
 
-      {/* 5 Primary Navigation Tabs */}
+      {/* Navigation Tabs */}
       <div className="flex items-center gap-1.5 overflow-x-auto border-b border-slate-200 dark:border-slate-800 pb-3 text-xs font-bold scrollbar-none">
         {[
           { id: "overview", label: "Overview", icon: BarChart3 },
           { id: "activity_logs", label: "Activity Logs", icon: FileText, count: overview?.totalEvents },
-          { id: "admin_actions", label: "Admin Actions", icon: UserCheck, count: overview?.adminActions },
-          { id: "export", label: "Exports", icon: Download },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -644,9 +584,8 @@ export default function SuperAdminAuditLogsPage() {
       )}
 
       {/* ---------------------------------------------------------------- */}
-      {/* TABS: ACTIVITY LOGS / ADMIN ACTIONS */}
-      {/* ---------------------------------------------------------------- */}
-      {["activity_logs", "admin_actions"].includes(activeTab) && (
+      {/* TAB: ACTIVITY LOGS */}
+      {activeTab === "activity_logs" && (
         <div className="space-y-4">
           {/* Search & Multi-Filter Toolbar */}
           <Card className="p-4 rounded-2xl border-slate-200/90 dark:border-slate-800 bg-white dark:bg-[#11192e] shadow-xs space-y-3">
@@ -924,74 +863,7 @@ export default function SuperAdminAuditLogsPage() {
         </div>
       )}
 
-      {/* ---------------------------------------------------------------- */}
-      {/* TAB 5: EXPORTS */}
-      {/* ---------------------------------------------------------------- */}
-      {activeTab === "export" && (
-        <Card className="rounded-2xl border-slate-200/90 dark:border-slate-800 bg-white dark:bg-[#11192e] p-6 shadow-xs max-w-2xl mx-auto space-y-6">
-          <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
-            <h2 className="text-base font-black text-slate-900 dark:text-slate-100">Export Platform Audit Logs</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Export filtered immutable audit trail records for compliance, governance, and enterprise forensics.
-            </p>
-          </div>
 
-          <div className="space-y-4 text-xs font-semibold">
-            <div>
-              <label className="block text-slate-600 dark:text-slate-400 mb-2">Select Export Format</label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setExportFormat("csv")}
-                  className={`p-4 rounded-2xl border text-left transition ${
-                    exportFormat === "csv"
-                      ? "border-[#274690] bg-[#274690]/5 dark:bg-[#274690]/15"
-                      : "border-slate-200 dark:border-slate-700 hover:border-slate-300"
-                  }`}
-                >
-                  <div className="font-extrabold text-sm text-slate-900 dark:text-slate-100">CSV Spreadsheet (.csv)</div>
-                  <p className="text-[11px] text-slate-500 mt-1">Tabular spreadsheet compatible with Excel, Sheets, and SIEM parsers.</p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setExportFormat("json")}
-                  className={`p-4 rounded-2xl border text-left transition ${
-                    exportFormat === "json"
-                      ? "border-[#274690] bg-[#274690]/5 dark:bg-[#274690]/15"
-                      : "border-slate-200 dark:border-slate-700 hover:border-slate-300"
-                  }`}
-                >
-                  <div className="font-extrabold text-sm text-slate-900 dark:text-slate-100">Structured JSON (.json)</div>
-                  <p className="text-[11px] text-slate-500 mt-1">Full detailed payload with complete before/after metadata.</p>
-                </button>
-              </div>
-            </div>
-
-            <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl space-y-2 border border-slate-200/80 dark:border-slate-700">
-              <div className="text-[11px] font-extrabold uppercase text-slate-400 tracking-wider">Active Filters Included in Export:</div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div>Search Keyword: <span className="font-bold">{search || "None (All records)"}</span></div>
-                <div>Organisation: <span className="font-bold">{filterOrg === "ALL" ? "All" : filterOrg}</span></div>
-                <div>Severity: <span className="font-bold">{filterSeverity}</span></div>
-                <div>Status: <span className="font-bold">{filterStatus}</span></div>
-                <div>Date Range: <span className="font-bold">{startDate && endDate ? `${startDate} to ${endDate}` : "Full History"}</span></div>
-              </div>
-            </div>
-
-            <div className="pt-2">
-              <Button
-                onClick={handleExport}
-                disabled={isExporting}
-                className="w-full bg-[#274690] hover:bg-[#1f3561] text-white font-bold h-10 rounded-xl gap-2 text-xs"
-              >
-                <Download size={16} className={isExporting ? "animate-bounce" : ""} />
-                {isExporting ? "Streaming Export..." : `Download ${exportFormat.toUpperCase()} File`}
-              </Button>
-            </div>
-          </div>
-        </Card>
-      )}
 
       {/* ---------------------------------------------------------------- */}
       {/* DRAWER / MODAL: AUDIT EVENT DETAILS & PREVIOUS/NEW VALUE DIFF */}

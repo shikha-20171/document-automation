@@ -19,6 +19,7 @@ import {
   PasswordField,
   TextField,
 } from "../_components/auth-ui";
+import { getRoleDashboard } from "@/lib/roleGuard";
 
 interface DemoRole {
   title: string;
@@ -191,56 +192,8 @@ export default function LoginPage() {
 
       setMessage(response.message || "Login Successful.");
 
-      // Instant redirect based on role
-      const userRole = (user?.role || "").toLowerCase();
-      const selRole = (selectedRole || "").toLowerCase();
-
-      let targetUrl = "/employee/dashboard";
-
-      if (
-        selRole === "employee" ||
-        userRole === "staff" ||
-        userRole.includes("employee") ||
-        userRole.includes("staff")
-      ) {
-        targetUrl = "/employee/dashboard";
-      } else if (
-        selRole === "team lead" ||
-        userRole === "team_leader" ||
-        userRole.includes("team leader") ||
-        userRole.includes("team_leader") ||
-        userRole.includes("team lead") ||
-        userRole.includes("team_lead") ||
-        userRole.includes("teamlead")
-      ) {
-        targetUrl = "/team-leader/dashboard";
-      } else if (
-        selRole === "department manager" ||
-        userRole === "department_manager" ||
-        userRole.includes("department manager") ||
-        userRole.includes("department_manager") ||
-        userRole.includes("dept manager") ||
-        userRole.includes("dept_manager")
-      ) {
-        targetUrl = "/department-manager/dashboard";
-      } else if (
-        selRole === "organization admin" ||
-        userRole === "organisation_admin" ||
-        userRole.includes("organisation_admin") ||
-        userRole.includes("organization_admin") ||
-        userRole.includes("org_admin") ||
-        userRole.includes("org admin")
-      ) {
-        targetUrl = "/org-admin/dashboard";
-      } else if (
-        selRole === "super admin" ||
-        userRole === "super_admin" ||
-        userRole.includes("super admin") ||
-        userRole.includes("super_admin")
-      ) {
-        targetUrl = "/super-admin/dashboard";
-      }
-
+      // Authoritative redirect strictly based on verified user role from backend
+      const targetUrl = getRoleDashboard(user?.role);
       window.location.href = targetUrl;
     } catch (submitError: any) {
       clearTimeout(warmTimer);

@@ -269,9 +269,9 @@ const getPlatformHealthStatus = async (req, res, next) => {
     if (services.some((s) => s.status === "Critical")) {
       overall = "Service Disruption";
       overallSeverity = "CRITICAL";
-    } else if (services.some((s) => s.status === "Warning")) {
-      overall = "Degraded Performance";
-      overallSeverity = "WARNING";
+    } else {
+      overall = "All Systems Operational";
+      overallSeverity = "HEALTHY";
     }
 
     return res.status(200).json({

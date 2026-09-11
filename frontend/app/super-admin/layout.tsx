@@ -3,6 +3,7 @@
 import { useState } from "react";
 import SuperAdminHeader from "@/components/layout/SuperAdminHeader";
 import SuperAdminSidebar from "@/components/layout/SuperAdminSidebar";
+import RoleGuard from "@/components/auth/RoleGuard";
 
 export default function SuperAdminLayout({
   children,
@@ -12,18 +13,20 @@ export default function SuperAdminLayout({
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   return (
-    <div
-      className="flex h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(39,70,144,0.06),transparent_28%),linear-gradient(180deg,#f8fbff_0%,#eef4fb_100%)] dark:bg-[radial-gradient(circle_at_top_left,rgba(39,70,144,0.18),transparent_35%),linear-gradient(180deg,#0b1020_0%,#0e1526_100%)]"
-      style={{ ["--super-brand" as string]: "#274690" }}
-    >
-      <SuperAdminSidebar
-        mobileOpen={mobileSidebarOpen}
-        onClose={() => setMobileSidebarOpen(false)}
-      />
-      <div className="flex h-screen min-w-0 flex-1 flex-col overflow-hidden">
-        <SuperAdminHeader onMenuClick={() => setMobileSidebarOpen(true)} />
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3.5 sm:p-6 lg:p-7 scrollbar-none">{children}</main>
+    <RoleGuard allowedRoles={["SUPER_ADMIN"]}>
+      <div
+        className="flex h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(39,70,144,0.06),transparent_28%),linear-gradient(180deg,#f8fbff_0%,#eef4fb_100%)] dark:bg-[radial-gradient(circle_at_top_left,rgba(39,70,144,0.18),transparent_35%),linear-gradient(180deg,#0b1020_0%,#0e1526_100%)]"
+        style={{ ["--super-brand" as string]: "#274690" }}
+      >
+        <SuperAdminSidebar
+          mobileOpen={mobileSidebarOpen}
+          onClose={() => setMobileSidebarOpen(false)}
+        />
+        <div className="flex h-screen min-w-0 flex-1 flex-col overflow-hidden">
+          <SuperAdminHeader onMenuClick={() => setMobileSidebarOpen(true)} />
+          <main className="flex-1 overflow-y-auto overflow-x-hidden p-3.5 sm:p-6 lg:p-7 scrollbar-none">{children}</main>
+        </div>
       </div>
-    </div>
+    </RoleGuard>
   );
 }
