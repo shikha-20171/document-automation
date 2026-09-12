@@ -115,6 +115,10 @@ export default function LoginPage() {
     setMessage(`Selected demo credentials for ${role.title}`);
   };
 
+  const isDemoAccount = demoRoles.some(
+    (d) => d.email.toLowerCase() === formData.email.trim().toLowerCase()
+  );
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -144,7 +148,7 @@ export default function LoginPage() {
       }>("/auth/login", {
         email: formData.email.trim(),
         password: formData.password.trim(),
-        role: selectedRole || "Super Admin",
+        ...(isDemoAccount && selectedRole ? { role: selectedRole } : {}),
       });
 
       clearTimeout(warmTimer);
@@ -290,7 +294,13 @@ export default function LoginPage() {
           disabled={loading}
           className="h-12 w-full rounded-2xl bg-gradient-to-r from-[#274690] via-[#244186] to-[#c96f4a] text-sm font-bold text-white shadow-lg shadow-[#274690]/25 transition-all duration-300 hover:shadow-[#c96f4a]/30 hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-70"
         >
-          {loading ? (serverWarming ? "Connecting to cloud backend..." : "Signing in...") : `Sign in as ${selectedRole}`}
+          {loading
+            ? serverWarming
+              ? "Connecting to cloud backend..."
+              : "Signing in..."
+            : isDemoAccount
+            ? `Sign in as ${selectedRole}`
+            : "Sign in to Workspace"}
         </button>
       </form>
 

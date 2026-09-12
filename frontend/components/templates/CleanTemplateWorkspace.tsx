@@ -62,8 +62,6 @@ export default function CleanTemplateWorkspace({
 
   // Modals
   const [previewTemplate, setPreviewTemplate] = useState<any | null>(null);
-  const [useTemplateDoc, setUseTemplateDoc] = useState<any | null>(null);
-  const [variableValues, setVariableValues] = useState<Record<string, string>>({});
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editTemplateDoc, setEditTemplateDoc] = useState<any | null>(null);
 
@@ -154,43 +152,22 @@ export default function CleanTemplateWorkspace({
     });
   }, [templates, createdByFilter]);
 
-  // Handle "Use Template" click
+  // Handle "Use Template" click: Directly opens full template in Document Builder so user can edit and send to client!
   const handleOpenUseTemplate = (t: any) => {
-    const vars = getTemplateVariables(t);
-    const initialValues: Record<string, string> = {};
-    vars.forEach((v) => {
-      if (v.toLowerCase().includes("date")) {
-        initialValues[v] = new Date().toISOString().split("T")[0];
-      } else if (v.toLowerCase().includes("client")) {
-        initialValues[v] = "";
-      } else if (v.toLowerCase().includes("amount")) {
-        initialValues[v] = "";
-      } else {
-        initialValues[v] = "";
-      }
-    });
-    setVariableValues(initialValues);
-    setUseTemplateDoc(t);
-  };
-
-  // Proceed from Variable Modal into Document Builder
-  const handleProceedToBuilder = () => {
-    if (!useTemplateDoc) return;
-    // Store selected template and filled variables in sessionStorage for Document Builder
+    if (!t) return;
     const payload = {
-      templateId: useTemplateDoc.id,
-      templateName: useTemplateDoc.name,
-      documentType: useTemplateDoc.documentType,
-      category: useTemplateDoc.category,
-      sections: useTemplateDoc.sections || [],
-      variables: variableValues,
+      templateId: t.id,
+      templateName: t.name,
+      documentType: t.documentType || "Document",
+      category: t.category || "General",
+      sections: Array.isArray(t.sections) && t.sections.length > 0 ? t.sections : [],
+      variables: {},
     };
     try {
       sessionStorage.setItem("active_template_payload", JSON.stringify(payload));
     } catch {}
 
-    setUseTemplateDoc(null);
-    router.push(`/${roleSlug}/ai-builder?fromTemplate=${useTemplateDoc.id}`);
+    router.push(`/${roleSlug}/ai-builder?fromTemplate=${t.id}`);
   };
 
   // Create new template
@@ -561,8 +538,11 @@ export default function CleanTemplateWorkspace({
                         <div className="flex items-center justify-end gap-2 relative">
                           <button
                             onClick={() => handleOpenUseTemplate(t)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 dark:text-indigo-300 rounded-lg text-xs font-semibold transition-colors"
+                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white shadow-xs transition-all hover:opacity-95"
+                            style={{ backgroundColor: "#274690" }}
+                            title="Open in Document Editor to customize and send to client"
                           >
+                            <FileText className="w-3.5 h-3.5" />
                             <span>Use Template</span>
                             <ArrowRight className="w-3 h-3" />
                           </button>
@@ -674,72 +654,6 @@ export default function CleanTemplateWorkspace({
         </div>
       </div>
 
-      {/* MODAL: USE TEMPLATE & FILL VARIABLES */}
-      {useTemplateDoc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-in fade-in duration-150">
-          <div className="w-full max-w-lg bg-white dark:bg-zinc-900 rounded-xl shadow-2xl border border-slate-200 dark:border-zinc-800 p-6 max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-zinc-800 mb-4">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  Use Template: {useTemplateDoc.name}
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Fill in variable values below to generate your initial document draft.
-                </p>
-              </div>
-              <button
-                onClick={() => setUseTemplateDoc(null)}
-                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto space-y-4 py-2 text-xs">
-              {Object.keys(variableValues).length === 0 ? (
-                <p className="text-slate-400 italic">No variables required for this template.</p>
-              ) : (
-                Object.keys(variableValues).map((key) => {
-                  const label = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-                  return (
-                    <div key={key}>
-                      <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
-                        {label} <span className="text-slate-400 font-mono text-[10px]">({`{{${key}}}`})</span>
-                      </label>
-                      <input
-                        type={key.toLowerCase().includes("date") ? "date" : "text"}
-                        value={variableValues[key] || ""}
-                        onChange={(e) =>
-                          setVariableValues({ ...variableValues, [key]: e.target.value })
-                        }
-                        placeholder={`Enter ${label.toLowerCase()}...`}
-                        className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                      />
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100 dark:border-zinc-800 mt-4">
-              <button
-                onClick={() => setUseTemplateDoc(null)}
-                className="px-3.5 py-2 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-lg"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleProceedToBuilder}
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
-              >
-                <span>Continue to Document Builder</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* MODAL: PREVIEW TEMPLATE */}
       {previewTemplate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -794,9 +708,10 @@ export default function CleanTemplateWorkspace({
                   setPreviewTemplate(null);
                   handleOpenUseTemplate(t);
                 }}
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg"
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white rounded-lg shadow-sm hover:opacity-95 transition-all"
+                style={{ backgroundColor: "#274690" }}
               >
-                <span>Use this Template</span>
+                <span>Open in Document Editor</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>

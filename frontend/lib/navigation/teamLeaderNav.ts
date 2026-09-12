@@ -72,7 +72,6 @@ export const teamLeaderNavItems: TeamLeaderNavItem[] = [
     title: "Notifications",
     href: "/team-leader/notifications",
     icon: Bell,
-    badge: "3",
   },
   {
     title: "Profile",

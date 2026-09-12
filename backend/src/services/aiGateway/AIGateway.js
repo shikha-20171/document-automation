@@ -132,6 +132,26 @@ class AIGateway {
 
     let apiKey = provider?.apiKeyEncrypted ? decryptApiKey(provider.apiKeyEncrypted) : null;
 
+    // Also check PlatformSetting in database if not found in aIProvider
+    if (!apiKey) {
+      try {
+        const platformSetting = await prisma.platformSetting.findFirst();
+        const customConfig = platformSetting?.customConfig;
+        if (customConfig && typeof customConfig === "object") {
+          const aiConfig = customConfig.ai || {};
+          if ((code.includes("gemini") || code.includes("google")) && (aiConfig.geminiApiKey || aiConfig.apiKey)) {
+            apiKey = decryptApiKey(aiConfig.geminiApiKey || aiConfig.apiKey);
+          } else if ((code.includes("openai") || code.includes("gpt")) && (aiConfig.openaiApiKey || aiConfig.apiKey)) {
+            apiKey = decryptApiKey(aiConfig.openaiApiKey || aiConfig.apiKey);
+          } else if (aiConfig.apiKey) {
+            apiKey = decryptApiKey(aiConfig.apiKey);
+          }
+        }
+      } catch (err) {
+        // ignore fallback error
+      }
+    }
+
     // Fallbacks from environment
     if (!apiKey) {
       if ((code.includes("gemini") || code.includes("google")) && process.env.GEMINI_API_KEY) {

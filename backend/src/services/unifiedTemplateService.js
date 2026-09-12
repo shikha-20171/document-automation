@@ -270,13 +270,60 @@ async function ensureStandardTemplates(organisationId) {
   });
 }
 
+function enrichTemplateSections(t) {
+  if (!t) return t;
+  let sec = t.sections;
+  if (!Array.isArray(sec) || sec.length === 0) {
+    const docType = t.documentType || 'Document';
+    sec = [
+      {
+        id: 'sec_1',
+        type: 'header',
+        title: `${t.name || docType} - Scope & Overview`,
+        body: t.description || `Official ${docType} establishing specifications and terms for {{client_name}}.`,
+      },
+      {
+        id: 'sec_2',
+        type: 'text',
+        title: 'Specifications & Deliverables',
+        body: '1. Primary objectives and scope of execution.\n2. Technical specifications and milestone schedules.\n3. Operational responsibilities and quality assurance.',
+      },
+      {
+        id: 'sec_3',
+        type: 'table',
+        title: 'Commercial Breakdown & Deliverables',
+        tableData: {
+          headers: ['Item No.', 'Deliverable / Service', 'Qty', 'Unit Rate (INR)', 'Total (INR)'],
+          rows: [
+            ['1', 'Professional Solution Architecture', '1', '{{amount}}', '{{amount}}'],
+            ['2', 'Implementation & Testing Handover', '1', 'Included', 'Included'],
+          ],
+        },
+      },
+      {
+        id: 'sec_4',
+        type: 'terms',
+        title: 'Terms & Commercial Covenants',
+        body: '• Payment terms: Invoiced on contract execution, payable within 30 days.\n• All intellectual property and trade secrets protected under NDA.\n• Force Majeure and dispute resolution subject to enterprise jurisdiction.',
+      },
+      {
+        id: 'sec_5',
+        type: 'signature',
+        title: 'Authorized Execution & Sign-off',
+        body: 'Executed by authorized representatives of {{company_name}} and {{client_name}}.',
+      },
+    ];
+  }
+  return { ...t, sections: sec };
+}
+
 /**
- * List templates for an organisation
+ * List templates with optional filters
  */
-async function listTemplates(organisationId, query = {}) {
+async function listTemplates(organisationId, filters = {}) {
   await ensureStandardTemplates(organisationId);
 
-  const { category, documentType, search } = query;
+  const { category, documentType, search } = filters;
   const where = { organisationId, isArchived: false };
 
   if (category && category !== 'All') where.category = category;
@@ -289,13 +336,15 @@ async function listTemplates(organisationId, query = {}) {
     ];
   }
 
-  return prisma.unifiedDocumentTemplate.findMany({
+  const templates = await prisma.unifiedDocumentTemplate.findMany({
     where,
     orderBy: [{ isStandard: 'desc' }, { updatedAt: 'desc' }],
     include: {
       _count: { select: { documents: true } },
     },
   });
+
+  return templates.map(enrichTemplateSections);
 }
 
 /**
@@ -313,7 +362,7 @@ async function getTemplateById(id, organisationId) {
     throw new Error('Template not found or unauthorized.');
   }
 
-  return template;
+  return enrichTemplateSections(template);
 }
 
 /**
@@ -324,6 +373,47 @@ async function createTemplate(organisationId, data) {
 
   if (!name || !name.trim()) throw new Error('Template name is required.');
 
+  let finalSections = Array.isArray(sections) && sections.length > 0 ? sections : null;
+  if (!finalSections) {
+    finalSections = [
+      {
+        id: 'sec_1',
+        type: 'header',
+        title: `${name.trim()} - Scope & Overview`,
+        body: description ? description.trim() : `Official ${documentType} detailing specifications and terms for {{client_name}}.`,
+      },
+      {
+        id: 'sec_2',
+        type: 'text',
+        title: 'Specifications & Deliverables',
+        body: '1. Primary scope of work and deliverables.\n2. Technical specifications and timeline schedules.\n3. Operational responsibilities.',
+      },
+      {
+        id: 'sec_3',
+        type: 'table',
+        title: 'Commercial Breakdown',
+        tableData: {
+          headers: ['Item No.', 'Deliverable / Service', 'Qty', 'Unit Rate (INR)', 'Total (INR)'],
+          rows: [
+            ['1', 'Core Service Delivery', '1', '{{amount}}', '{{amount}}'],
+          ],
+        },
+      },
+      {
+        id: 'sec_4',
+        type: 'terms',
+        title: 'Terms & Conditions',
+        body: '• Payment due within 30 days.\n• Confidentiality and NDA provisions apply.\n• Standard enterprise terms.',
+      },
+      {
+        id: 'sec_5',
+        type: 'signature',
+        title: 'Signatures & Acceptance',
+        body: 'Executed by authorized signatories.',
+      },
+    ];
+  }
+
   return prisma.unifiedDocumentTemplate.create({
     data: {
       organisationId,
@@ -332,8 +422,8 @@ async function createTemplate(organisationId, data) {
       documentType: documentType.trim(),
       description: description ? description.trim() : null,
       layoutConfig: layoutConfig || { primaryColor: '#1e3a8a', theme: 'modern' },
-      sections: Array.isArray(sections) ? sections : [],
-      defaultVariables: defaultVariables || {},
+      sections: finalSections,
+      defaultVariables: defaultVariables || { client_name: '{{client_name}}', amount: '{{amount}}' },
       isStandard: false,
     },
   });

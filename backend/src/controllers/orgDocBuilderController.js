@@ -278,8 +278,16 @@ const generateDocumentAi = async (req, res) => {
       model,
     } = req.body;
 
-    // 1. Fetch Authenticated Organisation Context from DB
+    // 1. Fetch Authenticated Organisation Context from DB & Document Settings
     let organisationData = {};
+    let docSettings = null;
+    try {
+      const { getOrganisationDocumentSettings } = require("./orgSettingsController");
+      if (typeof getOrganisationDocumentSettings === "function") {
+        docSettings = getOrganisationDocumentSettings(orgId);
+      }
+    } catch (e) {}
+
     if (orgId) {
       try {
         const org = await prisma.organisation.findUnique({
@@ -296,6 +304,14 @@ const generateDocumentAi = async (req, res) => {
       } catch (err) {
         console.warn("[DocBuilder] Org lookup notice:", err.message);
       }
+    }
+
+    if (docSettings) {
+      if (docSettings.headerText) organisationData.header_text = docSettings.headerText;
+      if (docSettings.footerText) organisationData.footer_text = docSettings.footerText;
+      if (docSettings.companyInfo) organisationData.company_info = docSettings.companyInfo;
+      if (docSettings.termsAndConditions) organisationData.terms_and_conditions = docSettings.termsAndConditions;
+      if (docSettings.defaultCurrency) organisationData.default_currency = docSettings.defaultCurrency;
     }
 
     // 2. Fetch Authorized CRM / Recipient Context

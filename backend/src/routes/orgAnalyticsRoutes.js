@@ -1,93 +1,94 @@
 const express = require("express");
 const router = express.Router();
+const verifyToken = require("../middleware/authMiddleware");
+const { isOrgAdmin } = require("../middleware/roleMiddleware");
 const {
+  getFilterOptions,
   getAnalyticsOverview,
+  getDocumentActivity,
+  getStatusDistribution,
+  getDocumentTypes,
   getDocumentAnalytics,
   getAiAnalytics,
+  getWorkflowAnalytics,
+  getApprovalAnalytics,
+  getDepartmentAnalytics,
+  getBranchAnalytics,
   getUserTeamAnalytics,
+  getSignatureAnalytics,
+  getClientAnalytics,
+  getBottlenecks,
+  getRecentActivity,
+  getTopDocuments,
+  getReportTable,
+  exportReport,
   getStorageAnalytics,
 } = require("../controllers/orgAnalyticsController");
 
-/**
- * @swagger
- * /org-admin/analytics/overview:
- *   get:
- *     summary: Organisation Analytics Overview
- *     description: High-level KPI metrics on total documents, automation rates, turnaround times, and team throughput.
- *     tags:
- *       - Org Admin - Analytics
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Overview analytics data.
- */
+// Strict Tenant & Org Admin RBAC Protection
+router.use(verifyToken);
+router.use(isOrgAdmin);
+
+// Filter Metadata
+router.get("/filters", getFilterOptions);
+router.get("/filter-options", getFilterOptions);
+
+// Overview & KPIs
 router.get("/", getAnalyticsOverview);
 router.get("/overview", getAnalyticsOverview);
 router.get("/data", getAnalyticsOverview);
 
-/**
- * @swagger
- * /org-admin/analytics/documents:
- *   get:
- *     summary: Document Volume Analytics
- *     description: Time-series document volume by category, department, and processing status.
- *     tags:
- *       - Org Admin - Analytics
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Document analytics data.
- */
+// Time-Series Document Activity
+router.get("/activity", getDocumentActivity);
+
+// Status Distribution (Pie / Donut)
+router.get("/status-distribution", getStatusDistribution);
+
+// Document Types
+router.get("/document-types", getDocumentTypes);
 router.get("/documents", getDocumentAnalytics);
 
-/**
- * @swagger
- * /org-admin/analytics/ai:
- *   get:
- *     summary: AI Processing & Latency Analytics
- *     description: OCR success ratios, average LLM latency, and field extraction accuracy metrics.
- *     tags:
- *       - Org Admin - Analytics
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: AI analytics data.
- */
+// AI Automation Consumption
 router.get("/ai", getAiAnalytics);
 
-/**
- * @swagger
- * /org-admin/analytics/team:
- *   get:
- *     summary: Team Productivity & Performance
- *     description: Document completion rates, approval bottlenecks, and turnaround time per team.
- *     tags:
- *       - Org Admin - Analytics
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Team performance analytics.
- */
+// Workflow & Stage Funnel Performance
+router.get("/workflow", getWorkflowAnalytics);
+
+// Approval Performance & Approvers
+router.get("/approvals", getApprovalAnalytics);
+
+// Department Performance
+router.get("/departments", getDepartmentAnalytics);
+
+// Branch Performance
+router.get("/branches", getBranchAnalytics);
+
+// User Activity
+router.get("/users", getUserTeamAnalytics);
 router.get("/team", getUserTeamAnalytics);
 
-/**
- * @swagger
- * /org-admin/analytics/storage:
- *   get:
- *     summary: Storage Consumption Analytics
- *     description: Document storage breakdown by file type and department allocation.
- *     tags:
- *       - Org Admin - Analytics
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Storage analytics data.
- */
+// Signature Performance
+router.get("/signatures", getSignatureAnalytics);
+
+// Client Document Activity
+router.get("/clients", getClientAnalytics);
+
+// Workflow Bottlenecks & Insights
+router.get("/bottlenecks", getBottlenecks);
+
+// Recent Document Activity Timeline
+router.get("/recent-activity", getRecentActivity);
+
+// Top / Most Active Documents
+router.get("/top-documents", getTopDocuments);
+
+// Detailed Document Report Table (Paginated)
+router.get("/report", getReportTable);
+
+// Export Report (CSV, JSON, Excel)
+router.get("/export", exportReport);
+
+// Storage Analytics
 router.get("/storage", getStorageAnalytics);
 
 module.exports = router;

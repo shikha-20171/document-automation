@@ -2,6 +2,66 @@ const prisma = require("../config/prismaClient");
 const unifiedDocumentService = require("../services/unifiedDocumentService");
 const { getOrgIdSafe, getUserId, getUserRole, getAuthContext } = require("../utils/authContext");
 
+function formatApprovalRequest(reqItem) {
+  if (!reqItem) return null;
+  const doc = reqItem.unifiedDocument || {};
+  const currentStep =
+    reqItem.currentStepOrder ||
+    (reqItem.stage === "STAGE_DEPARTMENT_MANAGER"
+      ? 2
+      : reqItem.stage === "STAGE_ORGANISATION_ADMIN" || reqItem.status === "APPROVED"
+      ? 3
+      : 1);
+
+  return {
+    id: reqItem.id,
+    documentId: doc.id || reqItem.documentId || reqItem.unifiedDocumentId,
+    documentName: doc.title || reqItem.documentName || "Enterprise Document",
+    documentNumber: doc.documentNumber || `DOC-${String(reqItem.id).slice(0, 8)}`,
+    documentType: doc.documentType || "Business Document",
+    category: doc.category || "General",
+    submittedBy: reqItem.requestedBy?.full_name || "Employee Associate",
+    submittedEmail: reqItem.requestedBy?.email || "employee@docucore.ai",
+    department: doc.departmentName || "Operations",
+    departmentId: doc.departmentId || null,
+    team: doc.teamName || "Operations Team",
+    teamId: doc.teamId || null,
+    clientName: doc.clientName || null,
+    clientEmail: doc.clientEmail || null,
+    submittedDate: reqItem.createdAt ? reqItem.createdAt.toISOString() : new Date().toISOString(),
+    createdAt: reqItem.createdAt ? reqItem.createdAt.toISOString() : new Date().toISOString(),
+    dueDate: reqItem.dueAt ? reqItem.dueAt.toISOString() : null,
+    status: reqItem.status,
+    stage: reqItem.stage || reqItem.status,
+    currentStepOrder: currentStep,
+    totalSteps: 3,
+    assignedApproverRole: reqItem.assignedApproverRole || "TEAM_LEADER",
+    priority: doc.priority || "NORMAL",
+    comments: reqItem.comments || "Pending review",
+    previousApprover: reqItem.previousApproverName || "None",
+    currentApprover: reqItem.currentApproverName || reqItem.assignedApproverRole || "Assigned Reviewer",
+    canSendForSignature: reqItem.status === "APPROVED" || doc.approvalStatus === "APPROVED",
+    history: (reqItem.history || []).map((h, idx) => ({
+      id: h.id || `hist-${idx}`,
+      action: h.action,
+      user: h.user?.full_name || h.userRole || "Reviewer",
+      time: h.createdAt ? h.createdAt.toISOString() : new Date().toISOString(),
+      createdAt: h.createdAt ? h.createdAt.toISOString() : new Date().toISOString(),
+      comment: h.comment,
+    })),
+    actions: (reqItem.actions || []).map((a, idx) => ({
+      id: a.id || `act-${idx}`,
+      action: a.action,
+      user: a.performedBy?.full_name || "Reviewer",
+      time: a.createdAt ? a.createdAt.toISOString() : new Date().toISOString(),
+      createdAt: a.createdAt ? a.createdAt.toISOString() : new Date().toISOString(),
+      comment: a.comment,
+    })),
+    unifiedDocument: doc,
+    document: doc,
+  };
+}
+
 const unifiedApprovalController = {
   async getApprovals(req, res) {
     try {
@@ -24,22 +84,51 @@ const unifiedApprovalController = {
       if (userRole === "STAFF" || userRole === "EMPLOYEE") {
         where.requestedById = userId;
       } else if (userRole === "TEAM_LEADER") {
-        if (tab !== "MY_SUBMISSIONS") {
+        if (tab === "PENDING") {
           where.AND = [
-            { OR: [{ assignedApproverRole: "TEAM_LEADER" }, { assignedApproverId: userId }, { stage: "STAGE_TEAM_LEADER" }, { requestedById: userId }] },
-            ...(userDeptId ? [{ unifiedDocument: { OR: [{ departmentId: userDeptId }, { departmentId: null }, { createdByUserId: userId }] } }] : []),
+            {
+              OR: [
+                { assignedApproverRole: "TEAM_LEADER" },
+                { assignedApproverId: userId },
+                { stage: "STAGE_TEAM_LEADER" },
+                { currentStepOrder: 1 },
+              ],
+            },
+            ...(userDeptId
+              ? [{ unifiedDocument: { OR: [{ departmentId: userDeptId }, { departmentId: null }] } }]
+              : []),
           ];
-        } else { where.requestedById = userId; }
+        } else if (tab === "MY_SUBMISSIONS") {
+          where.requestedById = userId;
+        }
       } else if (userRole === "DEPARTMENT_MANAGER") {
-        if (tab !== "MY_SUBMISSIONS") {
+        if (tab === "PENDING") {
           where.AND = [
-            { OR: [{ assignedApproverRole: "DEPARTMENT_MANAGER" }, { assignedApproverId: userId }, { stage: "STAGE_DEPARTMENT_MANAGER" }, { requestedById: userId }] },
-            ...(userDeptId ? [{ unifiedDocument: { OR: [{ departmentId: userDeptId }, { departmentId: null }, { createdByUserId: userId }] } }] : []),
+            {
+              OR: [
+                { assignedApproverRole: "DEPARTMENT_MANAGER" },
+                { assignedApproverId: userId },
+                { stage: "STAGE_DEPARTMENT_MANAGER" },
+                { currentStepOrder: 2 },
+              ],
+            },
+            ...(userDeptId
+              ? [{ unifiedDocument: { OR: [{ departmentId: userDeptId }, { departmentId: null }] } }]
+              : []),
           ];
-        } else { where.requestedById = userId; }
+        } else if (tab === "MY_SUBMISSIONS") {
+          where.requestedById = userId;
+        }
       } else if (userRole === "ORGANISATION_ADMIN" || userRole === "SUPER_ADMIN") {
         if (tab === "PENDING") {
-          where.OR = [{ assignedApproverRole: "ORGANISATION_ADMIN" }, { assignedApproverId: userId }, { stage: "STAGE_ORGANISATION_ADMIN" }, { currentStepOrder: 3 }];
+          where.OR = [
+            { assignedApproverRole: "ORGANISATION_ADMIN" },
+            { assignedApproverId: userId },
+            { stage: "STAGE_ORGANISATION_ADMIN" },
+            { currentStepOrder: 3 },
+          ];
+        } else if (tab === "MY_SUBMISSIONS") {
+          where.requestedById = userId;
         }
       }
 
@@ -56,40 +145,7 @@ const unifiedApprovalController = {
         },
       });
 
-      const formatted = requests.map((reqItem) => {
-        const doc = reqItem.unifiedDocument || {};
-        const currentStep = reqItem.currentStepOrder || (reqItem.stage === "STAGE_DEPARTMENT_MANAGER" ? 2 : reqItem.stage === "STAGE_ORGANISATION_ADMIN" ? 3 : 1);
-        return {
-          id: reqItem.id,
-          documentId: doc.id || reqItem.documentId || reqItem.unifiedDocumentId,
-          documentName: doc.title || reqItem.documentName,
-          documentNumber: doc.documentNumber || "DOC",
-          documentType: doc.documentType || "Business Document",
-          category: doc.category || "General",
-          submittedBy: reqItem.requestedBy?.full_name || "Employee Associate",
-          submittedEmail: reqItem.requestedBy?.email || "employee@docucore.ai",
-          department: doc.departmentName || "Operations",
-          departmentId: doc.departmentId || null,
-          team: doc.teamName || "Operations Team",
-          teamId: doc.teamId || null,
-          clientName: doc.clientName || null,
-          clientEmail: doc.clientEmail || null,
-          submittedDate: reqItem.createdAt.toISOString(),
-          dueDate: reqItem.dueAt ? reqItem.dueAt.toISOString() : null,
-          status: reqItem.status,
-          stage: reqItem.stage || reqItem.status,
-          currentStepOrder: currentStep,
-          totalSteps: 3,
-          assignedApproverRole: reqItem.assignedApproverRole || "TEAM_LEADER",
-          priority: doc.priority || "NORMAL",
-          comments: reqItem.comments || "Pending review",
-          previousApprover: reqItem.previousApproverName || "None",
-          currentApprover: reqItem.currentApproverName || reqItem.assignedApproverRole || "Assigned Reviewer",
-          canSendForSignature: reqItem.status === "APPROVED" || doc.approvalStatus === "APPROVED",
-          history: (reqItem.history || []).map((h) => ({ action: h.action, user: h.user?.full_name || h.userRole || "Reviewer", time: h.createdAt.toISOString(), comment: h.comment })),
-          actions: (reqItem.actions || []).map((a) => ({ action: a.action, user: a.performedBy?.full_name || "Reviewer", time: a.createdAt.toISOString(), comment: a.comment })),
-        };
-      });
+      const formatted = requests.map(formatApprovalRequest);
 
       return res.json({ success: true, data: formatted, total: formatted.length });
     } catch (err) {
@@ -111,7 +167,7 @@ const unifiedApprovalController = {
         },
       });
       if (!approvalReq) return res.status(404).json({ success: false, message: "Approval request not found." });
-      return res.json({ success: true, data: approvalReq });
+      return res.json({ success: true, data: formatApprovalRequest(approvalReq) });
     } catch (err) {
       console.error("[UnifiedApprovalController.getApprovalById]", err);
       return res.status(500).json({ success: false, message: err.message });
@@ -144,22 +200,35 @@ const unifiedApprovalController = {
       const docId = approvalReq.unifiedDocumentId;
       if (!docId) return res.status(400).json({ success: false, message: "No document attached to this approval request." });
 
-      // Handle FORWARD action
-      if (action === "FORWARD" && forwardToRole) {
-        const forwarded = await prisma.approvalRequest.update({
-          where: { id },
-          data: { assignedApproverRole: forwardToRole.toUpperCase(), stage: `STAGE_${forwardToRole.toUpperCase()}`, comments: decisionComment || `Forwarded to ${forwardToRole}`, updatedAt: new Date() },
-        }).catch(() => approvalReq);
+      const result = await unifiedDocumentService.processApproval(
+        docId,
+        parseInt(orgId, 10),
+        { action, comments: decisionComment, forwardToRole },
+        req.user,
+        req
+      );
 
-        await prisma.approvalHistoryItem.create({
-          data: { approvalRequestId: id, userId: getUserId(req), userRole: getUserRole(req), action: "FORWARD", comment: decisionComment || `Forwarded to ${forwardToRole}` },
-        }).catch(() => {});
+      // Fetch refreshed approval request with actions & history
+      const updatedReq = await prisma.approvalRequest.findFirst({
+        where: { id, organisationId: parseInt(orgId, 10) },
+        include: {
+          requestedBy: { select: { id: true, full_name: true, email: true } },
+          unifiedDocument: {
+            select: { id: true, documentNumber: true, title: true, documentType: true, category: true, status: true, approvalStatus: true, signatureStatus: true, departmentId: true, departmentName: true, teamId: true, teamName: true, priority: true, createdAt: true, content: true, financialData: true, clientName: true, clientEmail: true },
+          },
+          actions: { orderBy: { createdAt: "desc" }, include: { performedBy: { select: { id: true, full_name: true } } } },
+          history: { orderBy: { createdAt: "desc" }, include: { user: { select: { id: true, full_name: true } } } },
+        },
+      });
 
-        return res.json({ success: true, message: `Approval request forwarded to ${forwardToRole}.`, data: forwarded });
-      }
+      const formatted = formatApprovalRequest(updatedReq);
 
-      const result = await unifiedDocumentService.processApproval(docId, parseInt(orgId, 10), { action, comments: decisionComment }, req.user, req);
-      return res.json({ success: true, message: `Approval request ${action.toLowerCase()} successfully.`, data: result, canSendForSignature: result.canSendForSignature });
+      return res.json({
+        success: true,
+        message: `Approval request ${action.toLowerCase()} processed successfully.`,
+        data: formatted,
+        canSendForSignature: result?.canSendForSignature || false,
+      });
     } catch (err) {
       console.error("[UnifiedApprovalController.handleAction]", err);
       return res.status(500).json({ success: false, message: err.message });

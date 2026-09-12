@@ -7,6 +7,28 @@ const {
 } = require("./integrationEncryptionService");
 
 class IntegrationProviderService {
+  static _resolveKeyAliases(providerKeyOrId) {
+    if (!providerKeyOrId) return [];
+    const clean = String(providerKeyOrId).toLowerCase().trim().replace(/[\s-]+/g, "_");
+    const aliases = [providerKeyOrId, clean, clean.toUpperCase()];
+    if (clean.includes("google")) {
+      aliases.push("google_workspace", "google_drive", "google", "GOOGLE_WORKSPACE", "GOOGLE_DRIVE");
+    }
+    if (clean.includes("microsoft") || clean.includes("onedrive") || clean.includes("teams")) {
+      aliases.push("microsoft_365", "microsoft_teams", "microsoft_onedrive", "MICROSOFT_365", "MICROSOFT_TEAMS");
+    }
+    if (clean.includes("slack")) {
+      aliases.push("slack", "SLACK");
+    }
+    if (clean.includes("brevo") || clean.includes("sendinblue")) {
+      aliases.push("brevo", "BREVO", "sendinblue", "brevo_email");
+    }
+    if (clean.includes("whatsapp")) {
+      aliases.push("whatsapp_business", "whatsapp", "WHATSAPP_BUSINESS");
+    }
+    return Array.from(new Set(aliases));
+  }
+
   /**
    * List all providers with connection counts and masked credential statuses
    * @param {Object} options
@@ -89,9 +111,13 @@ class IntegrationProviderService {
    * Get single provider by ID or Key
    */
   static async getProvider(providerKeyOrId, { isSuperAdmin = false, environment = "production" } = {}) {
+    const aliases = this._resolveKeyAliases(providerKeyOrId);
     const provider = await prisma.integrationProvider.findFirst({
       where: {
-        OR: [{ id: providerKeyOrId }, { providerKey: providerKeyOrId }],
+        OR: [
+          { id: { in: aliases } },
+          { providerKey: { in: aliases } },
+        ],
       },
       include: {
         credentials: {
@@ -238,9 +264,13 @@ class IntegrationProviderService {
    * NEVER pass this result back in an HTTP response to any tenant or client!
    */
   static async getDecryptedCredentials(providerKeyOrId, environment = "production") {
+    const aliases = this._resolveKeyAliases(providerKeyOrId);
     const provider = await prisma.integrationProvider.findFirst({
       where: {
-        OR: [{ id: providerKeyOrId }, { providerKey: providerKeyOrId }],
+        OR: [
+          { id: { in: aliases } },
+          { providerKey: { in: aliases } },
+        ],
       },
       include: {
         credentials: {
@@ -251,7 +281,7 @@ class IntegrationProviderService {
     });
 
     if (!provider) {
-      throw new Error(`Provider '${providerKeyOrId}' not found.`);
+      return null;
     }
 
     const cred = provider.credentials?.[0];
@@ -265,12 +295,13 @@ class IntegrationProviderService {
       return {
         provider,
         credentialId: cred.id,
-        credentials,
-        configuration,
+        credentials: credentials || {},
+        configuration: configuration || {},
         environment: cred.environment,
       };
     } catch (err) {
-      throw new Error(`Failed to decrypt credentials for provider '${provider.providerKey}': ${err.message}`);
+      console.warn(`[IntegrationProviderService] Notice decrypting credentials for provider '${provider.providerKey}':`, err.message);
+      return null;
     }
   }
 

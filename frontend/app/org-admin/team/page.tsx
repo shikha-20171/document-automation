@@ -3,10 +3,6 @@
 import { useState, useEffect } from "react";
 import {
   Users,
-  Building2,
-  UserCheck,
-  ShieldCheck,
-  Activity,
   Plus,
   Mail,
   Trash2,
@@ -18,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { orgTeamApi } from "@/services/teamsApi";
+
 const DEFAULT_ORG_USERS = [
   { id: "1", name: "Shikha Gour", email: "shikha.gour@docucore.ai", role: "Super Admin", department: "Executive", status: "Active", createdAt: "2024-01-01" },
   { id: "2", name: "Rajesh Kumar", email: "rajesh.kumar@abctech.com", role: "Organisation Admin", department: "Operations", status: "Active", createdAt: "2024-01-15" },
@@ -26,52 +23,22 @@ const DEFAULT_ORG_USERS = [
   { id: "5", name: "Ananya Roy", email: "ananya.roy@abctech.com", role: "Employee", department: "Human Resources", status: "Active", createdAt: "2024-03-01" },
 ];
 
-const DEFAULT_ORG_DEPTS = [
-  { id: "1", name: "Legal & Compliance", manager: "Priya Sharma", managerEmail: "priya.sharma@abctech.com", membersCount: 8, description: "Contract analysis, risk verification and NDA tracking." },
-  { id: "2", name: "Finance & Accounts", manager: "Amit Patel", managerEmail: "amit.patel@abctech.com", membersCount: 12, description: "Accounts payable, vendor reconciliations and invoice processing." },
-  { id: "3", name: "Human Resources", manager: "Rajesh Kumar", managerEmail: "rajesh.kumar@abctech.com", membersCount: 6, description: "Employee onboarding, offer letter generation and compliance." },
-  { id: "4", name: "Operations & Logistics", manager: "Ananya Roy", managerEmail: "ananya.roy@abctech.com", membersCount: 14, description: "Supply chain agreements and warehouse work orders." },
-];
-
-const DEFAULT_ORG_TEAMS = [
-  { id: "1", name: "Corporate Contracts Unit", department: "Legal & Compliance", teamLead: "Priya Sharma", membersCount: 4 },
-  { id: "2", name: "Vendor Invoicing Team", department: "Finance & Accounts", teamLead: "Amit Patel", membersCount: 7 },
-  { id: "3", name: "Talent Acquisition Squad", department: "Human Resources", teamLead: "Rajesh Kumar", membersCount: 3 },
-];
-
-const DEFAULT_ORG_ACTIVITY = [
-  { id: "1", user: "Priya Sharma", action: "Approved Document", target: "Master_Service_Agreement_2026.docx", timestamp: "10 minutes ago" },
-  { id: "2", user: "Amit Patel", action: "Extracted Invoice Data", target: "Vendor_Invoice_TechCorp_Q3.pdf", timestamp: "1 hour ago" },
-  { id: "3", user: "Rajesh Kumar", action: "Dispatched Invitation", target: "ananya.roy@abctech.com", timestamp: "3 hours ago" },
-];
-
 export default function OrgAdminTeamPage() {
-  const [activeTab, setActiveTab] = useState("users");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Data states
   const [users, setUsers] = useState<any[]>(DEFAULT_ORG_USERS);
-  const [departments, setDepartments] = useState<any[]>(DEFAULT_ORG_DEPTS);
-  const [teams, setTeams] = useState<any[]>(DEFAULT_ORG_TEAMS);
-  const [permissions, setPermissions] = useState<any>(null);
-  const [activityLogs, setActivityLogs] = useState<any[]>(DEFAULT_ORG_ACTIVITY);
   const [searchQuery, setSearchQuery] = useState("");
 
   // Modals & forms
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [isInviteUserOpen, setIsInviteUserOpen] = useState(false);
-  const [isAddDeptOpen, setIsAddDeptOpen] = useState(false);
 
   // Form inputs
   const [userName, setUserName] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [userRole, setUserRole] = useState("Department Manager");
   const [userDept, setUserDept] = useState("Legal & Compliance");
-
-  const [deptName, setDeptName] = useState("");
-  const [deptManagerName, setDeptManagerName] = useState("");
-  const [deptManagerEmail, setDeptManagerEmail] = useState("");
-  const [deptDesc, setDeptDesc] = useState("");
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -81,22 +48,6 @@ export default function OrgAdminTeamPage() {
   const loadData = () => {
     orgTeamApi.getUsers().then((res) => {
       if (res && res.data && Array.isArray(res.data) && res.data.length > 0) setUsers(res.data);
-    }).catch(() => {});
-
-    orgTeamApi.getDepartments().then((res) => {
-      if (res && res.data && Array.isArray(res.data) && res.data.length > 0) setDepartments(res.data);
-    }).catch(() => {});
-
-    orgTeamApi.getTeams().then((res) => {
-      if (res && res.data && Array.isArray(res.data) && res.data.length > 0) setTeams(res.data);
-    }).catch(() => {});
-
-    orgTeamApi.getPermissionsMatrix().then((res) => {
-      if (res && res.data) setPermissions(res.data);
-    }).catch(() => {});
-
-    orgTeamApi.getUserActivityLog().then((res) => {
-      if (res && res.data && Array.isArray(res.data) && res.data.length > 0) setActivityLogs(res.data);
     }).catch(() => {});
   };
 
@@ -178,72 +129,11 @@ export default function OrgAdminTeamPage() {
     setUsers((prev) => prev.filter((u) => u.id !== id));
   };
 
-  const handleCreateDept = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!deptName) return;
-
-    showToast(`Creating department & dispatching invitation email to ${deptManagerEmail || "manager"}...`);
-
-    const newDept = {
-      id: Date.now(),
-      name: deptName,
-      manager: deptManagerName || deptManagerEmail || "Unassigned",
-      managerEmail: deptManagerEmail,
-      membersCount: 1,
-      description: deptDesc || "Department management group",
-    };
-
-    try {
-      await orgTeamApi.createDepartment({
-        name: deptName,
-        manager: deptManagerName,
-        managerName: deptManagerName,
-        managerEmail: deptManagerEmail,
-        email: deptManagerEmail,
-        description: deptDesc,
-      });
-      showToast(`✅ Department "${deptName}" created & invitation email dispatched to ${deptManagerEmail}!`);
-    } catch {
-      showToast(`Department "${deptName}" created!`);
-    }
-
-    setDepartments((prev) => [newDept, ...prev]);
-    setDeptName("");
-    setDeptManagerName("");
-    setDeptManagerEmail("");
-    setDeptDesc("");
-    setIsAddDeptOpen(false);
-    setTimeout(() => loadData(), 500);
-  };
-
-  const handleResendDeptInvite = async (dept: any) => {
-    const targetEmail = dept.managerEmail || dept.email || (dept.manager && dept.manager.includes("@") ? dept.manager : "");
-    if (!targetEmail) {
-      showToast(`Please enter an email address for ${dept.name} manager.`);
-      return;
-    }
-    showToast(`Resending Gmail invitation to ${targetEmail}...`);
-    try {
-      await orgTeamApi.resendInvite(targetEmail);
-      showToast(`✅ Invitation email resent to Gmail (${targetEmail})!`);
-    } catch {
-      showToast(`Invitation resent to ${targetEmail}`);
-    }
-  };
-
   const filteredUsers = users.filter((u) =>
     u.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     u.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     u.role?.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  const tabs = [
-    { id: "users", label: "Users & People", icon: Users },
-    { id: "departments", label: "Departments", icon: Building2 },
-    { id: "teams", label: "Teams & Leads", icon: UserCheck },
-    { id: "permissions", label: "Permission Matrix", icon: ShieldCheck },
-    { id: "activity", label: "User Activity Logs", icon: Activity },
-  ];
 
   return (
     <div className="space-y-6 font-sans text-slate-800 pb-12">
@@ -258,13 +148,13 @@ export default function OrgAdminTeamPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200/80 pb-4">
         <div>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100 text-[#274690] text-xs font-extrabold">
-            <UserCheck size={14} className="text-[#274690]" /> People Management
+            <Users size={14} className="text-[#274690]" /> Organisation Members
           </div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight mt-1">
-            Team & Access Control
+            Organisation Members & Access
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Manage members, roles, departments, teams, and granular permissions.
+            Manage organization members, invites, and role access.
           </p>
         </div>
 
@@ -278,62 +168,39 @@ export default function OrgAdminTeamPage() {
         </div>
       </div>
 
-      {/* Sub-Nav Tabs */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none border-b border-slate-200/60">
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                isActive
-                  ? "bg-[#274690] text-white shadow-md"
-                  : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80"
-              }`}
-            >
-              <Icon size={15} className={isActive ? "text-[#ffd9a0]" : "text-slate-500"} />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* TAB 1: USERS LIST */}
-      {activeTab === "users" && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between gap-4 bg-white p-3.5 rounded-2xl border border-slate-200">
-            <div className="relative max-w-md w-full">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search users by name, email, or role..."
-                className="pl-9 h-9 text-xs rounded-xl bg-slate-50 border-slate-200"
-              />
-            </div>
-            <div className="text-xs font-bold text-slate-500">
-              Total Users: <span className="text-slate-900 font-black">{filteredUsers.length}</span>
-            </div>
+      {/* USERS LIST */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-4 bg-white p-3.5 rounded-2xl border border-slate-200">
+          <div className="relative max-w-md w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search users by name, email, or role..."
+              className="pl-9 h-9 text-xs rounded-xl bg-slate-50 border-slate-200"
+            />
           </div>
+          <div className="text-xs font-bold text-slate-500">
+            Total Users: <span className="text-slate-900 font-black">{filteredUsers.length}</span>
+          </div>
+        </div>
 
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                  <th className="py-3 px-4">User</th>
-                  <th className="py-3 px-4">Role</th>
-                  <th className="py-3 px-4">Department</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4">Last Login</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-xs">
-                {filteredUsers.map((u, index) => {
-                  const rowKey = `${u.id ?? "user"}-${u.email ?? "no-email"}-${index}`;
-                  return (
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                <th className="py-3 px-4">User</th>
+                <th className="py-3 px-4">Role</th>
+                <th className="py-3 px-4">Department</th>
+                <th className="py-3 px-4">Status</th>
+                <th className="py-3 px-4">Last Login</th>
+                <th className="py-3 px-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-xs">
+              {filteredUsers.map((u, index) => {
+                const rowKey = `${u.id ?? "user"}-${u.email ?? "no-email"}-${index}`;
+                return (
                   <tr key={rowKey} className="hover:bg-slate-50/80 transition">
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
@@ -386,101 +253,12 @@ export default function OrgAdminTeamPage() {
                       </button>
                     </td>
                   </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-      )}
-
-      {/* TAB 2: DEPARTMENTS */}
-      {activeTab === "departments" && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">Departments Management</h3>
-              <p className="text-xs text-slate-500">Organize users and assign department managers.</p>
-            </div>
-            <Button onClick={() => setIsAddDeptOpen(true)} className="bg-[#274690] hover:bg-[#1f3561] text-white text-xs font-bold rounded-xl">
-              + Create Department
-            </Button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {departments.map((d, index) => {
-              const deptKey = `dept-${d.id ?? "dept"}-${d.name ?? "unnamed"}-${index}`;
-              return (
-                <div key={deptKey} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                      <Building2 size={16} className="text-[#274690]" /> {d.name}
-                    </h4>
-                    <Badge className="bg-slate-100 text-slate-700 text-[10px]">{d.membersCount || 1} Members</Badge>
-                  </div>
-                  <p className="text-xs text-slate-600">{d.description || "Department group"}</p>
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 font-medium">
-                    <div>
-                      <span>Manager: <strong className="text-slate-900">{d.manager}</strong></span>
-                      {(d.managerEmail || d.email) && (
-                        <span className="block text-[11px] text-slate-400 font-mono">{d.managerEmail || d.email}</span>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => handleResendDeptInvite(d)}
-                      className="text-[#274690] font-bold hover:underline flex items-center gap-1 bg-blue-50 px-2.5 py-1 rounded-lg hover:bg-blue-100 transition-colors"
-                    >
-                      <Send size={11} /> Resend Gmail Invite
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 4: PERMISSION MATRIX */}
-      {activeTab === "permissions" && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <ShieldCheck size={18} className="text-[#274690]" /> Granular Permissions Matrix
-              </h3>
-              <p className="text-xs text-slate-500">Configured role capabilities for your organization.</p>
-            </div>
-            <Button onClick={() => showToast("Permissions policy saved.")} className="bg-[#274690] hover:bg-[#1f3561] text-white text-xs font-bold rounded-xl">
-              Save Policy Changes
-            </Button>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200/80 text-[11px] font-bold text-slate-500 uppercase">
-                  <th className="py-3 px-4">Permission Name</th>
-                  <th className="py-3 px-4 text-center">Org Admin</th>
-                  <th className="py-3 px-4 text-center">Dept Manager</th>
-                  <th className="py-3 px-4 text-center">Team Lead</th>
-                  <th className="py-3 px-4 text-center">Employee</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-xs">
-                {permissions?.permissions?.map((p: any, idx: number) => (
-                  <tr key={idx} className="hover:bg-slate-50/80">
-                    <td className="py-3 px-4 font-bold text-slate-800">{p.name}</td>
-                    <td className="py-3 px-4 text-center">{p.orgAdmin ? "✓" : "-"}</td>
-                    <td className="py-3 px-4 text-center">{p.deptManager ? "✓" : "-"}</td>
-                    <td className="py-3 px-4 text-center">{p.teamLead ? "✓" : "-"}</td>
-                    <td className="py-3 px-4 text-center">{p.employee ? "✓" : "-"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      </div>
 
       {/* MODAL: ADD USER */}
       {isAddUserOpen && (
@@ -559,37 +337,6 @@ export default function OrgAdminTeamPage() {
               <div className="flex items-center justify-end gap-2 pt-2">
                 <Button type="button" variant="outline" onClick={() => setIsInviteUserOpen(false)} className="rounded-xl">Cancel</Button>
                 <Button type="submit" className="bg-[#274690] hover:bg-[#1f3561] text-white font-bold rounded-xl">Send Gmail Invite</Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: CREATE DEPARTMENT */}
-      {isAddDeptOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white max-w-md w-full rounded-2xl p-6 shadow-2xl space-y-4 border border-slate-200">
-            <h3 className="text-base font-black text-slate-900">Create Department & Invite Manager</h3>
-            <form onSubmit={handleCreateDept} className="space-y-3 text-xs">
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Department Name</label>
-                <Input value={deptName} onChange={(e) => setDeptName(e.target.value)} required placeholder="e.g. Legal & Operations" className="rounded-xl" />
-              </div>
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Department Manager Full Name</label>
-                <Input value={deptManagerName} onChange={(e) => setDeptManagerName(e.target.value)} placeholder="e.g. Shikha Gour" className="rounded-xl" />
-              </div>
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Department Manager Gmail / Email Address</label>
-                <Input value={deptManagerEmail} onChange={(e) => setDeptManagerEmail(e.target.value)} required type="email" placeholder="manager@gmail.com" className="rounded-xl" />
-              </div>
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Description (Optional)</label>
-                <Input value={deptDesc} onChange={(e) => setDeptDesc(e.target.value)} placeholder="Brief description of department scope" className="rounded-xl" />
-              </div>
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <Button type="button" variant="outline" onClick={() => setIsAddDeptOpen(false)} className="rounded-xl">Cancel</Button>
-                <Button type="submit" className="bg-[#274690] hover:bg-[#1f3561] text-white font-bold rounded-xl">Create & Dispatch Invite</Button>
               </div>
             </form>
           </div>

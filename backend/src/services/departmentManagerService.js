@@ -798,35 +798,67 @@ const getReportsData = async (req) => {
 // ==========================================
 const getNotifications = async (req) => {
   const context = getContext(req);
+  const orgId = Number(context.organisationId);
+  const userId = Number(context.userId);
   const { tab = "all" } = req.query;
 
-  let where = { organisation_id: context.organisationId };
-  if (tab === "unread") where.read = false;
+  // Scope to the department manager's user_id or broadcast notifications (user_id === null)
+  const userScope = userId ? [{ user_id: userId }, { user_id: null }] : [{ user_id: null }];
 
-  const notifications = await prisma.notification.findMany({
-    where,
+  const baseWhere = {
+    organisation_id: orgId,
+    OR: userScope,
+  };
+
+  const allNotifications = await prisma.notification.findMany({
+    where: baseWhere,
     orderBy: { created_at: "desc" },
+    take: 100,
   }).catch(() => []);
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount = allNotifications.filter((n) => !n.read || n.unread).length;
+
+  let filtered = allNotifications;
+  if (tab === "unread") {
+    filtered = allNotifications.filter((n) => !n.read || n.unread);
+  } else if (tab === "approvals") {
+    filtered = allNotifications.filter((n) => (n.type || "").toLowerCase().includes("approv"));
+  } else if (tab === "documents") {
+    filtered = allNotifications.filter((n) => (n.type || "").toLowerCase().includes("doc") || (n.category || "").toLowerCase().includes("doc"));
+  } else if (tab === "team") {
+    filtered = allNotifications.filter((n) => (n.type || "").toLowerCase().includes("team") || (n.type || "").toLowerCase().includes("assign"));
+  } else if (tab === "ai") {
+    filtered = allNotifications.filter((n) => (n.type || "").toLowerCase().includes("ai"));
+  }
+
+  const formattedNotifs = filtered.map((n) => ({
+    ...n,
+    description: n.description || n.message || "Notification alert",
+    message: n.message || n.description || "Notification alert",
+    read: Boolean(n.read || !n.unread),
+    unread: Boolean(n.unread && !n.read),
+    createdAt: n.created_at ? n.created_at.toISOString() : new Date().toISOString(),
+    timestamp: n.created_at ? n.created_at.toISOString() : new Date().toISOString(),
+    link: n.link || "/department-manager/approvals",
+  }));
 
   return {
-    notifications,
+    notifications: formattedNotifs,
     unreadCount,
     counts: {
-      all: notifications.length,
+      all: allNotifications.length,
       unread: unreadCount,
-      approvals: notifications.filter(n => n.type === "approvals").length,
-      documents: notifications.filter(n => n.type === "documents").length,
-      team: notifications.filter(n => n.type === "team").length,
-      ai: notifications.filter(n => n.type === "ai").length,
+      approvals: allNotifications.filter((n) => (n.type || "").toLowerCase().includes("approv")).length,
+      documents: allNotifications.filter((n) => (n.type || "").toLowerCase().includes("doc") || (n.category || "").toLowerCase().includes("doc")).length,
+      team: allNotifications.filter((n) => (n.type || "").toLowerCase().includes("team") || (n.type || "").toLowerCase().includes("assign")).length,
+      ai: allNotifications.filter((n) => (n.type || "").toLowerCase().includes("ai")).length,
     },
   };
 };
 
 const markNotificationRead = async (id) => {
   await prisma.notification.update({
-    where: { id },
+    where: { id: String(id) },
     data: { read: true, unread: false },
   }).catch(() => null);
   return true;
@@ -834,7 +866,7 @@ const markNotificationRead = async (id) => {
 
 const markNotificationUnread = async (id) => {
   await prisma.notification.update({
-    where: { id },
+    where: { id: String(id) },
     data: { read: false, unread: true },
   }).catch(() => null);
   return true;
@@ -842,15 +874,27 @@ const markNotificationUnread = async (id) => {
 
 const markAllNotificationsRead = async (req) => {
   const context = getContext(req);
+  const orgId = Number(context.organisationId);
+  const userId = Number(context.userId);
+
+  const userScope = userId ? [{ user_id: userId }, { user_id: null }] : [{ user_id: null }];
+  const where = {
+    organisation_id: orgId,
+    OR: userScope,
+    AND: [{ OR: [{ read: false }, { unread: true }] }],
+  };
+
   await prisma.notification.updateMany({
-    where: { organisation_id: context.organisationId },
+    where,
     data: { read: true, unread: false },
   }).catch(() => null);
   return true;
 };
 
 const deleteNotification = async (id) => {
-  await prisma.notification.delete({ where: { id } }).catch(() => null);
+  await prisma.notification.delete({
+    where: { id: String(id) },
+  }).catch(() => null);
   return true;
 };
 

@@ -147,48 +147,72 @@ const login = async ({ email, password, role, req = null }) => {
     console.warn("DB lookup notice:", err.message);
   }
 
-  // If user does not exist in DB but role is specified, create default user
+  // If user does not exist in DB, verify if it is an authorized default demo account
   if (!user) {
-    let resolvedRole = "STAFF";
-    const rLower = (role || "").toLowerCase();
-    if (rLower.includes("super")) resolvedRole = "SUPER_ADMIN";
-    else if (rLower.includes("org")) resolvedRole = "ORGANISATION_ADMIN";
-    else if (rLower.includes("manager") || rLower.includes("department")) resolvedRole = "DEPARTMENT_MANAGER";
-    else if (rLower.includes("lead") || rLower.includes("team")) resolvedRole = "TEAM_LEADER";
-    else if (cleanEmail.includes("admin")) resolvedRole = "SUPER_ADMIN";
-    else if (cleanEmail.includes("org")) resolvedRole = "ORGANISATION_ADMIN";
-    else if (cleanEmail.includes("manager")) resolvedRole = "DEPARTMENT_MANAGER";
-    else if (cleanEmail.includes("team") || cleanEmail.includes("lead")) resolvedRole = "TEAM_LEADER";
-
-    try {
-      const passwordHash = await hashPassword(cleanPassword || "Admin@123");
-      const nameParts = cleanEmail.split("@")[0].replace(/[._-]/g, " ");
-      const formattedName = nameParts.charAt(0).toUpperCase() + nameParts.slice(1);
-
-      user = await prisma.user.create({
-        data: {
-          full_name: formattedName || "Platform User",
+    const isDemo = defaultDemoAccounts.some((d) => d.email.toLowerCase() === cleanEmail);
+    if (isDemo) {
+      const demoAcc = defaultDemoAccounts.find((d) => d.email.toLowerCase() === cleanEmail);
+      try {
+        const passwordHash = await hashPassword("Admin@123");
+        user = await prisma.user.create({
+          data: {
+            full_name: demoAcc.full_name,
+            email: cleanEmail,
+            password_hash: passwordHash,
+            role: demoAcc.role,
+            status: "active",
+            must_change_password: false,
+          },
+          include: {
+            organisation: true,
+            location: true,
+          },
+        });
+      } catch (e) {
+        user = {
+          id: Math.floor(Math.random() * 1000) + 10,
+          full_name: demoAcc.full_name,
           email: cleanEmail,
-          password_hash: passwordHash,
-          role: resolvedRole,
-          status: "active",
+          role: demoAcc.role,
+          organisation_id: null,
+          location_id: null,
           must_change_password: false,
-        },
-        include: {
-          organisation: true,
-          location: true,
-        },
-      });
-    } catch (e) {
-      user = {
-        id: Math.floor(Math.random() * 1000) + 10,
-        full_name: cleanEmail.split("@")[0] || "Platform User",
-        email: cleanEmail,
-        role: resolvedRole,
-        organisation_id: null,
-        location_id: null,
-        must_change_password: false,
-      };
+        };
+      }
+    } else {
+      // User does not exist and was not invited
+      throw new Error("Invalid email or password. If you were invited by an administrator, please accept your invitation email first.");
+    }
+  }
+
+  // Strict Role Enforcement:
+  // Non-demo users are locked strictly to their database-assigned role from their invitation.
+  const isDemoUser = defaultDemoAccounts.some((d) => d.email.toLowerCase() === cleanEmail);
+  if (!isDemoUser && role && typeof role === "string") {
+    const rLower = role.trim().toLowerCase();
+    const userRoleLower = (user.role || "").toLowerCase();
+    const normRequested = rLower.includes("super")
+      ? "super_admin"
+      : rLower.includes("org")
+      ? "organisation_admin"
+      : rLower.includes("dept") || rLower.includes("manager")
+      ? "department_manager"
+      : rLower.includes("lead") || rLower.includes("team")
+      ? "team_leader"
+      : "staff";
+
+    const normAssigned = userRoleLower.includes("super")
+      ? "super_admin"
+      : userRoleLower.includes("org")
+      ? "organisation_admin"
+      : userRoleLower.includes("dept") || userRoleLower.includes("manager")
+      ? "department_manager"
+      : userRoleLower.includes("lead") || userRoleLower.includes("team")
+      ? "team_leader"
+      : "staff";
+
+    if (normRequested !== normAssigned && (normRequested === "super_admin" || normRequested === "organisation_admin")) {
+      throw new Error(`Access denied. Your account is authorized strictly as ${user.role}. You cannot log in as ${role}.`);
     }
   }
 

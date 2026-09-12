@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { BriefcaseBusiness, ChevronRight, LogOut, X } from "lucide-react";
 import { departmentManagerNavItems } from "@/lib/departmentManagerNav";
+import apiClient from "@/lib/axios";
 
 interface DepartmentManagerSidebarProps {
   mobileOpen?: boolean;
@@ -36,6 +37,7 @@ export default function DepartmentManagerSidebar({ mobileOpen = false, onClose }
   const pathname = usePathname();
   const [departmentName, setDepartmentName] = useState("Operations");
   const [managerName, setManagerName] = useState("Department Manager");
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     const sync = () => {
@@ -46,7 +48,22 @@ export default function DepartmentManagerSidebar({ mobileOpen = false, onClose }
 
     sync();
     window.addEventListener("storage", sync);
-    return () => window.removeEventListener("storage", sync);
+
+    const fetchUnread = async () => {
+      try {
+        const res = await apiClient.get("/department-manager/notifications");
+        const count = res?.data?.data?.unreadCount ?? 0;
+        setUnreadCount(count);
+      } catch {}
+    };
+
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30000);
+
+    return () => {
+      window.removeEventListener("storage", sync);
+      clearInterval(interval);
+    };
   }, []);
 
   const handleLogout = () => {
@@ -118,7 +135,14 @@ export default function DepartmentManagerSidebar({ mobileOpen = false, onClose }
                   <Icon size={18} className={isActive ? "shrink-0 text-[#f3b092]" : "shrink-0 text-white/80"} />
                   <span className="truncate whitespace-nowrap leading-normal">{item.title}</span>
                 </div>
-                {isActive ? <ChevronRight size={15} className="shrink-0 text-[#f3b092]" /> : null}
+                <div className="flex items-center gap-2">
+                  {item.title === "Notifications" && unreadCount > 0 && (
+                    <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-black text-white shadow-xs animate-in zoom-in">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
+                  {isActive ? <ChevronRight size={15} className="shrink-0 text-[#f3b092]" /> : null}
+                </div>
               </div>
             </Link>
           );

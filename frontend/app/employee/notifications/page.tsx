@@ -187,7 +187,7 @@ export default function EmployeeNotificationsPage() {
                           <span className="h-2 w-2 rounded-full bg-blue-600 animate-pulse" />
                         )}
                       </div>
-                      <p className="mt-1 text-xs text-slate-600 leading-relaxed">{n.message}</p>
+                      <p className="mt-1 text-xs text-slate-600 leading-relaxed">{n.message || n.description || "Notification alert"}</p>
                       <div className="mt-2 flex items-center gap-3 text-[10px] text-slate-400">
                         <span>{n.createdAt ? new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Recently"}</span>
                         <span>•</span>

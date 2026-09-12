@@ -2131,6 +2131,13 @@ const getNotifications = async (req) => {
     whereClause.unread = true;
   } else if (filter === "READ") {
     whereClause.unread = false;
+  } else if (filter && filter !== "ALL") {
+    const f = filter.toUpperCase();
+    whereClause.OR = [
+      { type: { contains: f, mode: "insensitive" } },
+      { category: { contains: f, mode: "insensitive" } },
+      { title: { contains: f, mode: "insensitive" } },
+    ];
   }
 
   const dbNotifs = await prisma.notification.findMany({
@@ -2139,28 +2146,73 @@ const getNotifications = async (req) => {
     take: 50,
   }).catch(() => []);
 
+  // Compute unread count specifically for this employee's scope
+  let countWhere = { organisation_id: orgId, unread: true };
+  if (userId) {
+    countWhere.OR = [{ user_id: userId }, { user_id: null }];
+  }
   const unreadCount = await prisma.notification.count({
-    where: { organisation_id: orgId, unread: true },
+    where: countWhere,
   }).catch(() => 0);
 
+  // Map to format with both createdAt, created_at, description, and message for frontend compatibility
+  const formattedNotifs = dbNotifs.map((n) => ({
+    ...n,
+    description: n.description || n.message || "Notification alert",
+    message: n.message || n.description || "Notification alert",
+    read: Boolean(n.read || !n.unread),
+    unread: Boolean(n.unread && !n.read),
+    createdAt: n.created_at ? n.created_at.toISOString() : new Date().toISOString(),
+  }));
+
   return {
-    notifications: dbNotifs,
+    notifications: formattedNotifs,
     unreadCount,
     preferences: employeeNotificationPreferences,
   };
 };
 
-const markNotificationRead = async (id) => {
+const markNotificationRead = async (id, req) => {
+  const context = req ? getContext(req) : { organisationId: 1, userId: 1 };
+  const orgId = Number(context.organisationId);
+  const userId = Number(context.userId);
+
   if (id === "ALL") {
-    employeeNotificationsCache.forEach((n) => {
-      n.unread = false;
-    });
+    let where = { organisation_id: orgId, unread: true };
+    if (userId) {
+      where.OR = [{ user_id: userId }, { user_id: null }];
+    }
+    await prisma.notification.updateMany({
+      where,
+      data: { read: true, unread: false },
+    }).catch(() => null);
+
     return { success: true, message: "All notifications marked as read." };
   }
 
-  const notif = employeeNotificationsCache.find((n) => n.id === id);
-  if (notif) notif.unread = false;
-  return { success: true, notif };
+  await prisma.notification.update({
+    where: { id: String(id) },
+    data: { read: true, unread: false },
+  }).catch(() => null);
+
+  return { success: true, message: "Notification marked as read." };
+};
+
+const markNotificationUnread = async (id) => {
+  await prisma.notification.update({
+    where: { id: String(id) },
+    data: { read: false, unread: true },
+  }).catch(() => null);
+
+  return { success: true, message: "Notification marked as unread." };
+};
+
+const deleteNotification = async (id) => {
+  await prisma.notification.delete({
+    where: { id: String(id) },
+  }).catch(() => null);
+
+  return { success: true, message: "Notification deleted." };
 };
 
 const updateNotificationPreferences = async (req) => {
@@ -2381,6 +2433,8 @@ module.exports = {
   runAiTool,
   getNotifications,
   markNotificationRead,
+  markNotificationUnread,
+  deleteNotification,
   updateNotificationPreferences,
   getPersonalReports,
   getProfile,

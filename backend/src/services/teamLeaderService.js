@@ -887,25 +887,77 @@ const getReports = async (req) => {
 // ==========================================
 const getNotifications = async (req) => {
   const context = getContext(req);
+  const orgId = Number(context.organisationId);
+  const userId = Number(context.userId);
+  const { category = "ALL" } = req.query;
+
+  const userScope = userId ? [{ user_id: userId }, { user_id: null }] : [{ user_id: null }];
+
+  let where = {
+    organisation_id: orgId,
+    OR: userScope,
+  };
+
+  if (category === "UNREAD") {
+    where.AND = [{ OR: [{ read: false }, { unread: true }] }];
+  } else if (category && category !== "ALL") {
+    const cat = category.toUpperCase();
+    where.AND = [
+      {
+        OR: [
+          { type: { contains: cat, mode: "insensitive" } },
+          { category: { contains: cat, mode: "insensitive" } },
+          { title: { contains: cat, mode: "insensitive" } },
+        ],
+      },
+    ];
+  }
+
   const notifications = await prisma.notification.findMany({
-    where: { organisation_id: context.organisationId },
+    where,
     orderBy: { created_at: "desc" },
+    take: 50,
   }).catch(() => []);
 
-  const unreadCount = notifications.filter(n => !n.read).length;
-  return { unreadCount, notifications };
+  const unreadCount = await prisma.notification.count({
+    where: {
+      organisation_id: orgId,
+      OR: userScope,
+      AND: [{ OR: [{ read: false }, { unread: true }] }],
+    },
+  }).catch(() => 0);
+
+  const formattedNotifs = notifications.map((n) => ({
+    ...n,
+    description: n.description || n.message || "Notification alert",
+    message: n.message || n.description || "Notification alert",
+    read: Boolean(n.read || !n.unread),
+    unread: Boolean(n.unread && !n.read),
+    createdAt: n.created_at ? n.created_at.toISOString() : new Date().toISOString(),
+    link: n.link || "/team-leader/approvals",
+  }));
+
+  return { unreadCount, notifications: formattedNotifs };
 };
 
 const markNotificationAsRead = async (id, req) => {
   const context = getContext(req);
+  const orgId = Number(context.organisationId);
+  const userId = Number(context.userId);
+  const userScope = userId ? [{ user_id: userId }, { user_id: null }] : [{ user_id: null }];
+
   if (id === "ALL") {
     await prisma.notification.updateMany({
-      where: { organisation_id: context.organisationId },
+      where: {
+        organisation_id: orgId,
+        OR: userScope,
+        AND: [{ OR: [{ read: false }, { unread: true }] }],
+      },
       data: { read: true, unread: false },
     }).catch(() => null);
   } else {
     await prisma.notification.update({
-      where: { id },
+      where: { id: String(id) },
       data: { read: true, unread: false },
     }).catch(() => null);
   }

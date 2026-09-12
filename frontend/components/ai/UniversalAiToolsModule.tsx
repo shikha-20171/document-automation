@@ -48,6 +48,7 @@ export type RoleType = "ORGANISATION_ADMIN" | "DEPARTMENT_MANAGER" | "TEAM_LEADE
 interface UniversalAiToolsModuleProps {
   userRole: RoleType;
   roleDisplayName?: string;
+  hiddenAreas?: AiToolsArea[];
 }
 
 export interface HistoryDocument {
@@ -70,7 +71,11 @@ export type AiToolsArea = "ocr" | "intelligence" | "analysis" | "jobs";
 export default function UniversalAiToolsModule({
   userRole,
   roleDisplayName = "Organisation User",
+  hiddenAreas,
 }: UniversalAiToolsModuleProps) {
+  const effectiveHiddenAreas: AiToolsArea[] =
+    hiddenAreas || (userRole === "ORGANISATION_ADMIN" ? ["intelligence", "jobs"] : []);
+
   // Active Logical Area (A: OCR & Extraction, B: Document Intelligence, C: AI Document Analysis, D: Processing / Jobs)
   const [activeArea, setActiveArea] = useState<AiToolsArea>("ocr");
 
@@ -452,10 +457,14 @@ Return valid JSON with format:
               </div>
               <div>
                 <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
-                  AI Tools & Document Intelligence
+                  {effectiveHiddenAreas.includes("intelligence")
+                    ? "AI Tools & Document Analysis"
+                    : "AI Tools & Document Intelligence"}
                 </h1>
                 <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
-                  Targeted OCR testing, entity extraction, business validation, and processing telemetry.
+                  {effectiveHiddenAreas.includes("intelligence")
+                    ? "Targeted OCR testing, layout detection, document summarization, and deep clause analysis."
+                    : "Targeted OCR testing, entity extraction, business validation, and processing telemetry."}
                 </p>
               </div>
             </div>
@@ -478,83 +487,92 @@ Return valid JSON with format:
           <p>
             <strong className="text-slate-700 dark:text-slate-300">Standard Workflow Reminder:</strong> Documents uploaded on the{" "}
             <span className="font-semibold text-indigo-600">Documents</span> page automatically execute background OCR, classification, and validation.
-            This AI Tools workspace provides direct operational control, standalone OCR testing, deep clause analysis, and processing queue monitoring.
+            This AI Tools workspace provides direct operational control, standalone OCR testing, and deep clause analysis.
           </p>
         </div>
       </div>
 
-      {/* ── 4 LOGICAL AREA TABS ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {[
+      {/* ── LOGICAL AREA TABS ── */}
+      {(() => {
+        const allTabs = [
           {
-            id: "ocr",
-            areaLetter: "A",
+            id: "ocr" as AiToolsArea,
             title: "OCR & Extraction",
             desc: "Scanned PDF/image OCR, layout & table detection to structured data.",
             icon: FileSearch,
           },
           {
-            id: "intelligence",
-            areaLetter: "B",
+            id: "intelligence" as AiToolsArea,
             title: "Document Intelligence",
             desc: "Classification, entity extraction, math validation & summary.",
             icon: ShieldCheck,
           },
           {
-            id: "analysis",
-            areaLetter: "C",
+            id: "analysis" as AiToolsArea,
             title: "AI Document Analysis",
             desc: "Summarize, compare documents, find discrepancies & analyze clauses.",
             icon: SearchCheck,
           },
           {
-            id: "jobs",
-            areaLetter: "D",
+            id: "jobs" as AiToolsArea,
             title: "Processing / Jobs",
             desc: "Monitor enterprise background AI processing queue & telemetry.",
             icon: RefreshCw,
           },
-        ].map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeArea === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => {
-                setActiveArea(tab.id as AiToolsArea);
-                setErrorMessage(null);
-                setSuccessMessage(null);
-              }}
-              className={`text-left p-4 sm:p-5 rounded-2xl border transition-all relative cursor-pointer ${
-                isActive
-                  ? "bg-white dark:bg-zinc-900 border-indigo-600 shadow-md ring-2 ring-indigo-600/20"
-                  : "bg-white dark:bg-zinc-900 border-slate-200/80 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 hover:shadow-xs"
-              }`}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div
-                  className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
+        ];
+
+        const visibleTabs = allTabs
+          .filter((tab) => !effectiveHiddenAreas.includes(tab.id))
+          .map((tab, idx) => ({
+            ...tab,
+            areaLetter: String.fromCharCode(65 + idx),
+          }));
+
+        return (
+          <div className={`grid grid-cols-1 sm:grid-cols-2 ${visibleTabs.length > 2 ? "lg:grid-cols-4" : "lg:grid-cols-2"} gap-3 sm:gap-4`}>
+            {visibleTabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeArea === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveArea(tab.id);
+                    setErrorMessage(null);
+                    setSuccessMessage(null);
+                  }}
+                  className={`text-left p-4 sm:p-5 rounded-2xl border transition-all relative cursor-pointer ${
                     isActive
-                      ? "bg-indigo-600 text-white"
-                      : "bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-slate-400"
+                      ? "bg-white dark:bg-zinc-900 border-indigo-600 shadow-md ring-2 ring-indigo-600/20"
+                      : "bg-white dark:bg-zinc-900 border-slate-200/80 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 hover:shadow-xs"
                   }`}
                 >
-                  <Icon size={18} className={isActive ? "text-amber-300" : ""} />
-                </div>
-                <span className="px-2 py-0.5 rounded text-[11px] font-bold font-mono bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-slate-400">
-                  Area {tab.areaLetter}
-                </span>
-              </div>
-              <h3 className="font-bold text-sm text-slate-900 dark:text-white mb-1">{tab.title}</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{tab.desc}</p>
-              {isActive && (
-                <div className="absolute bottom-0 left-6 right-6 h-0.5 bg-indigo-600 rounded-t-full" />
-              )}
-            </button>
-          );
-        })}
-      </div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div
+                      className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
+                        isActive
+                          ? "bg-indigo-600 text-white"
+                          : "bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-slate-400"
+                      }`}
+                    >
+                      <Icon size={18} className={isActive ? "text-amber-300" : ""} />
+                    </div>
+                    <span className="px-2 py-0.5 rounded text-[11px] font-bold font-mono bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-slate-400">
+                      Area {tab.areaLetter}
+                    </span>
+                  </div>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white mb-1">{tab.title}</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{tab.desc}</p>
+                  {isActive && (
+                    <div className="absolute bottom-0 left-6 right-6 h-0.5 bg-indigo-600 rounded-t-full" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* ── ALERTS ── */}
       {errorMessage && (
@@ -636,7 +654,7 @@ Return valid JSON with format:
       {/* ────────────────────────────────────────────────────────────────────────── */}
       {/* AREA B: DOCUMENT INTELLIGENCE */}
       {/* ────────────────────────────────────────────────────────────────────────── */}
-      {activeArea === "intelligence" && (
+      {activeArea === "intelligence" && !effectiveHiddenAreas.includes("intelligence") && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Input Configuration Column */}
           <div className="lg:col-span-5 space-y-6">
@@ -1034,7 +1052,7 @@ Return valid JSON with format:
       {/* ────────────────────────────────────────────────────────────────────────── */}
       {/* AREA D: PROCESSING / JOBS MONITOR */}
       {/* ────────────────────────────────────────────────────────────────────────── */}
-      {activeArea === "jobs" && (
+      {activeArea === "jobs" && !effectiveHiddenAreas.includes("jobs") && (
         <div className="space-y-6">
           {/* Top Metrics Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

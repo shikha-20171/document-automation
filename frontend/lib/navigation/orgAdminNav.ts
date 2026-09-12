@@ -5,7 +5,6 @@ import {
   PenTool,
   Layout,
   GitBranch,
-  CheckCircle2,
   BarChart3,
   Building2,
   Plug,
@@ -38,9 +37,8 @@ export const orgAdminNavSections: OrgAdminNavSection[] = [
       { title: "Templates", href: "/org-admin/templates", icon: Layout },
       { title: "E-Signatures", href: "/org-admin/e-signatures", icon: FileCheck },
       { title: "AI Tools", href: "/org-admin/ai-tools", icon: Sparkles, requiredFeature: "ai.processing" },
-      { title: "Workflows", href: "/org-admin/workflows", icon: GitBranch, requiredFeature: "workflows.enabled" },
+      { title: "Workflow", href: "/org-admin/workflow", icon: GitBranch, requiredFeature: "workflows.enabled" },
       { title: "Clients / CRM", href: "/org-admin/clients-crm", icon: Users2, requiredFeature: "crm.enabled" },
-      { title: "Approvals", href: "/org-admin/approvals", icon: CheckCircle2, requiredFeature: "workflows.enabled" },
     ],
   },
   {

@@ -185,7 +185,12 @@ const inviteUser = async (req, res) => {
       return res.status(400).json({ success: false, message: "Email address is required for invitation." });
     }
 
-    const roleCode = role.toUpperCase().replace(/\s+/g, "_");
+    let roleCode = role.toUpperCase().replace(/\s+/g, "_");
+    if (roleCode === "EMPLOYEE" || roleCode === "STAFF_MEMBER" || roleCode === "USER") roleCode = "STAFF";
+    if (roleCode === "TEAM_LEAD") roleCode = "TEAM_LEADER";
+    if (roleCode === "DEPT_MANAGER") roleCode = "DEPARTMENT_MANAGER";
+    if (roleCode === "ORG_ADMIN") roleCode = "ORGANISATION_ADMIN";
+
     const defaultPass = "Manager@123";
     const passwordHash = await hashPassword(defaultPass);
     const { rawToken, tokenHash, expiresAt } = generateInvitationToken(48);

@@ -27,7 +27,9 @@ export default function ApprovalWorkspace({
 
   // Action form state inside drawer
   const [actionComment, setActionComment] = useState<string>("");
-  const [forwardRole, setForwardRole] = useState<string>("DEPARTMENT_MANAGER");
+  const [forwardRole, setForwardRole] = useState<string>(
+    role === "DEPARTMENT_MANAGER" ? "ORGANISATION_ADMIN" : "DEPARTMENT_MANAGER"
+  );
   const [isSubmittingAction, setIsSubmittingAction] = useState<boolean>(false);
 
   // Signature Modal right from Approved Document
@@ -69,15 +71,35 @@ export default function ApprovalWorkspace({
     if (!activeRequest) return;
     setIsSubmittingAction(true);
     try {
+      const forwardTarget =
+        action === "FORWARD"
+          ? forwardRole
+          : role === "TEAM_LEADER"
+          ? "DEPARTMENT_MANAGER"
+          : role === "DEPARTMENT_MANAGER"
+          ? "ORGANISATION_ADMIN"
+          : undefined;
+
       const res = await apiClient.post(`/approvals/${activeRequest.id}/action`, {
         action,
         comment: actionComment,
-        forwardToRole: action === "FORWARD" ? forwardRole : undefined,
+        forwardToRole: forwardTarget,
       });
 
       if (res.data?.success) {
         const updated = res.data.data;
-        showToast(`Approval ${action}`, `Request marked as ${action.toLowerCase()}.`);
+        const msg =
+          action === "APPROVE"
+            ? role === "TEAM_LEADER"
+              ? "Approved & routed to Department Manager review queue"
+              : role === "DEPARTMENT_MANAGER"
+              ? "Approved & forwarded to Organisation Admin review queue"
+              : "Final enterprise approval granted! Ready for e-signature."
+            : action === "FORWARD"
+            ? `Successfully forwarded to ${forwardRole === "ORGANISATION_ADMIN" ? "Organisation Admin" : "Department Manager"}`
+            : `Request marked as ${action.toLowerCase()}`;
+
+        showToast(`Approval ${action}`, msg);
         setActiveRequest(updated);
         fetchApprovals();
         setActionComment("");
@@ -136,24 +158,24 @@ export default function ApprovalWorkspace({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
+            <span className="text-xs font-bold px-3 py-1 rounded-full bg-[#274690]/10 dark:bg-[#274690]/25 text-[#274690] dark:text-[#8fb1ec] border border-[#274690]/20">
               {roleDisplayName} Queue
             </span>
-            <span className="text-xs text-slate-400">• Multi-Tier Document Verification</span>
+            <span className="text-xs text-slate-400 font-medium">• Multi-Tier Document Verification</span>
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
+          <h1 className="text-2xl font-black text-slate-900 dark:text-white mt-2 tracking-tight">
             Enterprise Approval Workflow
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Review document submissions, verify deliverables and commercials, request changes, and immediately route approved documents for digital signature.
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            Review document submissions, verify deliverables and commercials, request changes, and route approved documents forward.
           </p>
         </div>
 
         <button
           onClick={() => fetchApprovals()}
-          className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition flex items-center gap-2 text-xs font-semibold"
+          className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-[#274690]/5 hover:border-[#274690]/40 text-slate-600 dark:text-slate-300 hover:text-[#274690] dark:hover:text-[#8fb1ec] transition flex items-center gap-2 text-xs font-bold"
         >
-          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-amber-500" : ""}`} />
+          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-[#274690]" : ""}`} />
           <span>Refresh</span>
         </button>
       </div>
@@ -162,40 +184,40 @@ export default function ApprovalWorkspace({
       <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
         <button
           onClick={() => setActiveTab("PENDING")}
-          className={`px-4 py-2 rounded-xl text-xs font-semibold transition ${
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
             activeTab === "PENDING"
-              ? "bg-amber-500 text-white shadow-sm"
-              : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+              ? "bg-[#274690] text-white shadow-md shadow-[#274690]/25"
+              : "text-slate-600 dark:text-slate-400 hover:text-[#274690] dark:hover:text-[#8fb1ec] hover:bg-[#274690]/5"
           }`}
         >
           Pending Review
         </button>
         <button
           onClick={() => setActiveTab("APPROVED")}
-          className={`px-4 py-2 rounded-xl text-xs font-semibold transition ${
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
             activeTab === "APPROVED"
               ? "bg-emerald-600 text-white shadow-sm"
-              : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+              : "text-slate-600 dark:text-slate-400 hover:text-[#274690] dark:hover:text-[#8fb1ec] hover:bg-[#274690]/5"
           }`}
         >
           Approved Documents
         </button>
         <button
           onClick={() => setActiveTab("REJECTED")}
-          className={`px-4 py-2 rounded-xl text-xs font-semibold transition ${
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
             activeTab === "REJECTED"
               ? "bg-rose-600 text-white shadow-sm"
-              : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+              : "text-slate-600 dark:text-slate-400 hover:text-[#274690] dark:hover:text-[#8fb1ec] hover:bg-[#274690]/5"
           }`}
         >
           Rejected / Changes
         </button>
         <button
           onClick={() => setActiveTab("MY_SUBMISSIONS")}
-          className={`px-4 py-2 rounded-xl text-xs font-semibold transition ${
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
             activeTab === "MY_SUBMISSIONS"
-              ? "bg-blue-600 text-white shadow-sm"
-              : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+              ? "bg-[#1f3561] text-white shadow-sm"
+              : "text-slate-600 dark:text-slate-400 hover:text-[#274690] dark:hover:text-[#8fb1ec] hover:bg-[#274690]/5"
           }`}
         >
           My Submissions
@@ -228,13 +250,13 @@ export default function ApprovalWorkspace({
                   </td>
                 </tr>
               ) : (
-                requests.map((req) => {
+                requests.map((req, idx) => {
                   const doc = req.unifiedDocument || req.document;
                   return (
-                    <tr key={req.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition">
+                    <tr key={req.id ? `req-${req.id}` : `req-idx-${idx}`} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition">
                       <td className="py-3.5 px-4 font-medium">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400 flex-shrink-0">
+                          <div className="w-8 h-8 rounded-lg bg-[#274690]/10 dark:bg-[#274690]/25 flex items-center justify-center text-[#274690] dark:text-[#8fb1ec] flex-shrink-0">
                             <FileText className="w-4 h-4" />
                           </div>
                           <div>
@@ -259,8 +281,8 @@ export default function ApprovalWorkspace({
 
                       <td className="py-3.5 px-3">
                         <div className="flex flex-col gap-1">
-                          <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-[11px] inline-flex items-center gap-1 w-fit">
-                            <Clock className="w-3 h-3 text-amber-500" />
+                          <span className="px-2.5 py-0.5 rounded-full bg-[#274690]/10 dark:bg-[#274690]/25 text-[#274690] dark:text-[#8fb1ec] border border-[#274690]/20 font-bold text-[11px] inline-flex items-center gap-1 w-fit">
+                            <Clock className="w-3 h-3 text-[#274690] dark:text-[#8fb1ec]" />
                             <span>
                               {req.status === "APPROVED"
                                 ? "Approved (Stage 3/3 Complete)"
@@ -285,12 +307,12 @@ export default function ApprovalWorkspace({
 
                       <td className="py-3.5 px-3">
                         <span
-                          className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                          className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
                             req.status === "APPROVED"
                               ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
                               : req.status === "REJECTED"
                               ? "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300"
-                              : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                              : "bg-[#274690]/10 text-[#274690] dark:bg-[#274690]/25 dark:text-[#8fb1ec] border border-[#274690]/20"
                           }`}
                         >
                           {req.status}
@@ -303,7 +325,7 @@ export default function ApprovalWorkspace({
                             setActiveRequest(req);
                             setActionComment("");
                           }}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 text-white text-xs font-semibold transition"
+                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#274690] hover:bg-[#1f3561] text-white text-xs font-bold shadow-sm shadow-[#274690]/20 transition"
                         >
                           <span>Review</span>
                           <ChevronRight className="w-3.5 h-3.5" />
@@ -325,9 +347,9 @@ export default function ApprovalWorkspace({
         <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
           <div className="w-full max-w-2xl bg-white dark:bg-slate-900 h-full shadow-2xl flex flex-col justify-between overflow-hidden border-l border-slate-200 dark:border-slate-800">
             {/* Drawer Header */}
-            <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+            <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-gradient-to-r from-white via-white to-[#274690]/5 dark:from-slate-900 dark:to-[#274690]/15">
               <div>
-                <span className="text-[10px] font-mono text-amber-600 dark:text-amber-400 font-bold uppercase">
+                <span className="text-[10px] font-mono text-[#274690] dark:text-[#8fb1ec] font-bold uppercase">
                   Approval Request Review
                 </span>
                 <h2 className="text-base font-bold text-slate-900 dark:text-white mt-0.5">
@@ -336,7 +358,7 @@ export default function ApprovalWorkspace({
               </div>
               <button
                 onClick={() => setActiveRequest(null)}
-                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500"
+                className="p-1.5 rounded-lg hover:bg-[#274690]/10 hover:text-[#274690] text-slate-500 transition"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -345,9 +367,9 @@ export default function ApprovalWorkspace({
             {/* Drawer Body */}
             <div className="p-6 overflow-y-auto flex-1 space-y-6 text-xs text-slate-700 dark:text-slate-300">
               {/* Multi-Tier Workflow Stepper */}
-              <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-50 to-amber-50/30 dark:from-slate-800/80 dark:to-slate-800/40 border border-slate-200 dark:border-slate-700 space-y-3">
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-50 to-[#274690]/5 dark:from-slate-800/80 dark:to-[#274690]/15 border border-slate-200 dark:border-slate-700 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-bold text-amber-600 dark:text-amber-400 tracking-wider">
+                  <span className="text-[10px] uppercase font-bold text-[#274690] dark:text-[#8fb1ec] tracking-wider">
                     Hierarchical Approval Workflow
                   </span>
                   <span className="text-[11px] font-semibold text-slate-500">
@@ -360,14 +382,14 @@ export default function ApprovalWorkspace({
                   <div
                     className={`flex-1 p-2.5 rounded-xl border text-center transition-all ${
                       (activeRequest.currentStepOrder || 1) > 1 || activeRequest.status === "APPROVED"
-                        ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 text-emerald-800 dark:text-emerald-300 font-semibold"
+                        ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 text-emerald-800 dark:text-emerald-300 font-bold"
                         : (activeRequest.currentStepOrder || 1) === 1 && activeRequest.status === "PENDING"
-                        ? "bg-amber-50 dark:bg-amber-950/40 border-amber-300 text-amber-800 dark:text-amber-300 font-bold ring-2 ring-amber-400/30 shadow-sm"
+                        ? "bg-[#274690]/10 dark:bg-[#274690]/25 border-[#274690] text-[#274690] dark:text-[#8fb1ec] font-black ring-2 ring-[#274690]/30 shadow-xs"
                         : "bg-slate-100 dark:bg-slate-800 border-slate-200 text-slate-400"
                     }`}
                   >
-                    <div className="text-[10px] uppercase tracking-wider">Step 1</div>
-                    <div className="text-xs">Team Leader</div>
+                    <div className="text-[10px] uppercase tracking-wider font-bold">Step 1</div>
+                    <div className="text-xs font-semibold">Team Leader</div>
                   </div>
 
                   <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
@@ -376,14 +398,14 @@ export default function ApprovalWorkspace({
                   <div
                     className={`flex-1 p-2.5 rounded-xl border text-center transition-all ${
                       (activeRequest.currentStepOrder || 1) > 2 || activeRequest.status === "APPROVED"
-                        ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 text-emerald-800 dark:text-emerald-300 font-semibold"
+                        ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 text-emerald-800 dark:text-emerald-300 font-bold"
                         : (activeRequest.currentStepOrder || 1) === 2 && activeRequest.status === "PENDING"
-                        ? "bg-amber-50 dark:bg-amber-950/40 border-amber-300 text-amber-800 dark:text-amber-300 font-bold ring-2 ring-amber-400/30 shadow-sm"
+                        ? "bg-[#274690]/10 dark:bg-[#274690]/25 border-[#274690] text-[#274690] dark:text-[#8fb1ec] font-black ring-2 ring-[#274690]/30 shadow-xs"
                         : "bg-slate-100 dark:bg-slate-800 border-slate-200 text-slate-400"
                     }`}
                   >
-                    <div className="text-[10px] uppercase tracking-wider">Step 2</div>
-                    <div className="text-xs">Dept Manager</div>
+                    <div className="text-[10px] uppercase tracking-wider font-bold">Step 2</div>
+                    <div className="text-xs font-semibold">Dept Manager</div>
                   </div>
 
                   <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
@@ -392,14 +414,14 @@ export default function ApprovalWorkspace({
                   <div
                     className={`flex-1 p-2.5 rounded-xl border text-center transition-all ${
                       activeRequest.status === "APPROVED"
-                        ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 text-emerald-800 dark:text-emerald-300 font-semibold"
+                        ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 text-emerald-800 dark:text-emerald-300 font-bold"
                         : (activeRequest.currentStepOrder || 1) === 3 && activeRequest.status === "PENDING"
-                        ? "bg-amber-50 dark:bg-amber-950/40 border-amber-300 text-amber-800 dark:text-amber-300 font-bold ring-2 ring-amber-400/30 shadow-sm"
+                        ? "bg-[#274690]/10 dark:bg-[#274690]/25 border-[#274690] text-[#274690] dark:text-[#8fb1ec] font-black ring-2 ring-[#274690]/30 shadow-xs"
                         : "bg-slate-100 dark:bg-slate-800 border-slate-200 text-slate-400"
                     }`}
                   >
-                    <div className="text-[10px] uppercase tracking-wider">Step 3</div>
-                    <div className="text-xs">Org Admin</div>
+                    <div className="text-[10px] uppercase tracking-wider font-bold">Step 3</div>
+                    <div className="text-xs font-semibold">Org Admin</div>
                   </div>
                 </div>
               </div>
@@ -431,7 +453,7 @@ export default function ApprovalWorkspace({
                   {activeRequest.unifiedDocumentId && (
                     <Link
                       href={`/documents/editor?id=${activeRequest.unifiedDocumentId}`}
-                      className="text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1"
+                      className="text-[#274690] hover:text-[#1f3561] dark:text-[#8fb1ec] font-bold flex items-center gap-1 hover:underline"
                     >
                       Open Full Editor <ExternalLink className="w-3 h-3" />
                     </Link>
@@ -441,7 +463,7 @@ export default function ApprovalWorkspace({
                 {activeRequest.unifiedDocument?.content && Array.isArray(activeRequest.unifiedDocument.content) ? (
                   <div className="space-y-3">
                     {activeRequest.unifiedDocument.content.map((sec: any, idx: number) => (
-                      <div key={sec.id || idx} className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                      <div key={sec.id ? `sec-${sec.id}` : `sec-idx-${idx}`} className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
                         <div className="font-semibold text-slate-900 dark:text-white text-xs mb-1">
                           {sec.title}
                         </div>
@@ -459,23 +481,33 @@ export default function ApprovalWorkspace({
                 <div>
                   <h3 className="font-bold text-sm text-slate-900 dark:text-white mb-2">Review History</h3>
                   <div className="space-y-2">
-                    {activeRequest.actions.map((act: any) => (
-                      <div key={act.id} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border text-[11px]">
-                        <div className="flex items-center justify-between font-semibold">
-                          <span>{act.action}</span>
-                          <span className="text-slate-400">{new Date(act.createdAt).toLocaleString()}</span>
+                    {activeRequest.actions.map((act: any, idx: number) => {
+                      const actDate = act.createdAt || act.time ? new Date(act.createdAt || act.time) : null;
+                      const formattedDate = actDate && !isNaN(actDate.getTime()) ? actDate.toLocaleString() : "Recently";
+                      return (
+                        <div
+                          key={act.id ? `act-${act.id}` : `act-idx-${idx}-${act.action || "step"}`}
+                          className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px]"
+                        >
+                          <div className="flex items-center justify-between font-semibold">
+                            <span className="text-slate-800 dark:text-slate-200">
+                              {act.action}
+                              {act.user && <span className="font-normal text-slate-400 ml-1.5">• {act.user}</span>}
+                            </span>
+                            <span className="text-slate-400">{formattedDate}</span>
+                          </div>
+                          {act.comment && <p className="mt-1 text-slate-600 dark:text-slate-300">{act.comment}</p>}
                         </div>
-                        {act.comment && <p className="mt-1 text-slate-600 dark:text-slate-300">{act.comment}</p>}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
 
               {/* Reviewer Action Form (Only if Pending) */}
               {activeRequest.status === "PENDING" && (
-                <div className="p-4 rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-50/40 dark:bg-amber-950/20 space-y-3">
-                  <h4 className="font-bold text-xs text-amber-900 dark:text-amber-200 uppercase tracking-wider">
+                <div className="p-4 rounded-2xl border border-[#274690]/30 dark:border-[#274690]/50 bg-[#274690]/5 dark:bg-[#274690]/10 space-y-3">
+                  <h4 className="font-bold text-xs text-[#274690] dark:text-[#8fb1ec] uppercase tracking-wider">
                     Provide Decision & Notes
                   </h4>
                   <textarea
@@ -483,19 +515,21 @@ export default function ApprovalWorkspace({
                     placeholder="Enter approval feedback or required modifications..."
                     value={actionComment}
                     onChange={(e) => setActionComment(e.target.value)}
-                    className="w-full p-2.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="w-full p-2.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#274690] focus:border-[#274690]"
                   />
 
                   {role !== "ORGANISATION_ADMIN" && (
                     <div className="flex items-center gap-2 text-xs">
-                      <span className="text-slate-500">Forward Target:</span>
+                      <span className="text-slate-600 dark:text-slate-400 font-medium">Forward Target:</span>
                       <select
                         value={forwardRole}
                         onChange={(e) => setForwardRole(e.target.value)}
-                        className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                        className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-[#274690] outline-none"
                       >
-                        <option value="DEPARTMENT_MANAGER">Department Manager</option>
-                        <option value="ORGANISATION_ADMIN">Organisation Admin</option>
+                        {role === "TEAM_LEADER" && (
+                          <option value="DEPARTMENT_MANAGER">Department Manager (Step 2)</option>
+                        )}
+                        <option value="ORGANISATION_ADMIN">Organisation Admin (Step 3)</option>
                       </select>
                     </div>
                   )}
@@ -504,11 +538,11 @@ export default function ApprovalWorkspace({
 
               {/* IMMEDIATE SEND FOR SIGNATURE PROMPT (When APPROVED) */}
               {activeRequest.status === "APPROVED" && (
-                <div className="p-5 rounded-2xl border-2 border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/20 space-y-3">
-                  <div className="flex items-center gap-2 text-indigo-800 dark:text-indigo-200 font-bold text-xs uppercase tracking-wider">
+                <div className="p-5 rounded-2xl border-2 border-[#274690]/30 dark:border-[#274690]/60 bg-[#274690]/5 dark:bg-[#274690]/15 space-y-3">
+                  <div className="flex items-center gap-2 text-[#274690] dark:text-[#8fb1ec] font-bold text-xs uppercase tracking-wider">
                     <PenTool className="w-4 h-4" /> Next Step: E-Signature Routing
                   </div>
-                  <p className="text-xs text-indigo-700 dark:text-indigo-300">
+                  <p className="text-xs text-slate-600 dark:text-slate-300">
                     This document has passed enterprise verification. You can dispatch it directly for digital signature right now.
                   </p>
                   <button
@@ -518,7 +552,7 @@ export default function ApprovalWorkspace({
                       setSignerName(doc.clientName || "");
                       setSignerEmail(doc.clientEmail || "");
                     }}
-                    className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-md shadow-indigo-500/20 flex items-center justify-center gap-2 transition"
+                    className="w-full py-2.5 rounded-xl bg-[#274690] hover:bg-[#1f3561] text-white text-xs font-bold shadow-md shadow-[#274690]/25 flex items-center justify-center gap-2 transition"
                   >
                     <PenTool className="w-4 h-4" />
                     <span>Send for Signature Now</span>
@@ -531,7 +565,7 @@ export default function ApprovalWorkspace({
             <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 flex items-center justify-between">
               <button
                 onClick={() => setActiveRequest(null)}
-                className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-400"
+                className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
               >
                 Close
               </button>
@@ -541,27 +575,40 @@ export default function ApprovalWorkspace({
                   <button
                     onClick={() => handleAction("REQUEST_CHANGES")}
                     disabled={isSubmittingAction}
-                    className="px-3 py-2 rounded-xl bg-orange-100 dark:bg-orange-950 text-orange-700 dark:text-orange-300 text-xs font-semibold hover:bg-orange-200"
+                    className="px-3 py-2 rounded-xl bg-orange-100 dark:bg-orange-950 text-orange-700 dark:text-orange-300 text-xs font-semibold hover:bg-orange-200 transition disabled:opacity-50"
                   >
                     Request Changes
                   </button>
                   <button
                     onClick={() => handleAction("REJECT")}
                     disabled={isSubmittingAction}
-                    className="px-3 py-2 rounded-xl bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 text-xs font-semibold hover:bg-rose-200"
+                    className="px-3 py-2 rounded-xl bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 text-xs font-semibold hover:bg-rose-200 transition disabled:opacity-50"
                   >
                     Reject
                   </button>
+                  {role !== "ORGANISATION_ADMIN" && (
+                    <button
+                      onClick={() => handleAction("FORWARD")}
+                      disabled={isSubmittingAction}
+                      className="px-3.5 py-2 rounded-xl bg-[#274690]/10 hover:bg-[#274690]/20 dark:bg-[#274690]/25 dark:hover:bg-[#274690]/35 border border-[#274690]/30 text-[#274690] dark:text-[#8fb1ec] text-xs font-bold transition disabled:opacity-50 flex items-center gap-1.5"
+                    >
+                      <CornerUpRight className="w-3.5 h-3.5" />
+                      <span>Forward</span>
+                    </button>
+                  )}
                   <button
                     onClick={() => handleAction("APPROVE")}
                     disabled={isSubmittingAction}
-                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-md shadow-emerald-500/20"
+                    className="px-4 py-2 rounded-xl bg-[#274690] hover:bg-[#1f3561] text-white text-xs font-bold shadow-md shadow-[#274690]/25 transition disabled:opacity-50 flex items-center gap-1.5"
                   >
-                    {role === "TEAM_LEADER"
-                      ? "Approve & Send to Dept Manager"
-                      : role === "DEPARTMENT_MANAGER"
-                      ? "Approve & Send to Org Admin"
-                      : "Final Approve Document"}
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>
+                      {role === "TEAM_LEADER"
+                        ? "Approve & Send to Dept Manager"
+                        : role === "DEPARTMENT_MANAGER"
+                        ? "Approve & Send to Org Admin"
+                        : "Final Approve Document"}
+                    </span>
                   </button>
                 </div>
               )}
@@ -585,7 +632,7 @@ export default function ApprovalWorkspace({
                   placeholder="e.g. John Doe"
                   value={signerName}
                   onChange={(e) => setSignerName(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#274690] focus:border-[#274690]"
                 />
               </div>
               <div>
@@ -595,7 +642,7 @@ export default function ApprovalWorkspace({
                   placeholder="signer@company.com"
                   value={signerEmail}
                   onChange={(e) => setSignerEmail(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#274690] focus:border-[#274690]"
                 />
               </div>
             </div>
@@ -604,7 +651,7 @@ export default function ApprovalWorkspace({
               <button
                 onClick={handleSendForSignature}
                 disabled={isDispatchingSignature || !signerEmail}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl disabled:opacity-50"
+                className="px-4 py-2 bg-[#274690] hover:bg-[#1f3561] text-white text-xs font-bold rounded-xl disabled:opacity-50 shadow-md shadow-[#274690]/25 transition"
               >
                 {isDispatchingSignature ? "Dispatching..." : "Send for Signature"}
               </button>

@@ -246,8 +246,26 @@ const getNotifications = async (req, res) => {
 
 const markNotificationRead = async (req, res) => {
   try {
-    const result = await employeeService.markNotificationRead(req.params.id);
-    return res.status(200).json({ success: true, data: result });
+    const result = await employeeService.markNotificationRead(req.params.id, req);
+    return res.status(200).json({ success: true, data: result, message: "Marked as read." });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const markNotificationUnread = async (req, res) => {
+  try {
+    const result = await employeeService.markNotificationUnread(req.params.id);
+    return res.status(200).json({ success: true, data: result, message: "Marked as unread." });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const deleteNotification = async (req, res) => {
+  try {
+    const result = await employeeService.deleteNotification(req.params.id);
+    return res.status(200).json({ success: true, data: result, message: "Notification deleted." });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -356,6 +374,8 @@ module.exports = {
   runAiToolAction,
   getNotifications,
   markNotificationRead,
+  markNotificationUnread,
+  deleteNotification,
   updateNotificationPreferences,
   getPersonalReports,
   getProfile,

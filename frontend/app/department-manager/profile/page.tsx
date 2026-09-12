@@ -12,14 +12,8 @@ import {
   CheckCircle2,
   AlertCircle,
   Save,
-  Laptop,
-  Smartphone,
   Lock,
-  Bell,
   RefreshCw,
-  Sun,
-  Moon,
-  Monitor,
   LogOut,
   Calendar,
   Phone,
@@ -49,18 +43,6 @@ export default function DepartmentManagerProfilePage() {
     joiningDate: "2025-06-01",
     photo: "",
     lastLogin: "Today, 08:30 AM (Mac OS / Chrome 127)",
-    theme: "light",
-    activeSessions: [
-      { id: "s-1", device: "MacBook Pro (Current)", browser: "Chrome 127", location: "Mumbai, India", ip: "192.168.1.45", lastActive: "Now" },
-      { id: "s-2", device: "iPhone 15 Pro", browser: "Safari Mobile", location: "Mumbai, India", ip: "103.21.14.8", lastActive: "Yesterday, 07:15 PM" },
-    ],
-    preferences: {
-      emailNotifications: true,
-      approvalNotifications: true,
-      documentNotifications: true,
-      teamNotifications: true,
-      aiNotifications: true,
-    },
   });
 
   // Password fields
@@ -99,8 +81,6 @@ export default function DepartmentManagerProfilePage() {
         firstName: profile.firstName,
         lastName: profile.lastName,
         phone: profile.phone,
-        theme: profile.theme,
-        preferences: profile.preferences,
       }, "/department-manager/profile");
       showToast(res?.message || "Profile information updated successfully!");
     } catch (err) {
@@ -315,166 +295,6 @@ export default function DepartmentManagerProfilePage() {
             >
               <Lock size={14} className="mr-1.5" /> Update Password
             </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* Preferences & Appearance Grid */}
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        {/* Notification Preferences */}
-        <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm space-y-4">
-          <h2 className="text-sm font-black uppercase tracking-wider text-slate-900 border-b border-slate-100 pb-3">
-            Notification Preferences
-          </h2>
-
-          <div className="space-y-3 text-xs font-semibold text-slate-700">
-            <label className="flex items-center justify-between rounded-xl bg-slate-50 p-3">
-              <span>Email Notifications</span>
-              <input
-                type="checkbox"
-                checked={profile.preferences?.emailNotifications}
-                onChange={(e) =>
-                  setProfile({
-                    ...profile,
-                    preferences: { ...profile.preferences, emailNotifications: e.target.checked },
-                  })
-                }
-                className="h-4 w-4 rounded text-[#274690]"
-              />
-            </label>
-
-            <label className="flex items-center justify-between rounded-xl bg-slate-50 p-3">
-              <span>Approval Alerts</span>
-              <input
-                type="checkbox"
-                checked={profile.preferences?.approvalNotifications}
-                onChange={(e) =>
-                  setProfile({
-                    ...profile,
-                    preferences: { ...profile.preferences, approvalNotifications: e.target.checked },
-                  })
-                }
-                className="h-4 w-4 rounded text-[#274690]"
-              />
-            </label>
-
-            <label className="flex items-center justify-between rounded-xl bg-slate-50 p-3">
-              <span>Document Submission Alerts</span>
-              <input
-                type="checkbox"
-                checked={profile.preferences?.documentNotifications}
-                onChange={(e) =>
-                  setProfile({
-                    ...profile,
-                    preferences: { ...profile.preferences, documentNotifications: e.target.checked },
-                  })
-                }
-                className="h-4 w-4 rounded text-[#274690]"
-              />
-            </label>
-
-            <label className="flex items-center justify-between rounded-xl bg-slate-50 p-3">
-              <span>Team Workload Alerts</span>
-              <input
-                type="checkbox"
-                checked={profile.preferences?.teamNotifications}
-                onChange={(e) =>
-                  setProfile({
-                    ...profile,
-                    preferences: { ...profile.preferences, teamNotifications: e.target.checked },
-                  })
-                }
-                className="h-4 w-4 rounded text-[#274690]"
-              />
-            </label>
-
-            <label className="flex items-center justify-between rounded-xl bg-slate-50 p-3">
-              <span>AI Tool Processing Alerts</span>
-              <input
-                type="checkbox"
-                checked={profile.preferences?.aiNotifications}
-                onChange={(e) =>
-                  setProfile({
-                    ...profile,
-                    preferences: { ...profile.preferences, aiNotifications: e.target.checked },
-                  })
-                }
-                className="h-4 w-4 rounded text-[#274690]"
-              />
-            </label>
-          </div>
-
-          <div className="flex justify-end pt-2">
-            <Button
-              disabled={saving}
-              onClick={handleUpdatePersonalInfo}
-              className="bg-[#274690] text-xs font-bold text-white hover:bg-[#1f3770]"
-            >
-              Save Preferences
-            </Button>
-          </div>
-        </div>
-
-        {/* Sessions & Appearance */}
-        <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm space-y-4">
-          <h2 className="text-sm font-black uppercase tracking-wider text-slate-900 border-b border-slate-100 pb-3">
-            Appearance & Active Sessions
-          </h2>
-
-          {/* Theme Selector */}
-          <div>
-            <span className="text-[11px] font-black uppercase text-slate-500 block mb-2">Interface Theme</span>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { id: "light", label: "Light", icon: Sun },
-                { id: "dark", label: "Dark", icon: Moon },
-                { id: "system", label: "System", icon: Monitor },
-              ].map((theme) => {
-                const Icon = theme.icon;
-                const active = profile.theme === theme.id;
-                return (
-                  <button
-                    key={theme.id}
-                    type="button"
-                    onClick={() => setProfile({ ...profile, theme: theme.id })}
-                    className={`flex items-center justify-center gap-2 rounded-xl border p-2.5 text-xs font-bold transition ${
-                      active
-                        ? "border-[#274690] bg-blue-50 text-[#274690]"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    <Icon size={14} />
-                    <span>{theme.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Active Sessions */}
-          <div className="space-y-2 pt-2">
-            <span className="text-[11px] font-black uppercase text-slate-500 block">Active Device Sessions</span>
-            {profile.activeSessions.map((session, i) => (
-              <div key={i} className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/70 p-3 text-xs">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white text-slate-700 shadow-2xs">
-                    {session.device.includes("iPhone") ? <Smartphone size={16} /> : <Laptop size={16} />}
-                  </div>
-                  <div>
-                    <p className="font-bold text-slate-900">{session.device}</p>
-                    <p className="text-[10px] text-slate-400">{session.browser} • {session.location}</p>
-                  </div>
-                </div>
-                <Badge variant="outline" className="text-[10px] font-bold text-emerald-700 bg-emerald-50">
-                  {session.lastActive}
-                </Badge>
-              </div>
-            ))}
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-[11px] text-slate-600">
-            <p className="font-bold">Account Policy:</p>
-            <p className="mt-0.5">Account deletion and organisation-wide security governance are managed by your Organisation Admin.</p>
           </div>
         </div>
       </div>

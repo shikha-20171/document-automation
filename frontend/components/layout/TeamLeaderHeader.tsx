@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Search, Bell, Sparkles, Calendar, Layers, User, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ThemeToggle from "./ThemeToggle";
+import apiClient from "@/lib/axios";
 
 interface TeamLeaderHeaderProps {
   onMenuClick?: () => void;
@@ -14,7 +15,7 @@ export default function TeamLeaderHeader({ onMenuClick }: TeamLeaderHeaderProps)
   const [teamName, setTeamName] = useState("Financial Operations");
   const [leadName, setLeadName] = useState("Team Leader");
   const [departmentName, setDepartmentName] = useState("Operations & Logistics");
-  const [unreadCount, setUnreadCount] = useState(3);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [currentDate, setCurrentDate] = useState("");
 
   useEffect(() => {
@@ -36,6 +37,18 @@ export default function TeamLeaderHeader({ onMenuClick }: TeamLeaderHeaderProps)
         if (u.department_name || u.department) setDepartmentName(u.department_name || u.department);
       }
     } catch {}
+
+    const fetchUnread = async () => {
+      try {
+        const res = await apiClient.get("/team-leader/notifications");
+        const count = res?.data?.unreadCount ?? res?.data?.data?.unreadCount ?? 0;
+        setUnreadCount(count);
+      } catch {}
+    };
+
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   return (
@@ -92,8 +105,8 @@ export default function TeamLeaderHeader({ onMenuClick }: TeamLeaderHeaderProps)
           >
             <Bell size={16} />
             {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#c96f4a] text-[9px] font-black text-white ring-2 ring-white dark:ring-slate-900 animate-in zoom-in">
-                {unreadCount}
+              <span className="absolute -top-1 -right-1 flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-[#c96f4a] text-[9px] font-black text-white ring-2 ring-white dark:ring-slate-900 animate-in zoom-in">
+                {unreadCount > 99 ? "99+" : unreadCount}
               </span>
             )}
           </button>

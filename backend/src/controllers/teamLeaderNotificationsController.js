@@ -3,7 +3,13 @@ const teamLeaderService = require("../services/teamLeaderService");
 const getNotifications = async (req, res) => {
   try {
     const { unreadCount, notifications } = await teamLeaderService.getNotifications(req);
-    return res.status(200).json({ success: true, unreadCount, count: notifications.length, data: notifications });
+    return res.status(200).json({
+      success: true,
+      unreadCount,
+      count: notifications.length,
+      data: { notifications, unreadCount },
+      notifications,
+    });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }

@@ -80,6 +80,61 @@ export const workflowApi = {
     return data;
   },
 
+  // ─── Document-Centric Workflow Engine (Org Admin) ─────────────────────────
+  /** Get overview summary stats */
+  getOverviewStats: async (): Promise<ApiResponse> => {
+    const { data } = await api.get<ApiResponse>("/org-admin/workflow/overview");
+    return data;
+  },
+
+  /** Get pending / active workflow documents */
+  getPendingDocuments: async (params?: { search?: string; status?: string; documentType?: string; stage?: string }): Promise<ApiResponse> => {
+    const { data } = await api.get<ApiResponse>("/org-admin/workflow/documents", { params });
+    return data;
+  },
+
+  /** Get complete document review payload */
+  getDocumentReview: async (id: string): Promise<ApiResponse> => {
+    const { data } = await api.get<ApiResponse>(`/org-admin/workflow/documents/${id}/review`);
+    return data;
+  },
+
+  /** Approve document (Org Admin) */
+  approveDocument: async (id: string, comment?: string): Promise<ApiResponse> => {
+    const { data } = await api.post<ApiResponse>(`/org-admin/workflow/documents/${id}/approve`, { comment });
+    return data;
+  },
+
+  /** Reject document (Org Admin) */
+  rejectDocument: async (id: string, reason: string): Promise<ApiResponse> => {
+    const { data } = await api.post<ApiResponse>(`/org-admin/workflow/documents/${id}/reject`, { reason, comment: reason });
+    return data;
+  },
+
+  /** Request changes on document (Org Admin) */
+  requestDocumentChanges: async (id: string, comment: string): Promise<ApiResponse> => {
+    const { data } = await api.post<ApiResponse>(`/org-admin/workflow/documents/${id}/request-changes`, { comment, reason: comment });
+    return data;
+  },
+
+  /** Get workflow rules per document type */
+  getWorkflowConfig: async (): Promise<ApiResponse> => {
+    const { data } = await api.get<ApiResponse>("/org-admin/workflow/config");
+    return data;
+  },
+
+  /** Update workflow rules per document type */
+  updateWorkflowConfig: async (configs: any[]): Promise<ApiResponse> => {
+    const { data } = await api.put<ApiResponse>("/org-admin/workflow/config", { configs });
+    return data;
+  },
+
+  /** Get chronological workflow audit log */
+  getWorkflowAuditHistory: async (): Promise<ApiResponse> => {
+    const { data } = await api.get<ApiResponse>("/org-admin/workflow/audit-history");
+    return data;
+  },
+
   // ─── Team Leader Workflows ─────────────────────────────────────────────────
   /** Get workflows list (Team Leader) */
   getWorkflows: async (params?: { tab?: string; search?: string }): Promise<ApiResponse> => {

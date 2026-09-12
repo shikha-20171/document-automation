@@ -385,16 +385,7 @@ async function generateStructuredDocumentFromAI({
   const explicitCompany = (companyName || entities.companyName || '').trim();
   let issuingCompanyName = explicitCompany;
   if (!issuingCompanyName) {
-    const isSeedOrg = orgProfile.companyName && (
-      orgProfile.companyName.toLowerCase().includes('tcs') ||
-      orgProfile.companyName.toLowerCase().includes('tata consultancy') ||
-      orgProfile.companyName.toLowerCase().includes('dezoryn')
-    );
-    if (!isSeedOrg && orgProfile.companyName) {
-      issuingCompanyName = orgProfile.companyName;
-    } else {
-      issuingCompanyName = 'Enterprise Solutions';
-    }
+    issuingCompanyName = orgProfile.companyName || 'Dezoryn Technology';
   }
 
   const issuingLegalName = issuingCompanyName.toLowerCase().includes('ltd') || issuingCompanyName.toLowerCase().includes('inc') || issuingCompanyName.toLowerCase().includes('corp')
@@ -523,9 +514,11 @@ Return ONLY a valid JSON object matching this schema:
 
 RULES:
 1. Provide rich, highly professional, client-ready business prose.
-2. For Bid Documents, provide complete comprehensive sections (Executive Summary, Issuer Corporate Profile, Client Requirements, Proposed Solution, Functional Capabilities, Scope of Work, Technical Approach, Implementation Timeline, Roles, Assumptions, Support & SLA, Security, Commercial Proposal, Payment Terms, Terms & Conditions, Acceptance Signatures).
-3. For Quotations, itemize deliverables such that the base sum equals exactly ${baseAmount}, followed by 9% CGST and 9% SGST.
-4. Output raw JSON only.
+2. In every generated document, include a dedicated "Terms & Conditions" section with type "terms" and title "Terms & Conditions" containing the organisation's standard Terms & Conditions.
+3. In the Header or Overview section, incorporate the Organisation Document Header ("${orgProfile.headerText || ''}") and Company Details ("${(orgProfile.companyInfo || '').replace(/\n/g, ' ')}").
+4. For Bid Documents, provide complete comprehensive sections (Executive Summary, Issuer Corporate Profile, Client Requirements, Proposed Solution, Functional Capabilities, Scope of Work, Technical Approach, Implementation Timeline, Roles, Assumptions, Support & SLA, Security, Commercial Proposal, Payment Terms, Terms & Conditions, Acceptance Signatures).
+5. For Quotations, itemize deliverables such that the base sum equals exactly ${baseAmount}, followed by 9% CGST and 9% SGST.
+6. Output raw JSON only.
 `.trim();
 
   const userPrompt = `
@@ -569,6 +562,24 @@ Base Amount: ${baseAmount}
       parsed = generateHeuristicQuotationDocument(orgProfile, issuingCompanyName, issuingLegalName, effectiveClientName, projectName, baseAmount, currency, todayStr, validUntil, cleanPrompt);
     } else {
       parsed = generateHeuristicDocument(cleanPrompt, documentType, category, clientContext, templateContext, issuingCompanyName, effectiveClientName, baseAmount, projectName, orgProfile);
+    }
+  }
+
+  // 5.1 Enforce standard Terms & Conditions from organisation document settings
+  const termsText = orgProfile.termsAndConditions || (orgProfile.savedTermsAndConditions && orgProfile.savedTermsAndConditions.join('\n')) || '';
+  if (Array.isArray(parsed.content)) {
+    const existingTerms = parsed.content.find(
+      (s) => s.type === 'terms' || (s.title && s.title.toLowerCase().includes('terms'))
+    );
+    if (!existingTerms && termsText) {
+      parsed.content.push({
+        id: 'sec_terms_org',
+        type: 'terms',
+        title: 'Terms & Conditions',
+        body: termsText,
+      });
+    } else if (existingTerms && termsText && (!existingTerms.body || existingTerms.body.trim().length < 20)) {
+      existingTerms.body = termsText;
     }
   }
 
@@ -628,10 +639,18 @@ Base Amount: ${baseAmount}
     parsed.financialData = financials;
   }
 
-  // Sender Metadata snapshot from corporate profile
+  // Sender Metadata snapshot from corporate profile & saved Document Settings
   const senderData = {
     companyName: issuingCompanyName,
     legalName: issuingLegalName,
+    headerText: orgProfile.headerText || 'Dezoryn Enterprise Automated Document Intelligence',
+    footerText: orgProfile.footerText || 'Confidential • DocuCore Enterprise Platform • All Rights Reserved',
+    companyInfo: orgProfile.companyInfo || orgProfile.registeredAddress,
+    termsAndConditions: termsText,
+    pageSize: orgProfile.pageSize || 'A4',
+    orientation: orgProfile.orientation || 'Portrait',
+    defaultCurrency: orgProfile.defaultCurrency || 'INR (₹)',
+    dateFormat: orgProfile.dateFormat || 'DD/MM/YYYY',
     tagline: orgProfile.tagline,
     registeredAddress: orgProfile.registeredAddress,
     billingAddress: orgProfile.billingAddress,
@@ -672,6 +691,12 @@ Base Amount: ${baseAmount}
     clientAddress,
     clientContactPerson,
     crmClientId,
+    headerText: senderData.headerText,
+    footerText: senderData.footerText,
+    companyInfo: senderData.companyInfo,
+    termsAndConditions: senderData.termsAndConditions,
+    pageSize: senderData.pageSize,
+    orientation: senderData.orientation,
     senderData,
     recipientData,
     variables: {
@@ -681,6 +706,10 @@ Base Amount: ${baseAmount}
       project_name: projectName,
       document_date: todayStr,
       valid_until: validUntil,
+      header_text: senderData.headerText,
+      footer_text: senderData.footerText,
+      company_info: senderData.companyInfo,
+      terms_and_conditions: senderData.termsAndConditions,
       amount: parsed.financialData?.total ? formatCurrencyINR(parsed.financialData.total) : formatCurrencyINR(baseAmount),
       amount_in_words: parsed.financialData?.amountInWords || `${numberToIndianWords(baseAmount)}`,
       gstin: orgProfile.gstin,
@@ -814,7 +843,7 @@ function generateHeuristicBidDocument(orgProfile, issuingCompanyName, issuingLeg
       id: 'sec_legal_terms',
       type: 'terms',
       title: '15. Legal Terms, Governing Law & Acceptance',
-      body: `1. Intellectual Property: Upon receipt of full and final payment, complete customized source code, schemas, and IP rights transfer exclusively to ${clientName}.\n2. Confidentiality: Both parties shall treat all technical specifications and commercial terms as strictly confidential.\n3. Governing Law: This bid and any resultant contract shall be governed by the laws of India under the exclusive jurisdiction of the courts in Pune, Maharashtra.`,
+      body: orgProfile.termsAndConditions || `1. Intellectual Property: Upon receipt of full and final payment, complete customized source code, schemas, and IP rights transfer exclusively to ${clientName}.\n2. Confidentiality: Both parties shall treat all technical specifications and commercial terms as strictly confidential.\n3. Governing Law: This bid and any resultant contract shall be governed by the laws of India under the exclusive jurisdiction of the courts in Pune, Maharashtra.`,
     },
     {
       id: 'sec_signatures',
@@ -960,7 +989,7 @@ function generateHeuristicQuotationDocument(orgProfile, issuingCompanyName, issu
       id: 'sec_terms',
       type: 'terms',
       title: '7. Standard Terms & Conditions',
-      body: orgProfile.savedTermsAndConditions.join('\n'),
+      body: orgProfile.termsAndConditions || orgProfile.savedTermsAndConditions.join('\n'),
     },
     {
       id: 'sec_signature',

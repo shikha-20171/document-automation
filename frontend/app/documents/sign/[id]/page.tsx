@@ -160,11 +160,11 @@ export default function DocumentSigningPage() {
 
       if (res.data?.success) {
         setIsCompleted(true);
-        showToast("Document Signed Successfully!", "Your signature has been cryptographically registered.");
-        // Auto-redirect to documents list after 2.5 seconds
+        showToast("Document Signed Successfully!", "Cryptographic signature registered. Redirecting to Documents...");
+        // Auto-redirect to documents list after 1.5 seconds
         setTimeout(() => {
           router.push(returnTo);
-        }, 2500);
+        }, 1500);
       }
     } catch (err: any) {
       showToast("Signing Failed", err.response?.data?.message || err.message, "error");

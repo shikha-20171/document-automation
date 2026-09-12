@@ -7,14 +7,10 @@ import {
   KeyRound,
   CheckCircle2,
   AlertCircle,
-  Smartphone,
-  Laptop,
   Clock,
   LogOut,
   Save,
   Globe,
-  Bell,
-  Sparkles,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -121,12 +117,10 @@ export default function TeamLeaderProfilePage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        {/* Left Column: Basic Details (7 cols) */}
-        <div className="space-y-6 lg:col-span-7">
-          {/* Profile Card */}
-          <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm space-y-5">
-            <div className="flex items-center gap-4 border-b border-slate-100 pb-4">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        {/* Profile Card (Left) */}
+        <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm space-y-5">
+          <div className="flex items-center gap-4 border-b border-slate-100 pb-4">
               <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-linear-to-br from-[#274690] to-[#c96f4a] text-2xl font-black text-white shadow-md">
                 {fullName ? fullName.charAt(0) : "T"}
               </div>
@@ -234,66 +228,12 @@ export default function TeamLeaderProfilePage() {
                 </div>
               </div>
 
-              <div className="flex justify-end pt-2">
-                <Button size="sm" type="submit" className="rounded-xl bg-[#274690] text-xs font-bold text-white hover:bg-[#1f3561]">
-                  Update Password
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-
-        {/* Right Column: Sessions & Preferences (5 cols) */}
-        <div className="space-y-6 lg:col-span-5">
-          {/* Active Sessions */}
-          <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm space-y-4">
-            <h3 className="text-sm font-black text-[#274690] flex items-center gap-2">
-              <Shield size={16} className="text-[#c96f4a]" /> Active Login Sessions
-            </h3>
-
-            <div className="space-y-3">
-              {profile?.security?.activeSessions?.map((s: any, i: number) => (
-                <div key={i} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100">
-                  <div className="flex items-center gap-2.5">
-                    {s.device.includes("Mac") || s.device.includes("PC") ? (
-                      <Laptop size={16} className="text-[#274690]" />
-                    ) : (
-                      <Smartphone size={16} className="text-[#274690]" />
-                    )}
-                    <div>
-                      <p className="text-xs font-bold text-slate-900">{s.device}</p>
-                      <p className="text-[10px] text-slate-400 font-semibold">{s.location} • {s.ip}</p>
-                    </div>
-                  </div>
-                  {s.current && (
-                    <Badge className="bg-emerald-50 text-emerald-700 text-[9px] font-black">Current</Badge>
-                  )}
-                </div>
-              ))}
+            <div className="flex justify-end pt-2">
+              <Button size="sm" type="submit" className="rounded-xl bg-[#274690] text-xs font-bold text-white hover:bg-[#1f3561]">
+                Update Password
+              </Button>
             </div>
-          </div>
-
-          {/* Preferences */}
-          <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm space-y-3 text-xs">
-            <h3 className="text-sm font-black text-[#274690] flex items-center gap-2">
-              <Bell size={16} className="text-[#c96f4a]" /> Notification Preferences
-            </h3>
-
-            <div className="space-y-2 font-semibold text-slate-700 pt-2">
-              <div className="flex items-center justify-between">
-                <span>Email Notifications on Approvals</span>
-                <input type="checkbox" defaultChecked className="rounded text-[#274690]" />
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Task Deadline Alerts</span>
-                <input type="checkbox" defaultChecked className="rounded text-[#274690]" />
-              </div>
-              <div className="flex items-center justify-between">
-                <span>AI Processing Notifications</span>
-                <input type="checkbox" defaultChecked className="rounded text-[#274690]" />
-              </div>
-            </div>
-          </div>
+          </form>
         </div>
       </div>
     </div>

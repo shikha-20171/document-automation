@@ -173,8 +173,8 @@ export default function TeamLeaderNotificationsPage() {
                     <h4 className="text-sm font-black text-slate-900">{n.title}</h4>
                     {n.unread && <span className="h-2 w-2 rounded-full bg-[#c96f4a] animate-pulse" />}
                   </div>
-                  <p className="mt-1 text-xs text-slate-600 font-medium leading-relaxed">{n.message}</p>
-                  <span className="mt-2 inline-block text-[10px] font-bold text-slate-400">{n.time}</span>
+                  <p className="mt-1 text-xs text-slate-600 font-medium leading-relaxed">{n.message || n.description || "Notification alert"}</p>
+                  <span className="mt-2 inline-block text-[10px] font-bold text-slate-400">{n.time || (n.createdAt ? new Date(n.createdAt).toLocaleString() : "Recently")}</span>
                 </div>
               </div>
 

@@ -590,6 +590,8 @@ router.patch("/notifications/read-all", (req, res) => { req.params.id = "ALL"; r
 router.post("/notifications/read-all", (req, res) => { req.params.id = "ALL"; return employeeController.markNotificationRead(req, res); });
 router.patch("/notifications/:id/read", employeeController.markNotificationRead);
 router.post("/notifications/:id/read", employeeController.markNotificationRead);
+router.patch("/notifications/:id/unread", employeeController.markNotificationUnread);
+router.delete("/notifications/:id", employeeController.deleteNotification);
 
 /**
  * @swagger

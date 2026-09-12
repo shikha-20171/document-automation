@@ -41,7 +41,7 @@ export default function DepartmentManagerNotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<string>("all");
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [counts, setCounts] = useState({ all: 0, unread: 0, approvals: 0, documents: 0, team: 0, ai: 0 });
+  const [counts, setCounts] = useState({ all: 0, unread: 0, approvals: 0, documents: 0, team: 0 });
   const [successToast, setSuccessToast] = useState("");
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
 
@@ -50,7 +50,6 @@ export default function DepartmentManagerNotificationsPage() {
     approvalNotifications: true,
     documentNotifications: true,
     teamNotifications: true,
-    aiNotifications: true,
   });
 
   const showToast = (msg: string) => {
@@ -64,7 +63,7 @@ export default function DepartmentManagerNotificationsPage() {
       const res = await apiClient.get("/department-manager/notifications", { params: { tab: activeTab } });
       if (res?.data?.data) {
         setNotifications(res.data.data.notifications || []);
-        setCounts(res.data.data.counts || { all: 0, unread: 0, approvals: 0, documents: 0, team: 0, ai: 0 });
+        setCounts(res.data.data.counts || { all: 0, unread: 0, approvals: 0, documents: 0, team: 0 });
       }
     } catch {
       setNotifications([]);
@@ -125,9 +124,7 @@ export default function DepartmentManagerNotificationsPage() {
   const getIcon = (type: string) => {
     switch (type) {
       case "approvals":
-        return <FileCheck className="text-[#c96f4a]" size={16} />;
-      case "ai":
-        return <Sparkles className="text-[#5B53BA]" size={16} />;
+        return <FileCheck className="text-[#274690]" size={16} />;
       case "team":
         return <Users className="text-[#274690]" size={16} />;
       case "documents":
@@ -145,10 +142,10 @@ export default function DepartmentManagerNotificationsPage() {
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">Department Notifications</h1>
             {counts.unread > 0 && (
-              <Badge className="bg-[#c96f4a] text-white text-xs font-bold">{counts.unread} New</Badge>
+              <Badge className="bg-[#274690] text-white text-xs font-bold">{counts.unread} New</Badge>
             )}
           </div>
-          <p className="mt-1 text-xs text-slate-500">Live operational alerts, document submissions, team tasks, and AI processing statuses.</p>
+          <p className="mt-1 text-xs text-slate-500">Live operational alerts, document submissions, approvals, and team tasks.</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -184,7 +181,6 @@ export default function DepartmentManagerNotificationsPage() {
           { id: "documents", label: "Documents", count: counts.documents },
           { id: "approvals", label: "Approvals", count: counts.approvals },
           { id: "team", label: "Team", count: counts.team },
-          { id: "ai", label: "AI Engines", count: counts.ai },
         ].map((tab) => {
           const active = activeTab === tab.id;
           return (
@@ -252,7 +248,9 @@ export default function DepartmentManagerNotificationsPage() {
                       <span className="rounded bg-rose-100 px-1.5 py-0.2 text-[9px] font-black text-rose-700">HIGH</span>
                     )}
                   </div>
-                  <p className="mt-1 text-xs text-slate-600 leading-relaxed">{notif.description}</p>
+                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                    {notif.description || (notif as any).message || "Notification alert"}
+                  </p>
                   
                   {notif.relatedDocument && (
                     <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-[#274690]">
@@ -261,7 +259,7 @@ export default function DepartmentManagerNotificationsPage() {
                   )}
 
                   <span className="mt-1.5 block font-mono text-[10px] text-slate-400">
-                    {new Date(notif.timestamp).toLocaleString()}
+                    {notif.timestamp ? new Date(notif.timestamp).toLocaleString() : "Recently"}
                   </span>
                 </div>
               </div>
@@ -351,16 +349,6 @@ export default function DepartmentManagerNotificationsPage() {
                   type="checkbox"
                   checked={preferences.teamNotifications}
                   onChange={(e) => setPreferences({ ...preferences, teamNotifications: e.target.checked })}
-                  className="h-4 w-4 rounded text-[#274690]"
-                />
-              </label>
-
-              <label className="flex items-center justify-between rounded-xl bg-slate-50 p-3">
-                <span>AI Processing Alerts</span>
-                <input
-                  type="checkbox"
-                  checked={preferences.aiNotifications}
-                  onChange={(e) => setPreferences({ ...preferences, aiNotifications: e.target.checked })}
                   className="h-4 w-4 rounded text-[#274690]"
                 />
               </label>

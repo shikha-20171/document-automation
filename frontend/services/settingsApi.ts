@@ -27,6 +27,11 @@ export const settingsApi = {
     return data;
   },
 
+  saveSection: async (section: string, payload: any): Promise<ApiResponse> => {
+    const { data } = await api.put<ApiResponse>(`/org-admin/settings/${section}`, payload);
+    return data;
+  },
+
   // ─── Super Admin Platform Settings ──────────────────────────────────────────
   getPlatformSettings: async (): Promise<ApiResponse> => {
     const { data } = await api.get<ApiResponse>("/super-admin/settings");

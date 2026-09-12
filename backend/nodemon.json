@@ -1,0 +1,5 @@
+{
+  "watch": ["src"],
+  "ext": "js",
+  "ignore": ["src/config/org_settings_store.json", "**/*.json", "*.json"]
+}

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { UserCheck, ChevronRight, LogOut, Building2, X } from "lucide-react";
 import { employeeNavItems } from "@/lib/employeeNav";
+import apiClient from "@/lib/axios";
 
 interface EmployeeSidebarProps {
   mobileOpen?: boolean;
@@ -15,7 +16,7 @@ function getStoredEmployeeContext() {
   let teamName = "Financial Operations";
   let departmentName = "Operations & Logistics";
   let employeeName = "Priya Sharma";
-  let role = "Staff Associate";
+  let role = "Staff";
 
   if (typeof window === "undefined") {
     return { teamName, departmentName, employeeName, role };
@@ -41,6 +42,7 @@ export default function EmployeeSidebar({ mobileOpen = false, onClose }: Employe
   const [teamName, setTeamName] = useState("Financial Operations");
   const [departmentName, setDepartmentName] = useState("Operations & Logistics");
   const [employeeName, setEmployeeName] = useState("Priya Sharma");
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     const sync = () => {
@@ -52,7 +54,22 @@ export default function EmployeeSidebar({ mobileOpen = false, onClose }: Employe
 
     sync();
     window.addEventListener("storage", sync);
-    return () => window.removeEventListener("storage", sync);
+
+    const fetchUnread = async () => {
+      try {
+        const res = await apiClient.get("/employee/notifications");
+        const count = res?.data?.data?.unreadCount ?? 0;
+        setUnreadCount(count);
+      } catch {}
+    };
+
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30000);
+
+    return () => {
+      window.removeEventListener("storage", sync);
+      clearInterval(interval);
+    };
   }, []);
 
   const handleLogout = () => {
@@ -147,10 +164,17 @@ export default function EmployeeSidebar({ mobileOpen = false, onClose }: Employe
                   <span className="truncate whitespace-nowrap leading-normal">{item.name}</span>
                 </div>
 
-                <ChevronRight
-                  size={15}
-                  className={`text-[#f3b092] opacity-0 transition group-hover:opacity-100 ${isActive ? "opacity-100" : ""}`}
-                />
+                <div className="flex items-center gap-1.5">
+                  {item.name === "Notifications" && unreadCount > 0 && (
+                    <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-black text-white shadow-xs animate-in zoom-in">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
+                  <ChevronRight
+                    size={15}
+                    className={`text-[#f3b092] opacity-0 transition group-hover:opacity-100 ${isActive ? "opacity-100" : ""}`}
+                  />
+                </div>
               </div>
             </Link>
           );

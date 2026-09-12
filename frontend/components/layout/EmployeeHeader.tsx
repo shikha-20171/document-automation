@@ -26,16 +26,23 @@ export default function EmployeeHeader({ onMenuClick }: EmployeeHeaderProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [quickActionsOpen, setQuickActionsOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(3);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState<any[]>([]);
 
   useEffect(() => {
-    apiClient.get("/employee/notifications").then((res) => {
-      if (res?.data?.data) {
-        setNotifications(res.data.data.notifications?.slice(0, 4) || []);
-        setUnreadCount(res.data.data.unreadCount || 0);
-      }
-    }).catch(() => {});
+    const fetchNotifications = async () => {
+      try {
+        const res = await apiClient.get("/employee/notifications");
+        if (res?.data?.data) {
+          setNotifications(res.data.data.notifications?.slice(0, 4) || []);
+          setUnreadCount(res.data.data.unreadCount || 0);
+        }
+      } catch {}
+    };
+
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleMarkAllRead = async () => {
@@ -146,8 +153,8 @@ export default function EmployeeHeader({ onMenuClick }: EmployeeHeaderProps) {
           >
             <Bell size={17} />
             {unreadCount > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[9px] font-bold text-white shadow-sm">
-                {unreadCount}
+              <span className="absolute -right-1 -top-1 flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-rose-500 text-[9px] font-bold text-white shadow-sm">
+                {unreadCount > 99 ? "99+" : unreadCount}
               </span>
             )}
           </button>

@@ -15,26 +15,26 @@ export const notificationsApi = {
   },
 
   /** Mark single notification as unread */
-  markNotificationUnread: async (id: string | number): Promise<ApiResponse> => {
-    const { data } = await api.patch<ApiResponse>(`/department-manager/notifications/${id}/unread`);
+  markNotificationUnread: async (id: string | number, basePath = "/employee/notifications"): Promise<ApiResponse> => {
+    const { data } = await api.patch<ApiResponse>(`${basePath}/${id}/unread`);
     return data;
   },
 
   /** Mark all notifications as read */
-  markAllNotificationsRead: async (basePath = "/department-manager/notifications"): Promise<ApiResponse> => {
+  markAllNotificationsRead: async (basePath = "/employee/notifications"): Promise<ApiResponse> => {
     const { data } = await api.patch<ApiResponse>(`${basePath}/read-all`);
     return data;
   },
 
   /** Delete a notification */
-  deleteNotification: async (id: string | number, basePath = "/department-manager/notifications"): Promise<ApiResponse> => {
+  deleteNotification: async (id: string | number, basePath = "/employee/notifications"): Promise<ApiResponse> => {
     const { data } = await api.delete<ApiResponse>(`${basePath}/${id}`);
     return data;
   },
 
   /** Update notification alert preferences */
-  updateNotificationPreferences: async (prefs: NotificationPreferences): Promise<ApiResponse> => {
-    const { data } = await api.put<ApiResponse>("/employee/notifications/preferences", prefs);
+  updateNotificationPreferences: async (prefs: NotificationPreferences, basePath = "/employee/notifications/preferences"): Promise<ApiResponse> => {
+    const { data } = await api.put<ApiResponse>(basePath, prefs);
     return data;
   },
 };

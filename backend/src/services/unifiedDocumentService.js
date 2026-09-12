@@ -288,6 +288,14 @@ async function createDocument(organisationId, userId, userName, payload, req = n
   let finalSenderData = {
     companyName: orgCompanyName,
     legalName: orgLegalName,
+    headerText: senderData?.headerText || orgProfile.headerText || 'Dezoryn Enterprise Automated Document Intelligence',
+    footerText: senderData?.footerText || orgProfile.footerText || 'Confidential • DocuCore Enterprise Platform • All Rights Reserved',
+    companyInfo: senderData?.companyInfo || orgProfile.companyInfo || orgProfile.registeredAddress,
+    termsAndConditions: senderData?.termsAndConditions || orgProfile.termsAndConditions,
+    pageSize: senderData?.pageSize || orgProfile.pageSize || 'A4',
+    orientation: senderData?.orientation || orgProfile.orientation || 'Portrait',
+    defaultCurrency: senderData?.defaultCurrency || orgProfile.defaultCurrency || 'INR (₹)',
+    dateFormat: senderData?.dateFormat || orgProfile.dateFormat || 'DD/MM/YYYY',
     registeredAddress: senderData?.registeredAddress || orgProfile.registeredAddress,
     billingAddress: senderData?.billingAddress || orgProfile.billingAddress,
     email: senderData?.email || orgProfile.email,
@@ -1183,25 +1191,57 @@ async function submitForApproval(id, organisationId, payload, user, req = null) 
       role: approverRole,
     };
     if (submitterDeptId && approverRole !== 'ORGANISATION_ADMIN') {
-      approverQuery.department_id = submitterDeptId;
+      approverQuery.OR = [{ department_id: submitterDeptId }, { department_id: null }];
     }
 
-    const targetUsers = approverUserId
+    let targetUsers = approverUserId
       ? [{ id: approverUserId }]
       : await prisma.user.findMany({
           where: approverQuery,
           select: { id: true },
         });
 
-    for (const target of targetUsers) {
+    if (!approverUserId && (!targetUsers || targetUsers.length === 0)) {
+      targetUsers = await prisma.user.findMany({
+        where: { organisation_id: organisationId, role: approverRole },
+        select: { id: true },
+      });
+    }
+
+    const roleLink = approverRole === 'DEPARTMENT_MANAGER'
+      ? '/department-manager/approvals'
+      : approverRole === 'TEAM_LEADER'
+      ? '/team-leader/approvals'
+      : '/org-admin/approvals';
+
+    const notifMsg = `"${doc.title}" requires your review as ${approverRole.replace('_', ' ')}. Submitted by ${user.name || user.full_name || 'Team Member'}.`;
+
+    if (targetUsers && targetUsers.length > 0) {
+      for (const target of targetUsers) {
+        await prisma.notification.create({
+          data: {
+            organisation_id: organisationId,
+            user_id: target.id,
+            title: `Approval Required: ${doc.title}`,
+            message: notifMsg,
+            description: notifMsg,
+            type: 'APPROVAL_REQUEST',
+            category: 'APPROVALS',
+            link: roleLink,
+          },
+        }).catch(() => {});
+      }
+    } else {
       await prisma.notification.create({
         data: {
           organisation_id: organisationId,
-          user_id: target.id,
+          user_id: null,
           title: `Approval Required: ${doc.title}`,
-          message: `"${doc.title}" requires your review as ${approverRole.replace('_', ' ')}. Submitted by ${user.name || user.full_name}.`,
+          message: notifMsg,
+          description: notifMsg,
           type: 'APPROVAL_REQUEST',
-          link: `/approvals?id=${approvalReq.id}&docId=${doc.id}`,
+          category: 'APPROVALS',
+          link: roleLink,
         },
       }).catch(() => {});
     }
@@ -1257,22 +1297,39 @@ async function processApproval(id, organisationId, payload, user, req = null) {
   let nextStepOrder = approvalReq.currentStepOrder || 1;
   let actionLabel = upperAction;
 
-  if (upperAction === 'APPROVE' || upperAction === 'APPROVED' || upperAction === 'FORWARD') {
-    // Check which tier we are advancing from
-    const isAtStage1 = nextStage === 'STAGE_TEAM_LEADER' || approvalReq.assignedApproverRole === 'TEAM_LEADER';
-    const isAtStage2 = nextStage === 'STAGE_DEPARTMENT_MANAGER' || approvalReq.assignedApproverRole === 'DEPARTMENT_MANAGER';
+  const explicitForward = payload.forwardToRole ? String(payload.forwardToRole).toUpperCase() : null;
+  const isTeamLead = actingRole === 'TEAM_LEADER';
+  const isDeptManager = actingRole === 'DEPARTMENT_MANAGER';
+  const isOrgAdmin = actingRole === 'ORGANISATION_ADMIN' || actingRole === 'SUPER_ADMIN';
 
-    if (isAtStage1 && actingRole !== 'ORGANISATION_ADMIN' && actingRole !== 'SUPER_ADMIN') {
-      // Step 1: Team Leader approves -> Forward to Department Manager (Step 2)
+  if (upperAction === 'APPROVE' || upperAction === 'APPROVED' || upperAction === 'FORWARD') {
+    if (explicitForward === 'ORGANISATION_ADMIN') {
+      nextStage = 'STAGE_ORGANISATION_ADMIN';
+      nextApproverRole = 'ORGANISATION_ADMIN';
+      nextStepOrder = 3;
+      finalReqStatus = 'PENDING';
+      newDocStatus = 'PENDING_APPROVAL';
+      newApprovalStatus = 'PENDING_APPROVAL';
+      actionLabel = `FORWARDED_TO_ORGANISATION_ADMIN_BY_${actingRole}`;
+    } else if (explicitForward === 'DEPARTMENT_MANAGER') {
       nextStage = 'STAGE_DEPARTMENT_MANAGER';
       nextApproverRole = 'DEPARTMENT_MANAGER';
       nextStepOrder = 2;
       finalReqStatus = 'PENDING';
       newDocStatus = 'PENDING_APPROVAL';
       newApprovalStatus = 'PENDING_APPROVAL';
-      actionLabel = 'APPROVED_BY_TEAM_LEAD_FORWARDED_TO_DEPT_MANAGER';
-    } else if (isAtStage2 && actingRole !== 'ORGANISATION_ADMIN' && actingRole !== 'SUPER_ADMIN') {
-      // Step 2: Department Manager approves -> Forward to Organisation Admin (Step 3)
+      actionLabel = `FORWARDED_TO_DEPARTMENT_MANAGER_BY_${actingRole}`;
+    } else if (isOrgAdmin) {
+      // Tier 3 (Org Admin / Super Admin) -> Final Enterprise Approval!
+      nextStage = 'APPROVED';
+      nextApproverRole = null;
+      nextStepOrder = 3;
+      finalReqStatus = 'APPROVED';
+      newApprovalStatus = 'APPROVED';
+      newDocStatus = doc.signatureRequired ? 'PENDING_SIGNATURE' : 'APPROVED';
+      actionLabel = 'FINAL_APPROVAL_GRANTED';
+    } else if (isDeptManager) {
+      // Tier 2 (Department Manager) -> Forward to Organisation Admin
       nextStage = 'STAGE_ORGANISATION_ADMIN';
       nextApproverRole = 'ORGANISATION_ADMIN';
       nextStepOrder = 3;
@@ -1280,8 +1337,35 @@ async function processApproval(id, organisationId, payload, user, req = null) {
       newDocStatus = 'PENDING_APPROVAL';
       newApprovalStatus = 'PENDING_APPROVAL';
       actionLabel = 'APPROVED_BY_DEPT_MANAGER_FORWARDED_TO_ORG_ADMIN';
+    } else if (isTeamLead) {
+      // Tier 1 (Team Leader) -> Forward to Department Manager
+      nextStage = 'STAGE_DEPARTMENT_MANAGER';
+      nextApproverRole = 'DEPARTMENT_MANAGER';
+      nextStepOrder = 2;
+      finalReqStatus = 'PENDING';
+      newDocStatus = 'PENDING_APPROVAL';
+      newApprovalStatus = 'PENDING_APPROVAL';
+      actionLabel = 'APPROVED_BY_TEAM_LEAD_FORWARDED_TO_DEPT_MANAGER';
+    } else if (nextStepOrder === 1 || approvalReq.assignedApproverRole === 'TEAM_LEADER' || nextStage === 'STAGE_TEAM_LEADER') {
+      // Fallback Step 1 -> Step 2
+      nextStage = 'STAGE_DEPARTMENT_MANAGER';
+      nextApproverRole = 'DEPARTMENT_MANAGER';
+      nextStepOrder = 2;
+      finalReqStatus = 'PENDING';
+      newDocStatus = 'PENDING_APPROVAL';
+      newApprovalStatus = 'PENDING_APPROVAL';
+      actionLabel = 'APPROVED_STEP_1_FORWARDED_TO_DEPT_MANAGER';
+    } else if (nextStepOrder === 2 || approvalReq.assignedApproverRole === 'DEPARTMENT_MANAGER' || nextStage === 'STAGE_DEPARTMENT_MANAGER') {
+      // Fallback Step 2 -> Step 3
+      nextStage = 'STAGE_ORGANISATION_ADMIN';
+      nextApproverRole = 'ORGANISATION_ADMIN';
+      nextStepOrder = 3;
+      finalReqStatus = 'PENDING';
+      newDocStatus = 'PENDING_APPROVAL';
+      newApprovalStatus = 'PENDING_APPROVAL';
+      actionLabel = 'APPROVED_STEP_2_FORWARDED_TO_ORG_ADMIN';
     } else {
-      // Step 3 (or Org Admin approving directly): Final Executive Approval!
+      // Fallback Step 3 -> Final Approval
       nextStage = 'APPROVED';
       nextApproverRole = null;
       nextStepOrder = 3;
@@ -1363,44 +1447,92 @@ async function processApproval(id, organisationId, payload, user, req = null) {
 
   // Notifications
   if (finalReqStatus === 'PENDING' && nextApproverRole) {
-    // Notify users of the next role in this department
     try {
       const nextQuery = {
         organisation_id: organisationId,
         role: nextApproverRole,
       };
       if (doc.departmentId && nextApproverRole !== 'ORGANISATION_ADMIN') {
-        nextQuery.department_id = doc.departmentId;
+        nextQuery.OR = [{ department_id: doc.departmentId }, { department_id: null }];
       }
-      const nextApprovers = await prisma.user.findMany({
+      let nextApprovers = await prisma.user.findMany({
         where: nextQuery,
         select: { id: true },
       });
+      if (!nextApprovers || nextApprovers.length === 0) {
+        nextApprovers = await prisma.user.findMany({
+          where: { organisation_id: organisationId, role: nextApproverRole },
+          select: { id: true },
+        });
+      }
+
+      const roleLink = nextApproverRole === 'DEPARTMENT_MANAGER'
+        ? '/department-manager/approvals'
+        : nextApproverRole === 'TEAM_LEADER'
+        ? '/team-leader/approvals'
+        : '/org-admin/approvals';
+
       for (const target of nextApprovers) {
         await prisma.notification.create({
           data: {
             organisation_id: organisationId,
             user_id: target.id,
             title: `Document Forwarded for Approval: ${doc.title}`,
-            message: `"${doc.title}" was reviewed by ${user.name || user.full_name} and forwarded to you for ${nextApproverRole.replace('_', ' ')} sign-off.`,
+            message: `"${doc.title}" was reviewed by ${user.name || user.full_name || actingRole} and forwarded to you for ${nextApproverRole.replace('_', ' ')} review.`,
+            description: `"${doc.title}" was reviewed by ${user.name || user.full_name || actingRole} and forwarded to you for ${nextApproverRole.replace('_', ' ')} review.`,
             type: 'APPROVAL_REQUEST',
-            link: `/approvals?id=${approvalReq.id}&docId=${doc.id}`,
+            category: 'APPROVALS',
+            link: roleLink,
+          },
+        }).catch(() => {});
+      }
+
+      if (!nextApprovers || nextApprovers.length === 0) {
+        await prisma.notification.create({
+          data: {
+            organisation_id: organisationId,
+            user_id: null,
+            title: `Document Forwarded for Approval: ${doc.title}`,
+            message: `"${doc.title}" was reviewed by ${user.name || user.full_name || actingRole} and forwarded for ${nextApproverRole.replace('_', ' ')} review.`,
+            description: `"${doc.title}" was reviewed by ${user.name || user.full_name || actingRole} and forwarded for ${nextApproverRole.replace('_', ' ')} review.`,
+            type: 'APPROVAL_REQUEST',
+            category: 'APPROVALS',
+            link: roleLink,
           },
         }).catch(() => {});
       }
     } catch (_) {}
   } else if (finalReqStatus === 'APPROVED' || finalReqStatus === 'REJECTED' || newApprovalStatus === 'CHANGES_REQUESTED') {
-    // Notify submitter/creator
-    if (doc.createdByUserId) {
+    // Notify submitter/creator across roles
+    const creatorId = doc.createdByUserId || approvalReq.requestedById;
+    if (creatorId) {
       try {
+        const creatorUser = await prisma.user.findUnique({
+          where: { id: creatorId },
+          select: { role: true },
+        }).catch(() => null);
+        const creatorRole = (creatorUser?.role || 'STAFF').toUpperCase();
+        const submitterLink = creatorRole === 'STAFF' || creatorRole === 'EMPLOYEE'
+          ? '/employee/approvals'
+          : creatorRole === 'TEAM_LEADER'
+          ? '/team-leader/approvals'
+          : creatorRole === 'DEPARTMENT_MANAGER'
+          ? '/department-manager/approvals'
+          : '/org-admin/approvals';
+
+        const notifTitle = finalReqStatus === 'APPROVED' ? `Document Approved: ${doc.title}` : `Document ${newApprovalStatus.replace('_', ' ')}: ${doc.title}`;
+        const notifBody = `Your document "${doc.title}" has been ${newApprovalStatus.toLowerCase().replace('_', ' ')} by ${user.name || user.full_name || 'Reviewer'}. ${comments ? `Feedback: "${comments}"` : ''}`;
+
         await prisma.notification.create({
           data: {
             organisation_id: organisationId,
-            user_id: doc.createdByUserId,
-            title: finalReqStatus === 'APPROVED' ? `Document Approved: ${doc.title}` : `Document ${newApprovalStatus}: ${doc.title}`,
-            message: `Your document "${doc.title}" has been ${newApprovalStatus.toLowerCase().replace('_', ' ')} by ${user.name || user.full_name}. ${comments ? `Feedback: "${comments}"` : ''}`,
+            user_id: creatorId,
+            title: notifTitle,
+            message: notifBody,
+            description: notifBody,
             type: finalReqStatus === 'APPROVED' ? 'APPROVAL_SUCCESS' : 'APPROVAL_UPDATE',
-            link: `/documents/editor?id=${doc.id}`,
+            category: 'APPROVALS',
+            link: submitterLink,
           },
         }).catch(() => {});
       } catch (_) {}
@@ -1627,7 +1759,7 @@ async function signDocument(envelopeIdOrDocId, recipientIdOrPayload, signatureDa
 
   if (pendingCount === 0) {
     envelopeCompleted = true;
-    const resolvedDocId = signer.envelope?.unifiedDocumentId || signer.envelope?.documentId || envelope?.unifiedDocumentId || envelopeIdOrDocId;
+    const resolvedDocId = envelope?.unifiedDocumentId || signer?.envelope?.unifiedDocumentId || signer?.envelope?.documentId || envelopeIdOrDocId;
     const certString = `DOCUCORE-CERT-${envelopeId}-${resolvedDocId}-${Date.now()}`;
     certHash = `SHA256:${crypto.createHash('sha256').update(certString).digest('hex')}`;
 
@@ -1641,7 +1773,7 @@ async function signDocument(envelopeIdOrDocId, recipientIdOrPayload, signatureDa
     });
 
     // Mark Unified Document COMPLETED
-    const targetDocId = signer.envelope?.unifiedDocumentId || envelope?.unifiedDocumentId || (resolvedDocId && resolvedDocId.includes('-') ? resolvedDocId : null);
+    const targetDocId = envelope?.unifiedDocumentId || signer?.envelope?.unifiedDocumentId || (resolvedDocId && typeof resolvedDocId === 'string' && resolvedDocId.includes('-') ? resolvedDocId : null);
     if (targetDocId) {
       const doc = await prisma.unifiedDocument.update({
         where: { id: targetDocId },
@@ -1650,6 +1782,15 @@ async function signDocument(envelopeIdOrDocId, recipientIdOrPayload, signatureDa
           signatureStatus: 'COMPLETED',
         },
       });
+
+      await prisma.approvalRequest.updateMany({
+        where: { unifiedDocumentId: targetDocId },
+        data: {
+          status: 'APPROVED',
+          stage: 'STAGE_COMPLETED',
+          updatedAt: new Date(),
+        },
+      }).catch(() => {});
 
 
       // Immutable version snapshot of final completed document
@@ -1700,9 +1841,10 @@ async function signDocument(envelopeIdOrDocId, recipientIdOrPayload, signatureDa
     }
   } else {
     // Partially signed
-    if (signer.envelope.unifiedDocumentId) {
+    const partialDocId = envelope?.unifiedDocumentId || signer?.envelope?.unifiedDocumentId || (typeof envelopeIdOrDocId === 'string' && envelopeIdOrDocId.includes('-') ? envelopeIdOrDocId : null);
+    if (partialDocId) {
       await prisma.unifiedDocument.update({
-        where: { id: signer.envelope.unifiedDocumentId },
+        where: { id: partialDocId },
         data: { signatureStatus: 'PARTIALLY_SIGNED' },
       });
     }

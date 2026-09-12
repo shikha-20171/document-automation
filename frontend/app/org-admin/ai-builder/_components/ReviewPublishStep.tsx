@@ -89,8 +89,9 @@ export default function ReviewPublishStep({
         </head>
         <body>
           <div class="header">
-            <div class="company">${resolvedVariables.company_name || "TechCorp India Ltd"}</div>
-            <div style="font-size: 11px; color: #64748b;">Official Document Automation Copy • Classification: ${classification}</div>
+            ${resolvedVariables.header_text ? `<div style="font-size: 10px; font-weight: 700; color: #274690; text-transform: uppercase; margin-bottom: 4px;">${resolvedVariables.header_text}</div>` : ''}
+            <div class="company">${resolvedVariables.company_name || "Dezoryn Technology"}</div>
+            ${resolvedVariables.company_info ? `<div style="font-size: 10px; color: #64748b; white-space: pre-line; margin-top: 4px;">${resolvedVariables.company_info}</div>` : `<div style="font-size: 11px; color: #64748b;">Official Document Automation Copy • Classification: ${classification}</div>`}
           </div>
           <div style="white-space: pre-wrap;">${renderedContent}</div>
           <div class="footer">
@@ -101,6 +102,7 @@ export default function ReviewPublishStep({
               <div class="sign-box" style="margin-left: auto;">Signatory / Appointee<br>${resolvedVariables.employee_name || "Employee Signature"}</div>
             </div>
           </div>
+          ${resolvedVariables.footer_text ? `<div style="margin-top: 32px; border-top: 1px solid #e2e8f0; padding-top: 12px; font-size: 10px; color: #94a3b8; text-align: center;">${resolvedVariables.footer_text}</div>` : ''}
         </body>
       </html>
     `);

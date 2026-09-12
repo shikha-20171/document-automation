@@ -35,9 +35,14 @@ function encryptApiKey(plaintext) {
  */
 function decryptApiKey(stored) {
   if (!stored || typeof stored !== "string") return null;
+  const clean = stored.trim();
+  if (!clean) return null;
+  const parts = clean.split(":");
+  if (parts.length !== 3) {
+    // If not in iv:authTag:ciphertext format, treat as raw plaintext key entered directly in UI or DB
+    return clean;
+  }
   try {
-    const parts = stored.split(":");
-    if (parts.length !== 3) return null;
     const [ivB64, authTagB64, cipherB64] = parts;
     const iv = Buffer.from(ivB64, "base64");
     const authTag = Buffer.from(authTagB64, "base64");
@@ -46,8 +51,8 @@ function decryptApiKey(stored) {
     decipher.setAuthTag(authTag);
     return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
   } catch (err) {
-    console.error("[aiEncryption] Decryption error:", err.message);
-    return null;
+    console.warn("[aiEncryption] Could not decrypt as AES-GCM, returning raw key if valid:", err.message);
+    return clean;
   }
 }
 

@@ -69,9 +69,18 @@ const DEZORYN_CORPORATE_PROFILE = {
   },
 };
 
+let getOrganisationDocumentSettings = null;
+try {
+  const orgSettings = require('../controllers/orgSettingsController');
+  getOrganisationDocumentSettings = orgSettings.getOrganisationDocumentSettings;
+} catch (e) {
+  // Graceful fallback if circular dependency
+}
+
 /**
  * Retrieve the saved organisation profile for document generation.
- * Dynamically uses the current tenant organisation's name and details.
+ * Dynamically uses the current tenant organisation's name and details,
+ * merged with saved Document Settings from the Organisation Settings module.
  */
 async function getOrganisationCompanyProfile(organisationId) {
   let profile = { ...DEZORYN_CORPORATE_PROFILE };
@@ -83,9 +92,9 @@ async function getOrganisationCompanyProfile(organisationId) {
       });
 
       if (org) {
-        const orgName = org.name ? org.name.trim() : 'DocuCore Technologies';
+        const orgName = org.name ? org.name.trim() : 'Dezoryn Technology';
         const legalName = orgName.toLowerCase().includes('ltd') ? orgName : `${orgName} Pvt Ltd`;
-        const address = org.address || `${org.city || 'Mumbai'}, ${org.state || 'Maharashtra'}, ${org.country || 'India'}`;
+        const address = org.address || `${org.city || 'Gurugram'}, ${org.state || 'Haryana'}, ${org.country || 'India'}`;
 
         profile = {
           ...profile,
@@ -98,10 +107,10 @@ async function getOrganisationCompanyProfile(organisationId) {
           website: org.website || profile.website,
           registeredAddress: address,
           billingAddress: address,
-          city: org.city || 'Mumbai',
-          state: org.state || 'Maharashtra',
+          city: org.city || 'Gurugram',
+          state: org.state || 'Haryana',
           country: org.country || 'India',
-          postalCode: org.postal_code || '400001',
+          postalCode: org.postal_code || '122002',
           logoUrl: org.logo || profile.logoUrl,
           currency: org.currency || 'INR',
           authorisedSignatory: {
@@ -115,6 +124,42 @@ async function getOrganisationCompanyProfile(organisationId) {
       }
     } catch (err) {
       console.warn('[OrganisationProfileService] Profile retrieval note:', err.message);
+    }
+  }
+
+  // Inject user-configured Document Settings from Organisation Settings page
+  if (typeof getOrganisationDocumentSettings === 'function') {
+    try {
+      const docSettings = getOrganisationDocumentSettings(organisationId);
+      if (docSettings) {
+        if (docSettings.headerText) profile.headerText = docSettings.headerText;
+        if (docSettings.footerText) profile.footerText = docSettings.footerText;
+        if (docSettings.companyInfo) {
+          profile.companyInfo = docSettings.companyInfo;
+          const lines = docSettings.companyInfo.split('\n').map((l) => l.trim()).filter(Boolean);
+          if (lines.length > 0) {
+            profile.registeredAddress = lines.join(', ');
+            profile.billingAddress = lines.join(', ');
+          }
+        }
+        if (docSettings.termsAndConditions) {
+          profile.termsAndConditions = docSettings.termsAndConditions;
+          profile.savedTermsAndConditions = docSettings.termsAndConditions
+            .split('\n')
+            .map((t) => t.trim())
+            .filter(Boolean);
+        }
+        if (docSettings.defaultCurrency) {
+          profile.defaultCurrency = docSettings.defaultCurrency;
+          profile.currency = docSettings.defaultCurrency.includes('USD') ? 'USD' : 'INR';
+        }
+        if (docSettings.dateFormat) profile.dateFormat = docSettings.dateFormat;
+        if (docSettings.pageSize) profile.pageSize = docSettings.pageSize;
+        if (docSettings.orientation) profile.orientation = docSettings.orientation;
+        if (docSettings.defaultLanguage) profile.defaultLanguage = docSettings.defaultLanguage;
+      }
+    } catch (docErr) {
+      console.warn('[OrganisationProfileService] Document settings injection note:', docErr.message);
     }
   }
 

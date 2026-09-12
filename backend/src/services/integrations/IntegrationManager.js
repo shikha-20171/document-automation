@@ -437,7 +437,8 @@ class IntegrationManager {
         if (!creds || !creds.accessToken) {
           return { success: false, status: "DISCONNECTED", error: "Google Workspace is not connected. Click 'Connect with Google' first." };
         }
-        const adapter = new GoogleDriveAdapter();
+        const platformConfig = await this.getPlatformConfig("GOOGLE_WORKSPACE");
+        const adapter = new GoogleDriveAdapter(platformConfig);
         testResult = await adapter.testConnection(creds.accessToken);
       } else if (canonicalId === "MICROSOFT_365") {
         const creds = await this.getProviderCredentials(organisationId, canonicalId);
@@ -512,7 +513,8 @@ class IntegrationManager {
 
     try {
       if (canonicalId === "GOOGLE_WORKSPACE") {
-        const adapter = new GoogleDriveAdapter();
+        const platformConfig = await this.getPlatformConfig("GOOGLE_WORKSPACE");
+        const adapter = new GoogleDriveAdapter(platformConfig);
         const creds = await this.getProviderCredentials(organisationId, canonicalId);
         if (!creds || !creds.accessToken) throw new Error("Google Workspace is not connected. Connect via OAuth first.");
         

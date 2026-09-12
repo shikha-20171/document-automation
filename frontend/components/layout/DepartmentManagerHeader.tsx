@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Bell, ChevronDown, Search, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import apiClient from "@/lib/axios";
 
 import ThemeToggle from "./ThemeToggle";
 
@@ -28,6 +29,21 @@ export default function DepartmentManagerHeader({ onMenuClick }: DepartmentManag
   const router = useRouter();
   const pathname = usePathname();
   const [query, setQuery] = useState("");
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        const res = await apiClient.get("/department-manager/notifications");
+        const count = res?.data?.data?.unreadCount ?? 0;
+        setUnreadCount(count);
+      } catch {}
+    };
+
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const current = titleMap.find((item) => pathname.includes(item.match)) || titleMap[0];
 
@@ -69,9 +85,14 @@ export default function DepartmentManagerHeader({ onMenuClick }: DepartmentManag
           variant="ghost"
           onClick={() => router.push("/department-manager/notifications")}
           className="relative h-9 w-9 rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 p-0 text-slate-600 dark:text-slate-300 transition-all hover:text-[#274690] dark:hover:text-blue-400"
+          title="Notifications"
         >
           <Bell size={16} />
-          <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[#c96f4a] ring-2 ring-white dark:ring-slate-900" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-[#274690] text-[9px] font-black text-white ring-2 ring-white dark:ring-slate-900 animate-in zoom-in">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
         </Button>
 
         <ThemeToggle />
@@ -85,7 +106,7 @@ export default function DepartmentManagerHeader({ onMenuClick }: DepartmentManag
           </div>
           <div className="hidden leading-tight lg:block">
             <p className="text-xs font-black text-slate-800 dark:text-slate-100">Department Manager</p>
-            <p className="text-[10px] font-bold text-[#c96f4a]">Department Scope</p>
+            <p className="text-[10px] font-bold text-[#274690]">Department Scope</p>
           </div>
           <ChevronDown size={14} className="hidden text-slate-400 lg:block" />
         </button>

@@ -8,8 +8,13 @@ const PDFDocument = require('pdfkit');
 async function generateUnifiedDocumentPdf(document) {
   return new Promise((resolve, reject) => {
     try {
+      const sender = document.senderData || {};
+      const pageSize = sender.pageSize || 'A4';
+      const isLandscape = (sender.orientation || '').toLowerCase() === 'landscape';
+
       const doc = new PDFDocument({
-        size: 'A4',
+        size: pageSize,
+        layout: isLandscape ? 'landscape' : 'portrait',
         margin: 40,
         bufferPages: true,
       });
@@ -19,8 +24,7 @@ async function generateUnifiedDocumentPdf(document) {
       doc.on('end', () => resolve(Buffer.concat(buffers)));
       doc.on('error', (err) => reject(err));
 
-      const sender = document.senderData || {};
-      const companyName = sender.companyName || document.organisation?.name || 'Enterprise Solutions';
+      const companyName = sender.companyName || document.organisation?.name || 'Dezoryn Technology';
       const sections = Array.isArray(document.content) ? document.content : [];
 
       // Theme Colors
@@ -37,21 +41,38 @@ async function generateUnifiedDocumentPdf(document) {
       const topY = 40;
       doc.rect(40, topY, 515, 5).fill(primaryColor);
 
+      // Header Text (Organisation Default)
+      if (sender.headerText) {
+        doc
+          .fontSize(7.5)
+          .font('Helvetica-Bold')
+          .fillColor(primaryColor)
+          .text(sender.headerText.toUpperCase(), 40, topY + 9, { width: 515 });
+      }
+
+      const brandTop = sender.headerText ? topY + 22 : topY + 14;
+
       // Company Brand (Left)
       doc
-        .fontSize(16)
+        .fontSize(15)
         .font('Helvetica-Bold')
         .fillColor(primaryColor)
-        .text(companyName, 40, topY + 14, { width: 300 });
+        .text(companyName, 40, brandTop, { width: 300 });
 
       let senderY = doc.y + 2;
-      doc.fontSize(8).font('Helvetica').fillColor(mutedText);
-      if (sender.address) {
+      doc.fontSize(7.5).font('Helvetica').fillColor(mutedText);
+      if (sender.companyInfo) {
+        const lines = sender.companyInfo.split('\n').filter(Boolean);
+        lines.forEach((line) => {
+          doc.text(line, 40, senderY, { width: 290 });
+          senderY = doc.y + 1.5;
+        });
+      } else if (sender.address) {
         doc.text(sender.address, 40, senderY, { width: 280 });
         senderY = doc.y + 2;
       }
       const contactBits = [sender.email, sender.phone].filter(Boolean).join(' | ');
-      if (contactBits) {
+      if (contactBits && !sender.companyInfo?.includes(sender.email)) {
         doc.text(contactBits, 40, senderY, { width: 280 });
       }
 
@@ -232,15 +253,16 @@ async function generateUnifiedDocumentPdf(document) {
       // FOOTER & PAGE NUMBERING ON ALL PAGES
       // ---------------------------------------------------------
       const range = doc.bufferedPageRange();
+      const footerNotice = sender.footerText || `${document.documentNumber || 'DOCUMENT'} • v${document.currentVersion || 1}.0 • Generated via DocuCore AI`;
       for (let i = range.start; i < range.start + range.count; i++) {
         doc.switchToPage(i);
         doc.strokeColor(borderColor).lineWidth(0.5).moveTo(40, 800).lineTo(555, 800).stroke();
         doc
-          .fontSize(7)
+          .fontSize(7.5)
           .font('Helvetica')
           .fillColor(mutedText)
           .text(
-            `${document.documentNumber || 'DOCUMENT'} • v${document.currentVersion || 1}.0 • Generated via DocuCore AI • Page ${i + 1} of ${range.count}`,
+            `${footerNotice}  •  Page ${i + 1} of ${range.count}`,
             40,
             806,
             { align: 'center', width: 515 }

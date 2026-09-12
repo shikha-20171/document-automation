@@ -49,7 +49,7 @@ export type BuilderMode = "START" | "EDITOR";
 
 export interface DocumentSection {
   id: string;
-  type: "header" | "text" | "table" | "financial" | "signature";
+  type: "header" | "text" | "table" | "financial" | "signature" | "terms";
   title: string;
   body?: string;
   tableData?: {
@@ -64,6 +64,45 @@ export interface DocumentSection {
   }[];
   taxPercent?: number;
 }
+
+export const getDefaultSectionsForTemplate = (name?: string, docType?: string, desc?: string): DocumentSection[] => [
+  {
+    id: "sec_1",
+    type: "header",
+    title: `${name || docType || "Document"} - Scope & Objectives`,
+    body: desc || `Official ${docType || "document"} detailing terms, deliverables, and specifications for {{client_name}}.`,
+  },
+  {
+    id: "sec_2",
+    type: "text",
+    title: "1. Deliverables & Technical Specifications",
+    body: "• Implementation deliverables and milestone timeline.\n• Service Level Agreement (SLA) and uptime commitments.\n• Operational compliance and security requirements.",
+  },
+  {
+    id: "sec_3",
+    type: "table",
+    title: "2. Commercial Schedule & Line Items",
+    tableData: {
+      headers: ["Item No.", "Description / Deliverable", "Qty", "Unit Rate (INR)", "Total (INR)"],
+      rows: [
+        ["1", "Core Solution Architecture & Licensing", "1", "1,50,000", "1,50,000"],
+        ["2", "Integration & Deployment Handover", "1", "50,000", "50,000"],
+      ],
+    },
+  },
+  {
+    id: "sec_4",
+    type: "terms",
+    title: "3. Terms & Commercial Conditions",
+    body: "• Invoices are payable within 30 days from execution date.\n• Proprietary software, data, and intellectual property remain protected under NDA.\n• 30-day warranty coverage begins immediately upon formal sign-off.",
+  },
+  {
+    id: "sec_5",
+    type: "signature",
+    title: "4. Execution & Signatures",
+    body: "In witness whereof, the parties hereto have executed this document by their duly authorized representatives.",
+  },
+];
 
 function CleanDocumentBuilderInner({
   role,
@@ -101,6 +140,19 @@ function CleanDocumentBuilderInner({
   );
   const [companyName, setCompanyName] = useState<string>("");
 
+  // Organisation Document Settings (from Settings > Document Settings)
+  const [docHeader, setDocHeader] = useState<string>("Dezoryn Enterprise Automated Document Intelligence");
+  const [docFooter, setDocFooter] = useState<string>("Confidential • DocuCore Enterprise Platform • All Rights Reserved");
+  const [docCompanyInfo, setDocCompanyInfo] = useState<string>(
+    "Dezoryn Technology Pvt Ltd\nCIN: U72900DL2024PTC123456\nGSTIN: 07AAAAA0000A1Z5\nRegistered Office: Building 4B, Cyber City, Phase 3, Gurugram, India"
+  );
+  const [docTerms, setDocTerms] = useState<string>(
+    "1. Invoices are payable within thirty (30) days from invoice date.\n2. Late payments incur a fee of 1.5% per month or statutory limit.\n3. All confidential information is protected under standard NDA provisions."
+  );
+  const [docCurrency, setDocCurrency] = useState<string>("INR (₹)");
+  const [docPageSize, setDocPageSize] = useState<string>("A4");
+  const [docOrientation, setDocOrientation] = useState<string>("Portrait");
+
   // Sections in Editor Canvas
   const [sections, setSections] = useState<DocumentSection[]>([]);
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
@@ -133,6 +185,7 @@ function CleanDocumentBuilderInner({
   const [selectedTemplate, setSelectedTemplate] = useState<any | null>(null);
   const [templateVariables, setTemplateVariables] = useState<Record<string, string>>({});
   const [showTemplateModal, setShowTemplateModal] = useState<boolean>(false);
+  const [isFromTemplate, setIsFromTemplate] = useState<boolean>(false);
 
   // Save as Template Modal States
   const [showSaveTemplateModal, setShowSaveTemplateModal] = useState<boolean>(false);
@@ -190,6 +243,30 @@ function CleanDocumentBuilderInner({
     setTimeout(() => setToast(null), 4000);
   };
 
+  // Load Organisation Document Settings (Header, Footer, Company Info, Terms, etc.) on mount
+  useEffect(() => {
+    apiClient
+      .get("/api/org-admin/settings")
+      .then((res) => {
+        if (res.data?.success && res.data.data) {
+          const { documentSettings, profile } = res.data.data;
+          if (profile?.name && !companyName) {
+            setCompanyName(profile.name);
+          }
+          if (documentSettings) {
+            if (documentSettings.headerText) setDocHeader(documentSettings.headerText);
+            if (documentSettings.footerText) setDocFooter(documentSettings.footerText);
+            if (documentSettings.companyInfo) setDocCompanyInfo(documentSettings.companyInfo);
+            if (documentSettings.termsAndConditions) setDocTerms(documentSettings.termsAndConditions);
+            if (documentSettings.defaultCurrency) setDocCurrency(documentSettings.defaultCurrency);
+            if (documentSettings.pageSize) setDocPageSize(documentSettings.pageSize);
+            if (documentSettings.orientation) setDocOrientation(documentSettings.orientation);
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Load existing document if docId is passed in URL query or props
   useEffect(() => {
     const qDocId = searchParams.get("docId") || initialDocId;
@@ -209,6 +286,12 @@ function CleanDocumentBuilderInner({
             if (d.senderData?.companyName) {
               setCompanyName(d.senderData.companyName);
             }
+            if (d.senderData?.headerText) setDocHeader(d.senderData.headerText);
+            if (d.senderData?.footerText) setDocFooter(d.senderData.footerText);
+            if (d.senderData?.companyInfo) setDocCompanyInfo(d.senderData.companyInfo);
+            if (d.senderData?.termsAndConditions) setDocTerms(d.senderData.termsAndConditions);
+            if (d.senderData?.pageSize) setDocPageSize(d.senderData.pageSize);
+            if (d.senderData?.orientation) setDocOrientation(d.senderData.orientation);
             if (d.status === "COMPLETED" || d.signatureStatus === "SIGNED") {
               setIsSigned(true);
               setSignatureMeta({
@@ -242,8 +325,11 @@ function CleanDocumentBuilderInner({
     }
   }, [searchParams, initialDocId]);
 
-  // Check if template payload was passed via sessionStorage (from Templates page "Use Template")
+  // Check if template was requested (via searchParams or sessionStorage)
   useEffect(() => {
+    const fromTemplateParam = searchParams.get("fromTemplate") || searchParams.get("templateId");
+
+    // 1. First check if payload in sessionStorage
     try {
       const stored = sessionStorage.getItem("active_template_payload");
       if (stored) {
@@ -254,38 +340,70 @@ function CleanDocumentBuilderInner({
           setNewTemplateName(payload.templateName || "");
           setDocumentTitle(payload.templateName || "Template");
         } else {
-          setDocumentTitle(`${payload.templateName || "Template"} Draft`);
+          setDocumentTitle(payload.templateName || "Document");
         }
         setDocumentType(payload.documentType || "Document");
         setCategory(payload.category || "General");
 
-        let appliedSections = payload.sections || [];
+        let appliedSections = Array.isArray(payload.sections) && payload.sections.length > 0
+          ? payload.sections
+          : getDefaultSectionsForTemplate(payload.templateName, payload.documentType);
+
         if (payload.variables && typeof payload.variables === "object") {
           const varEntries = Object.entries(payload.variables);
           appliedSections = appliedSections.map((sec: any) => {
             let bodyStr = sec.body || "";
             let titleStr = sec.title || "";
             varEntries.forEach(([k, v]) => {
-              const regex = new RegExp(`\\{\\{${k}\\}\\}`, "g");
-              bodyStr = bodyStr.replace(regex, String(v));
-              titleStr = titleStr.replace(regex, String(v));
+              if (v) {
+                const regex = new RegExp(`\\{\\{${k}\\}\\}`, "g");
+                bodyStr = bodyStr.replace(regex, String(v));
+                titleStr = titleStr.replace(regex, String(v));
+              }
             });
             return { ...sec, body: bodyStr, title: titleStr };
           });
           if (payload.variables.client_name) {
             setClientName(payload.variables.client_name);
           }
+          if (payload.variables.client_email) {
+            setClientEmail(payload.variables.client_email);
+          }
         }
         setSections(appliedSections);
+        setIsFromTemplate(true);
         setMode("EDITOR");
-        if (payload.isEditingTemplate) {
-          showToast("Template Editor", `Editing template "${payload.templateName}". You can update its sections and save.`);
-        } else {
-          showToast("Template Loaded", "Template variables populated into editor canvas.");
-        }
+        showToast("Template Opened in Editor", `Template "${payload.templateName}" loaded. You can edit all details, save, and send to client.`);
+        return;
       }
     } catch {}
-  }, []);
+
+    // 2. If fromTemplate param exists and not loaded from sessionStorage, fetch from backend API
+    if (fromTemplateParam) {
+      apiClient
+        .get(`/api/unified-templates/${fromTemplateParam}`)
+        .then((res) => {
+          if (res.data?.success && res.data.data) {
+            const t = res.data.data;
+            setDocumentTitle(t.name || "Template Document");
+            setDocumentType(t.documentType || "Document");
+            setCategory(t.category || "General");
+
+            const tplSections = Array.isArray(t.sections) && t.sections.length > 0
+              ? t.sections
+              : getDefaultSectionsForTemplate(t.name, t.documentType, t.description);
+
+            setSections(tplSections);
+            setIsFromTemplate(true);
+            setMode("EDITOR");
+            showToast("Template Loaded", `Template "${t.name}" loaded into document editor. Edit and send to client.`);
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to fetch template by ID:", err);
+        });
+    }
+  }, [searchParams]);
 
   // Read OCR prefill payload from sessionStorage (set by UnifiedOcrWorkspace "Use with AI" button)
   useEffect(() => {
@@ -414,7 +532,9 @@ function CleanDocumentBuilderInner({
     setDocumentType(selectedTemplate.documentType || "Document");
     setCategory(selectedTemplate.category || "General");
 
-    let applied = selectedTemplate.sections || [];
+    let applied = Array.isArray(selectedTemplate.sections) && selectedTemplate.sections.length > 0
+      ? selectedTemplate.sections
+      : getDefaultSectionsForTemplate(selectedTemplate.name, selectedTemplate.documentType, selectedTemplate.description);
     const entries = Object.entries(templateVariables);
     applied = applied.map((sec: any) => {
       let bodyStr = sec.body || "";
@@ -434,6 +554,7 @@ function CleanDocumentBuilderInner({
     }
 
     setSections(applied);
+    setIsFromTemplate(true);
     setShowTemplateModal(false);
     setMode("EDITOR");
   };
@@ -468,6 +589,10 @@ function CleanDocumentBuilderInner({
         if (gen.clientEmail) setClientEmail(gen.clientEmail);
         setCategory(gen.category || "Sales");
         if (gen.companyName) setCompanyName(gen.companyName);
+        if (gen.headerText || gen.senderData?.headerText) setDocHeader(gen.headerText || gen.senderData?.headerText);
+        if (gen.footerText || gen.senderData?.footerText) setDocFooter(gen.footerText || gen.senderData?.footerText);
+        if (gen.companyInfo || gen.senderData?.companyInfo) setDocCompanyInfo(gen.companyInfo || gen.senderData?.companyInfo);
+        if (gen.termsAndConditions || gen.senderData?.termsAndConditions) setDocTerms(gen.termsAndConditions || gen.senderData?.termsAndConditions);
 
         // Parse rich sections
         const rawSections = gen.content || gen.sections || [];
@@ -527,6 +652,17 @@ function CleanDocumentBuilderInner({
             });
           }
 
+          // Ensure organisation standard terms & conditions section exists
+          const effectiveTerms = gen.termsAndConditions || gen.senderData?.termsAndConditions || docTerms;
+          if (!parsedSections.some(s => s.type === "terms" || (s.title && s.title.toLowerCase().includes("terms")))) {
+            parsedSections.push({
+              id: "sec_ai_terms",
+              type: "terms",
+              title: "Terms & Conditions",
+              body: effectiveTerms || "1. Invoices are payable within thirty (30) days from invoice date.\n2. Late payments incur a fee of 1.5% per month or statutory limit.\n3. All confidential information is protected under standard NDA provisions.",
+            });
+          }
+
           // Ensure acceptance signature section exists
           if (!parsedSections.some(s => s.type === "signature")) {
             parsedSections.push({
@@ -538,6 +674,7 @@ function CleanDocumentBuilderInner({
           }
         } else {
           // Robust heuristic fallback with full rich format
+          const effectiveTerms = gen.termsAndConditions || gen.senderData?.termsAndConditions || docTerms;
           parsedSections = [
             {
               id: "sec_ai_1",
@@ -563,9 +700,15 @@ function CleanDocumentBuilderInner({
               taxPercent: 18,
             },
             {
+              id: "sec_ai_terms",
+              type: "terms",
+              title: "4. Standard Terms & Conditions",
+              body: effectiveTerms || "1. Invoices are payable within thirty (30) days from invoice date.\n2. Late payments incur a fee of 1.5% per month or statutory limit.\n3. All confidential information is protected under standard NDA provisions.",
+            },
+            {
               id: "sec_ai_4",
               type: "signature",
-              title: "4. Authorized Execution & Acceptance",
+              title: "5. Authorized Execution & Acceptance",
               body: "Both parties agree to execute this agreement according to the stated terms and SLA covenants.",
             },
           ];
@@ -575,6 +718,7 @@ function CleanDocumentBuilderInner({
 
         // 1. Immediately persist document to DB so it always appears in Documents list (/org-admin/documents)
         try {
+          const effectiveTerms = gen.termsAndConditions || gen.senderData?.termsAndConditions || docTerms;
           const autoDocRes = await apiClient.post("/api/unified-documents", {
             title: gen.title || `${aiDocType} for ${aiClient || "Client"}`,
             documentType: gen.documentType || aiDocType,
@@ -582,6 +726,15 @@ function CleanDocumentBuilderInner({
             clientName: (gen.clientName || aiClient || "").trim() || undefined,
             clientEmail: (gen.clientEmail || "").trim() || undefined,
             companyName: (gen.companyName || aiCompany || companyName || "").trim() || undefined,
+            senderData: {
+              companyName: gen.companyName || aiCompany || companyName || "Dezoryn Technology",
+              headerText: gen.headerText || gen.senderData?.headerText || docHeader,
+              footerText: gen.footerText || gen.senderData?.footerText || docFooter,
+              companyInfo: gen.companyInfo || gen.senderData?.companyInfo || docCompanyInfo,
+              termsAndConditions: effectiveTerms,
+              pageSize: docPageSize,
+              orientation: docOrientation,
+            },
             content: parsedSections,
             totalAmount: gen.financialData?.total || 590000,
             date: documentDate,
@@ -732,6 +885,15 @@ function CleanDocumentBuilderInner({
         category,
         clientName: clientName.trim() || undefined,
         clientEmail: clientEmail.trim() || undefined,
+        senderData: {
+          companyName: companyName || "Dezoryn Technology",
+          headerText: docHeader,
+          footerText: docFooter,
+          companyInfo: docCompanyInfo,
+          termsAndConditions: docTerms,
+          pageSize: docPageSize,
+          orientation: docOrientation,
+        },
         content: sections,
         totalAmount: calculatedTotal > 0 ? calculatedTotal : undefined,
         date: documentDate,
@@ -1583,15 +1745,17 @@ function CleanDocumentBuilderInner({
             <span>{isSigned ? "Re-sign" : "Sign Document"}</span>
           </button>
 
-          {/* Send for Signature (DIRECT REQUESTED FEATURE) */}
-          <button
-            onClick={handleSendForSignature}
-            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-purple-700 dark:text-purple-300 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/60 dark:hover:bg-purple-900/60 rounded-lg border border-purple-200 dark:border-purple-800 transition-colors"
-            title="Route document to E-Signatures queue"
-          >
-            <FileCheck className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-            <span>Send for Signature</span>
-          </button>
+          {/* Send for Signature (Hidden when opened from template) */}
+          {!isFromTemplate && !searchParams.get("fromTemplate") && !searchParams.get("templateId") && (
+            <button
+              onClick={handleSendForSignature}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-purple-700 dark:text-purple-300 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/60 dark:hover:bg-purple-900/60 rounded-lg border border-purple-200 dark:border-purple-800 transition-colors"
+              title="Route document to E-Signatures queue"
+            >
+              <FileCheck className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+              <span>Send for Signature</span>
+            </button>
+          )}
 
           {/* Send to Client (DIRECT REQUESTED FEATURE) */}
           <button
@@ -1723,6 +1887,14 @@ function CleanDocumentBuilderInner({
           <div>
             {/* A4 Document Header with Corporate Branding */}
             <div className="border-b-2 border-indigo-600 dark:border-indigo-500 pb-6 mb-6">
+              {/* Official Header Banner from Document Settings */}
+              {docHeader && (
+                <div className="mb-3.5 pb-2 border-b border-indigo-100 dark:border-zinc-800 text-[10px] font-bold tracking-wider text-indigo-700 dark:text-indigo-400 uppercase flex items-center justify-between">
+                  <span>{docHeader}</span>
+                  <span className="text-[9px] font-normal text-slate-400 tracking-normal">Official Document Setting</span>
+                </div>
+              )}
+
               {/* COMPANY LETTERHEAD — Big prominent name at top */}
               <div className="mb-4">
                 <input
@@ -1773,7 +1945,13 @@ function CleanDocumentBuilderInner({
                       className="bg-transparent text-slate-900 dark:text-slate-100 font-medium focus:outline-none border-b border-transparent hover:border-slate-300 focus:border-indigo-500 w-full"
                     />
                   </div>
-                  <div className="text-slate-500">Enterprise Solutions & AI Architecture</div>
+                  {docCompanyInfo ? (
+                    <div className="text-[11px] text-slate-500 leading-relaxed whitespace-pre-line mt-1">
+                      {docCompanyInfo}
+                    </div>
+                  ) : (
+                    <div className="text-slate-500">Enterprise Automated Intelligence</div>
+                  )}
                 </div>
                 <div>
                   <div className="font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[10px]">
@@ -1820,13 +1998,17 @@ function CleanDocumentBuilderInner({
                   />
 
                   {/* Section Body based on Type */}
-                  {sec.type === "text" || sec.type === "header" ? (
+                  {sec.type === "text" || sec.type === "header" || sec.type === "terms" ? (
                     <textarea
-                      rows={4}
+                      rows={sec.type === "terms" ? 5 : 4}
                       value={sec.body || ""}
                       onChange={(e) => handleUpdateSection(sec.id, { body: e.target.value })}
                       placeholder="Write your section content here..."
-                      className="w-full text-xs text-slate-700 dark:text-slate-300 leading-relaxed bg-transparent border border-transparent hover:border-slate-200 focus:border-indigo-500 rounded-lg p-2 focus:outline-none resize-y"
+                      className={`w-full text-xs leading-relaxed bg-transparent border rounded-lg p-2.5 focus:outline-none resize-y ${
+                        sec.type === "terms"
+                          ? "text-slate-600 dark:text-slate-400 bg-slate-50/50 dark:bg-zinc-800/40 border-slate-200/80 dark:border-zinc-800"
+                          : "text-slate-700 dark:text-slate-300 border-transparent hover:border-slate-200 focus:border-indigo-500"
+                      }`}
                     />
                   ) : null}
 
@@ -2043,10 +2225,10 @@ function CleanDocumentBuilderInner({
             </div>
           </div>
 
-          {/* Canvas Footer */}
+          {/* Canvas Footer from Document Settings */}
           <div className="pt-8 border-t border-slate-200 dark:border-zinc-800 flex items-center justify-between text-[11px] text-slate-400">
-            <div>Official Document • Confidential & Proprietary</div>
-            <div>Generated & Managed by Enterprise Document Platform</div>
+            <div>{docFooter || "Official Document • Confidential & Proprietary"}</div>
+            <div>{docPageSize || "A4"} • {docOrientation || "Portrait"} • {docCurrency || "INR (₹)"}</div>
           </div>
         </div>
       </main>

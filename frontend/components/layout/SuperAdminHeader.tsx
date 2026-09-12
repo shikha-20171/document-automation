@@ -39,8 +39,22 @@ export default function SuperAdminHeader({ onMenuClick }: SuperAdminHeaderProps)
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const profileRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        const res = await axios.get("/super-admin/modules/notifications");
+        const count = res?.data?.data?.counts?.unread ?? 0;
+        setUnreadCount(count);
+      } catch {}
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -168,6 +182,20 @@ export default function SuperAdminHeader({ onMenuClick }: SuperAdminHeaderProps)
         </div>
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          <button
+            type="button"
+            onClick={() => router.push("/super-admin/notifications")}
+            className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shadow-xs hover:border-[#274690]/40 hover:text-[#274690] dark:hover:text-blue-400 transition"
+            title="Notifications"
+          >
+            <Bell size={16} />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-rose-500 text-[9px] font-black text-white ring-2 ring-white dark:ring-slate-900 animate-in zoom-in">
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
+          </button>
+
           <ThemeToggle />
 
           <div className="hidden h-6 w-px bg-slate-200 dark:bg-slate-700 sm:block" />

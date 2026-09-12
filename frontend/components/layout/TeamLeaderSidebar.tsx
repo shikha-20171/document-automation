@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ShieldCheck, ChevronRight, LogOut, X } from "lucide-react";
 import { teamLeaderNavItems } from "@/lib/teamLeaderNav";
+import apiClient from "@/lib/axios";
 
 interface TeamLeaderSidebarProps {
   mobileOpen?: boolean;
@@ -39,6 +40,7 @@ export default function TeamLeaderSidebar({ mobileOpen = false, onClose }: TeamL
   const [teamName, setTeamName] = useState("Financial Operations");
   const [departmentName, setDepartmentName] = useState("Operations & Logistics");
   const [leadName, setLeadName] = useState("Team Leader");
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     const sync = () => {
@@ -50,7 +52,22 @@ export default function TeamLeaderSidebar({ mobileOpen = false, onClose }: TeamL
 
     sync();
     window.addEventListener("storage", sync);
-    return () => window.removeEventListener("storage", sync);
+
+    const fetchUnread = async () => {
+      try {
+        const res = await apiClient.get("/team-leader/notifications");
+        const count = res?.data?.unreadCount ?? res?.data?.data?.unreadCount ?? 0;
+        setUnreadCount(count);
+      } catch {}
+    };
+
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30000);
+
+    return () => {
+      window.removeEventListener("storage", sync);
+      clearInterval(interval);
+    };
   }, []);
 
   const handleLogout = () => {
@@ -138,7 +155,12 @@ export default function TeamLeaderSidebar({ mobileOpen = false, onClose }: TeamL
                 </div>
 
                 <div className="flex items-center gap-1.5">
-                  {item.badge && (
+                  {item.title === "Notifications" && unreadCount > 0 && (
+                    <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-black text-white shadow-xs animate-in zoom-in">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
+                  {item.badge && item.title !== "Notifications" && (
                     <span className="rounded-full bg-[#c96f4a]/30 px-2 py-0.5 text-[11px] font-extrabold text-[#ffd6c4] border border-[#c96f4a]/40">
                       {item.badge}
                     </span>

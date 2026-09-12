@@ -13,16 +13,9 @@ import {
   Save,
   LogOut,
   Key,
-  Globe,
   Phone,
   Mail,
   User,
-  Calendar,
-  Sliders,
-  Moon,
-  Sun,
-  Clock,
-  Bell,
   Check,
 } from "lucide-react";
 import { profileApi } from "@/services/profileApi";
@@ -41,15 +34,6 @@ export default function EmployeeProfilePage() {
   const [avatarUrl, setAvatarUrl] = useState("");
   const [emergencyPhone, setEmergencyPhone] = useState("");
 
-  // Preferences State
-  const [themeMode, setThemeMode] = useState("light");
-  const [language, setLanguage] = useState("en");
-  const [dateFormat, setDateFormat] = useState("DD/MM/YYYY");
-  const [timeFormat, setTimeFormat] = useState("12h");
-  const [emailNotifs, setEmailNotifs] = useState(true);
-  const [taskNotifs, setTaskNotifs] = useState(true);
-  const [approvalNotifs, setApprovalNotifs] = useState(true);
-
   // Password Change State
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -66,12 +50,6 @@ export default function EmployeeProfilePage() {
       setBio(res.data.bio || "");
       setAvatarUrl(res.data.avatarUrl || "");
       setEmergencyPhone(res.data.emergencyContact?.phone || "");
-      if (res.data.preferences) {
-        setThemeMode(res.data.preferences.theme || "light");
-        setLanguage(res.data.preferences.language || "en");
-        setDateFormat(res.data.preferences.dateFormat || "DD/MM/YYYY");
-        setTimeFormat(res.data.preferences.timeFormat || "12h");
-      }
     }
     setLoading(false);
   };
@@ -95,17 +73,8 @@ export default function EmployeeProfilePage() {
         bio,
         avatarUrl,
         emergencyContact: { phone: emergencyPhone },
-        preferences: {
-          theme: themeMode,
-          language,
-          dateFormat,
-          timeFormat,
-          emailNotifs,
-          taskNotifs,
-          approvalNotifs,
-        },
       });
-      showToast("Personal profile & preferences updated successfully!");
+      showToast("Personal profile updated successfully!");
       fetchProfile();
     } catch (err: any) {
       alert("Failed to update profile: " + err.message);
@@ -161,7 +130,7 @@ export default function EmployeeProfilePage() {
           </div>
           <h1 className="mt-1 text-xl font-black text-slate-800 sm:text-2xl">Staff Profile & Settings</h1>
           <p className="mt-1 text-xs text-slate-500">
-            Manage your personal profile details, account security, working preferences, and active devices.
+            Manage your personal profile details and account security.
           </p>
         </div>
 
@@ -268,124 +237,7 @@ export default function EmployeeProfilePage() {
             </form>
           </div>
 
-          {/* 2. Employee Preferences */}
-          <div className="rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-sm backdrop-blur-md space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-              <div className="flex items-center gap-2">
-                <Sliders size={18} className="text-[#274690]" />
-                <h3 className="text-sm font-bold text-slate-800">Working Preferences</h3>
-              </div>
-              <span className="text-[11px] text-slate-400">Customized for your account</span>
-            </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {/* Theme Selector */}
-              <div>
-                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <Sun size={14} className="text-[#c96f4a]" />
-                  <span>Interface Theme</span>
-                </label>
-                <select
-                  value={themeMode}
-                  onChange={(e) => setThemeMode(e.target.value)}
-                  className="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-[#274690]"
-                >
-                  <option value="light">Light Mode (Default)</option>
-                  <option value="dark">Dark Mode</option>
-                  <option value="system">Follow System</option>
-                </select>
-              </div>
-
-              {/* Language Selector */}
-              <div>
-                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <Globe size={14} className="text-[#274690]" />
-                  <span>Language</span>
-                </label>
-                <select
-                  value={language}
-                  onChange={(e) => setLanguage(e.target.value)}
-                  className="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-[#274690]"
-                >
-                  <option value="en">English (US/UK)</option>
-                  <option value="hi">Hindi (हिन्दी)</option>
-                  <option value="es">Spanish (Español)</option>
-                  <option value="fr">French (Français)</option>
-                  <option value="de">German (Deutsch)</option>
-                </select>
-              </div>
-
-              {/* Date Format */}
-              <div>
-                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <Calendar size={14} className="text-[#274690]" />
-                  <span>Date Format</span>
-                </label>
-                <select
-                  value={dateFormat}
-                  onChange={(e) => setDateFormat(e.target.value)}
-                  className="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-[#274690]"
-                >
-                  <option value="DD/MM/YYYY">DD/MM/YYYY (e.g. 20/08/2026)</option>
-                  <option value="MM/DD/YYYY">MM/DD/YYYY (e.g. 08/20/2026)</option>
-                  <option value="YYYY-MM-DD">YYYY-MM-DD (e.g. 2026-08-20)</option>
-                </select>
-              </div>
-
-              {/* Time Format */}
-              <div>
-                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <Clock size={14} className="text-[#274690]" />
-                  <span>Time Format</span>
-                </label>
-                <select
-                  value={timeFormat}
-                  onChange={(e) => setTimeFormat(e.target.value)}
-                  className="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-[#274690]"
-                >
-                  <option value="12h">12-Hour (e.g. 04:30 PM)</option>
-                  <option value="24h">24-Hour (e.g. 16:30)</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Notification Preferences */}
-            <div className="pt-3 border-t border-slate-100 space-y-2">
-              <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                <Bell size={14} className="text-[#274690]" />
-                <span>Notification Preferences</span>
-              </label>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 text-xs">
-                <label className="flex items-center gap-2 rounded-xl bg-slate-50 p-2.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={emailNotifs}
-                    onChange={(e) => setEmailNotifs(e.target.checked)}
-                    className="rounded text-[#274690]"
-                  />
-                  <span className="font-semibold text-slate-700">Email Digest</span>
-                </label>
-                <label className="flex items-center gap-2 rounded-xl bg-slate-50 p-2.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={taskNotifs}
-                    onChange={(e) => setTaskNotifs(e.target.checked)}
-                    className="rounded text-[#274690]"
-                  />
-                  <span className="font-semibold text-slate-700">Task Deadlines</span>
-                </label>
-                <label className="flex items-center gap-2 rounded-xl bg-slate-50 p-2.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={approvalNotifs}
-                    onChange={(e) => setApprovalNotifs(e.target.checked)}
-                    className="rounded text-[#274690]"
-                  />
-                  <span className="font-semibold text-slate-700">Approval Results</span>
-                </label>
-              </div>
-            </div>
-          </div>
 
           {/* 3. Password & Security Credentials */}
           <div className="rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-sm backdrop-blur-md">
